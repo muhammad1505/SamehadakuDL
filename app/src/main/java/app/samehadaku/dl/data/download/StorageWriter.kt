@@ -265,7 +265,18 @@ class StorageWriter @Inject constructor(
     }
 
     /**
-     * Lists finished MediaStore downloads that belong to this app.
+     * Read access to shared storage goes through the `files` collection, never through
+     * `downloads`: providers index a finished episode by its MIME type, so an `.mkv`
+     * becomes a video row and disappears from the `downloads` collection even though
+     * it sits in `Download/SamehadakuDL/`. That mismatch is what left Koleksi empty
+     * while the folder was clearly on disk. Writes keep using [MediaStore.Downloads].
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaFileCollection(): Uri =
+        MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
+
+    /**
+     * Lists finished MediaStore files that belong to this app.
      *
      * Rows are matched by our folder name or by the owning package instead of an
      * exact `RELATIVE_PATH` prefix: providers normalise the path per OEM, users move
@@ -275,20 +286,23 @@ class StorageWriter @Inject constructor(
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun scanMediaStoreCollections(): List<StoredFolder> {
         val projection = arrayOf(
-            MediaStore.Downloads._ID,
-            MediaStore.Downloads.DISPLAY_NAME,
-            MediaStore.Downloads.SIZE,
-            MediaStore.Downloads.DATE_MODIFIED,
-            MediaStore.Downloads.RELATIVE_PATH,
-            MediaStore.Downloads.IS_PENDING,
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.DISPLAY_NAME,
+            MediaStore.MediaColumns.SIZE,
+            MediaStore.MediaColumns.DATE_MODIFIED,
+            MediaStore.MediaColumns.RELATIVE_PATH,
+            MediaStore.MediaColumns.IS_PENDING,
             MediaStore.MediaColumns.OWNER_PACKAGE_NAME,
         )
         val folders = LinkedHashMap<String, MutableList<StoredFile>>()
+        val selection = "${MediaStore.MediaColumns.IS_PENDING}=0 AND " +
+            "(${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? OR " +
+            "${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=?)"
         val cursor = context.contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            mediaFileCollection(),
             projection,
-            "${MediaStore.Downloads.IS_PENDING}=0",
-            null,
+            selection,
+            arrayOf("%/$APP_FOLDER/%", context.packageName),
             null,
         )
         if (cursor == null) {
@@ -298,12 +312,12 @@ class StorageWriter @Inject constructor(
         val packageName = context.packageName
         cursor.use {
             Log.d(TAG, "media cursor rows=${it.count}")
-            val idIndex = it.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-            val nameIndex = it.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
-            val sizeIndex = it.getColumnIndexOrThrow(MediaStore.Downloads.SIZE)
-            val dateIndex = it.getColumnIndexOrThrow(MediaStore.Downloads.DATE_MODIFIED)
-            val pathIndex = it.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
-            val pendingIndex = it.getColumnIndex(MediaStore.Downloads.IS_PENDING)
+            val idIndex = it.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+            val nameIndex = it.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+            val sizeIndex = it.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
+            val dateIndex = it.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
+            val pathIndex = it.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+            val pendingIndex = it.getColumnIndex(MediaStore.MediaColumns.IS_PENDING)
             val ownerIndex = it.getColumnIndex(MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
             while (it.moveToNext()) {
                 if (pendingIndex >= 0 && it.getInt(pendingIndex) == 1) continue
@@ -327,7 +341,7 @@ class StorageWriter @Inject constructor(
                             0L
                         },
                         uri = ContentUris.withAppendedId(
-                            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                            mediaFileCollection(),
                             it.getLong(idIndex),
                         ),
                     ),
@@ -380,21 +394,21 @@ class StorageWriter @Inject constructor(
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun deleteFolderInMediaStore(folderName: String): Int {
-        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val collection = mediaFileCollection()
         val projection = arrayOf(
-            MediaStore.Downloads._ID,
-            MediaStore.Downloads.RELATIVE_PATH,
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.RELATIVE_PATH,
         )
         val ids = mutableListOf<Long>()
         context.contentResolver.query(
             collection,
             projection,
-            "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?",
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
             arrayOf("%/$APP_FOLDER%"),
             null,
         )?.use { cursor ->
-            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-            val pathIndex = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+            val pathIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
             while (cursor.moveToNext()) {
                 val path = cursor.getString(pathIndex)?.trim('/') ?: continue
                 if (!path.contains(APP_FOLDER, ignoreCase = true)) continue
@@ -533,21 +547,18 @@ class StorageWriter @Inject constructor(
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
     private fun findInMediaStore(animeSlug: String, fileName: String): Uri? {
         val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/SamehadakuDL/$animeSlug/"
-        val projection = arrayOf(MediaStore.Downloads._ID)
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME}=? AND " +
-            "${MediaStore.Downloads.RELATIVE_PATH} IN (?, ?)"
+        val projection = arrayOf(MediaStore.MediaColumns._ID)
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND " +
+            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?)"
         return context.contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            mediaFileCollection(),
             projection,
             selection,
             arrayOf(fileName, relativePath, relativePath.trimEnd('/')),
             null,
         )?.use { cursor ->
             if (cursor.moveToFirst()) {
-                ContentUris.withAppendedId(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                    cursor.getLong(0),
-                )
+                ContentUris.withAppendedId(mediaFileCollection(), cursor.getLong(0))
             } else {
                 null
             }
@@ -597,11 +608,11 @@ class StorageWriter @Inject constructor(
         size: Long,
     ): Boolean {
         val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/SamehadakuDL/$animeSlug/"
-        val projection = arrayOf(MediaStore.Downloads.SIZE)
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME}=? AND " +
-            "${MediaStore.Downloads.RELATIVE_PATH} IN (?, ?)"
+        val projection = arrayOf(MediaStore.MediaColumns.SIZE)
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND " +
+            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?)"
         return context.contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            mediaFileCollection(),
             projection,
             selection,
             arrayOf(fileName, relativePath, relativePath.trimEnd('/')),
@@ -613,10 +624,10 @@ class StorageWriter @Inject constructor(
 
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
     private fun deleteMediaStoreEntry(fileName: String, relativePath: String) {
-        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.Downloads._ID)
-        val selection = "${MediaStore.Downloads.DISPLAY_NAME}=? AND " +
-            "${MediaStore.Downloads.RELATIVE_PATH} IN (?, ?)"
+        val collection = mediaFileCollection()
+        val projection = arrayOf(MediaStore.MediaColumns._ID)
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND " +
+            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?)"
         val ids = mutableListOf<Long>()
         context.contentResolver.query(
             collection,
