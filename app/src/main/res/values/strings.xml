@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Samehadaku DL</string>
+    <string name="notification_channel_name">Unduhan</string>
+    <string name="notification_channel_description">Progres unduhan episode</string>
+    <string name="notification_title">Samehadaku DL</string>
+</resources>

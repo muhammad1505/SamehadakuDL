@@ -1,0 +1,151 @@
+package app.samehadaku.dl.domain.model
+
+data class Episode(
+    val number: Int,
+    val url: String,
+    val slug: String,
+)
+
+enum class VideoFormat(val label: String) {
+    MKV("MKV"),
+    MP4("MP4"),
+    X265("X265"),
+    ;
+
+    companion object {
+        fun fromLabel(value: String): VideoFormat? =
+            entries.firstOrNull { it.label.equals(value, ignoreCase = true) }
+    }
+}
+
+enum class Host(val label: String) {
+    PIXELDRAIN("Pixeldrain"),
+    MEDIAFIRE("Mediafire"),
+    ;
+
+    companion object {
+        fun fromLink(url: String, text: String = ""): Host? {
+            val haystack = "$url $text".lowercase()
+            return when {
+                "pixeldrain" in haystack -> PIXELDRAIN
+                "mediafire" in haystack -> MEDIAFIRE
+                else -> null
+            }
+        }
+    }
+}
+
+enum class DownloadState {
+    QUEUED,
+    RESOLVING,
+    DOWNLOADING,
+    PAUSED,
+    DONE,
+    FAILED,
+    SKIPPED,
+    CANCELED,
+    ;
+
+    val isActive: Boolean
+        get() = this == QUEUED || this == RESOLVING || this == DOWNLOADING
+
+    val isFinished: Boolean
+        get() = this == DONE || this == FAILED || this == SKIPPED || this == CANCELED
+}
+
+data class DownloadLinks(
+    val data: Map<VideoFormat, Map<String, Map<Host, String>>> = emptyMap(),
+) {
+    val isEmpty: Boolean
+        get() = data.isEmpty()
+
+    fun formats(): List<VideoFormat> = data.keys.toList()
+
+    fun resolutions(format: VideoFormat): List<String> =
+        data[format]?.keys?.toList().orEmpty()
+
+    fun hosts(format: VideoFormat, resolution: String): List<Host> =
+        data[format]?.get(resolution)?.keys?.toList().orEmpty()
+
+    fun url(format: VideoFormat, resolution: String, host: Host): String? =
+        data[format]?.get(resolution)?.get(host)
+
+    companion object {
+        val EMPTY = DownloadLinks()
+    }
+}
+
+data class QualityOption(
+    val format: VideoFormat,
+    val resolution: String,
+    val host: Host,
+    val url: String,
+)
+
+data class TargetLink(
+    val host: Host,
+    val url: String,
+)
+
+data class DownloadTask(
+    val id: String,
+    val episodeUrl: String,
+    val episodeNumber: Int,
+    val animeSlug: String,
+    val format: VideoFormat,
+    val resolution: String,
+    val preferredHost: Host,
+    val state: DownloadState = DownloadState.QUEUED,
+    val bytesDone: Long = 0L,
+    val totalBytes: Long = 0L,
+    val speedBytesPerSecond: Long = 0L,
+    val currentHost: Host? = null,
+    val failureReasons: List<String> = emptyList(),
+    val note: String? = null,
+    val fileName: String? = null,
+    val alreadyExisted: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val finishedAt: Long? = null,
+) {
+    val progress: Float
+        get() = if (totalBytes > 0L) {
+            (bytesDone.toDouble() / totalBytes.toDouble()).toFloat().coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+
+    val episodeSlug: String
+        get() = episodeUrl.trimEnd('/').substringAfterLast('/')
+
+    companion object {
+        fun create(
+            episode: Episode,
+            animeSlug: String,
+            format: VideoFormat,
+            resolution: String,
+            preferredHost: Host,
+            id: String = java.util.UUID.randomUUID().toString(),
+        ): DownloadTask = DownloadTask(
+            id = id,
+            episodeUrl = episode.url,
+            episodeNumber = episode.number,
+            animeSlug = animeSlug,
+            format = format,
+            resolution = resolution,
+            preferredHost = preferredHost,
+        )
+    }
+}
+
+data class DetectionResult(
+    val sourceUrl: String,
+    val finalUrl: String,
+    val animeSlug: String,
+    val episodes: List<Episode>,
+    val isListPage: Boolean,
+)
+
+sealed interface HostResolveResult {
+    data class Success(val directUrl: String) : HostResolveResult
+    data class Failure(val reason: String) : HostResolveResult
+}

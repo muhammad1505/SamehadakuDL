@@ -1,0 +1,477 @@
+package app.samehadaku.dl.data.download
+
+import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.settings.SettingsRepository
+import app.samehadaku.dl.data.subscriptions.SubscriptionRepository
+import app.samehadaku.dl.domain.model.DownloadState
+import app.samehadaku.dl.domain.model.DownloadTask
+import app.samehadaku.dl.domain.repository.SiteRepository
+import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import timber.log.Timber
+
+@Singleton
+class DownloadQueue @Inject constructor(
+    private val downloader: Downloader,
+    private val siteRepository: SiteRepository,
+    private val settings: SettingsRepository,
+    private val queueStore: QueueStore,
+    private val subscriptions: SubscriptionRepository,
+) {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val ready = CompletableDeferred<Unit>()
+    private val schedulerMutex = Mutex()
+    private val persistMutex = Mutex()
+    private val activeJobs = ConcurrentHashMap<String, Job>()
+
+    private val _tasks = MutableStateFlow<List<DownloadTask>>(emptyList())
+    val tasks: StateFlow<List<DownloadTask>> = _tasks.asStateFlow()
+
+    @Volatile
+    private var concurrency: Int = 1
+
+    init {
+        scope.launch {
+            val restored = runCatching { queueStore.load() }.getOrDefault(emptyList())
+            if (restored.isNotEmpty()) {
+                var restoredActive = false
+                val normalized = restored.map { task ->
+                    if (task.state.isActive) {
+                        restoredActive = true
+                        task.copy(
+                            state = DownloadState.PAUSED,
+                            speedBytesPerSecond = 0L,
+                            currentHost = null,
+                        )
+                    } else {
+                        task
+                    }
+                }
+                _tasks.value = normalized
+                if (restoredActive) {
+                    runCatching { queueStore.save(normalized) }
+                }
+            }
+            ready.complete(Unit)
+            schedule()
+        }
+
+        scope.launch {
+            settings.concurrency.collect { value ->
+                concurrency = value
+                schedule()
+            }
+        }
+    }
+
+    suspend fun enqueue(newTasks: List<DownloadTask>) {
+        if (newTasks.isEmpty()) return
+        ready.await()
+        _tasks.update { it + newTasks }
+        persist()
+        schedule()
+    }
+
+    fun pauseAll() {
+        scope.launch {
+            ready.await()
+            val jobsToCancel = mutableListOf<Job>()
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.state.isActive) {
+                        activeJobs[task.id]?.let { jobsToCancel.add(it) }
+                        task.copy(
+                            state = DownloadState.PAUSED,
+                            speedBytesPerSecond = 0L,
+                            currentHost = null,
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            jobsToCancel.forEach { it.cancel() }
+            persist()
+        }
+    }
+
+    fun resumeAll() {
+        scope.launch {
+            ready.await()
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.state == DownloadState.PAUSED) {
+                        task.copy(
+                            state = DownloadState.QUEUED,
+                            failureReasons = emptyList(),
+                            note = null,
+                            finishedAt = null,
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            persist()
+            schedule()
+        }
+    }
+
+    fun cancelAll() {
+        scope.launch {
+            ready.await()
+            val jobsToCancel = mutableListOf<Job>()
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.state.isActive || task.state == DownloadState.PAUSED) {
+                        activeJobs[task.id]?.let { jobsToCancel.add(it) }
+                        task.copy(
+                            state = DownloadState.CANCELED,
+                            speedBytesPerSecond = 0L,
+                            finishedAt = System.currentTimeMillis(),
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            jobsToCancel.forEach { it.cancel() }
+            persist()
+        }
+    }
+
+    fun cancel(id: String) {
+        scope.launch {
+            ready.await()
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.id == id && !task.state.isFinished) {
+                        task.copy(
+                            state = DownloadState.CANCELED,
+                            speedBytesPerSecond = 0L,
+                            finishedAt = System.currentTimeMillis(),
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            activeJobs[id]?.cancel()
+            persist()
+        }
+    }
+
+    fun pause(id: String) {
+        scope.launch {
+            ready.await()
+            val target = _tasks.value.firstOrNull { it.id == id } ?: return@launch
+            if (!target.state.isActive) return@launch
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.id == id && task.state.isActive) {
+                        task.copy(
+                            state = DownloadState.PAUSED,
+                            speedBytesPerSecond = 0L,
+                            currentHost = null,
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            activeJobs[id]?.cancel()
+            persist()
+        }
+    }
+
+    fun resume(id: String) {
+        scope.launch {
+            ready.await()
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.id == id && task.state == DownloadState.PAUSED) {
+                        task.copy(
+                            state = DownloadState.QUEUED,
+                            failureReasons = emptyList(),
+                            note = null,
+                            finishedAt = null,
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            persist()
+            schedule()
+        }
+    }
+
+    fun remove(id: String) {
+        scope.launch {
+            ready.await()
+            _tasks.update { tasks ->
+                tasks.filterNot { task -> task.id == id && task.state.isFinished }
+            }
+            persist()
+        }
+    }
+
+    fun retry(id: String) {
+        scope.launch {
+            ready.await()
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.id == id && (task.state.isFinished || task.state == DownloadState.PAUSED)) {
+                        task.copy(
+                            state = DownloadState.QUEUED,
+                            bytesDone = 0L,
+                            totalBytes = 0L,
+                            speedBytesPerSecond = 0L,
+                            currentHost = null,
+                            failureReasons = emptyList(),
+                            note = null,
+                            finishedAt = null,
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            persist()
+            schedule()
+        }
+    }
+
+    fun retryFailed() {
+        scope.launch {
+            ready.await()
+            _tasks.update { tasks ->
+                tasks.map { task ->
+                    if (task.state == DownloadState.FAILED || task.state == DownloadState.SKIPPED) {
+                        task.copy(
+                            state = DownloadState.QUEUED,
+                            bytesDone = 0L,
+                            totalBytes = 0L,
+                            speedBytesPerSecond = 0L,
+                            currentHost = null,
+                            failureReasons = emptyList(),
+                            note = null,
+                            finishedAt = null,
+                        )
+                    } else {
+                        task
+                    }
+                }
+            }
+            persist()
+            schedule()
+        }
+    }
+
+    fun clearFinished() {
+        scope.launch {
+            ready.await()
+            _tasks.update { tasks -> tasks.filterNot { it.state.isFinished } }
+            persist()
+        }
+    }
+
+    private fun schedule() {
+        scope.launch {
+            ready.await()
+            schedulerMutex.withLock {
+                while (activeJobs.size < concurrency) {
+                    val next = _tasks.value.firstOrNull { it.state == DownloadState.QUEUED } ?: break
+                    startTask(next)
+                }
+            }
+        }
+    }
+
+    private fun startTask(task: DownloadTask) {
+        val current = _tasks.value.firstOrNull { it.id == task.id } ?: return
+        if (current.state != DownloadState.QUEUED) return
+
+        _tasks.update { tasks ->
+            tasks.map {
+                if (it.id == task.id) {
+                    it.copy(
+                        state = DownloadState.RESOLVING,
+                        bytesDone = 0L,
+                        totalBytes = 0L,
+                        speedBytesPerSecond = 0L,
+                        currentHost = null,
+                        failureReasons = emptyList(),
+                        note = null,
+                    )
+                } else {
+                    it
+                }
+            }
+        }
+
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            runTask(task.id)
+        }
+        activeJobs[task.id] = job
+        job.invokeOnCompletion {
+            activeJobs.remove(task.id)
+            schedule()
+        }
+        job.start()
+    }
+
+    private suspend fun runTask(taskId: String) {
+        val initial = _tasks.value.firstOrNull { it.id == taskId } ?: return
+        if (!initial.state.isActive) return
+
+        try {
+            val links = siteRepository.loadDownloadLinks(initial.episodeUrl)
+            if (links == null || links.isEmpty) {
+                finish(
+                    taskId = taskId,
+                    state = DownloadState.SKIPPED,
+                    reasons = listOf("Tautan unduhan tidak ditemukan atau episode belum rilis"),
+                )
+                return
+            }
+
+            val outcome = downloader.download(initial, links) { progress ->
+                updateProgress(taskId, progress)
+            }
+
+            when (outcome) {
+                is DownloadOutcome.Done -> finish(
+                    taskId = taskId,
+                    state = DownloadState.DONE,
+                    note = if (outcome.alreadyExisted) {
+                        "File sudah ada di penyimpanan, unduhan tidak diulang."
+                    } else {
+                        null
+                    },
+                    fileName = outcome.fileName,
+                    alreadyExisted = outcome.alreadyExisted,
+                )
+                is DownloadOutcome.Failed -> finish(
+                    taskId = taskId,
+                    state = DownloadState.FAILED,
+                    reasons = outcome.reasons,
+                )
+                is DownloadOutcome.Skipped -> finish(
+                    taskId = taskId,
+                    state = DownloadState.SKIPPED,
+                    reasons = listOf(outcome.reason),
+                )
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (verification: NeedsVerificationException) {
+            finish(
+                taskId = taskId,
+                state = DownloadState.FAILED,
+                reasons = listOf(
+                    "Perlu verifikasi Cloudflare. Buka halaman utama lalu tekan Verifikasi, " +
+                        "kemudian coba lagi.",
+                ),
+            )
+        } catch (error: Exception) {
+            Timber.w(error, "Download task failed: %s", taskId)
+            finish(
+                taskId = taskId,
+                state = DownloadState.FAILED,
+                reasons = listOf("Terjadi kesalahan: ${error.message ?: "tidak diketahui"}"),
+            )
+        }
+    }
+
+    private fun updateProgress(taskId: String, progress: DownloadProgress) {
+        _tasks.update { tasks ->
+            tasks.map { task ->
+                if (task.id == taskId && task.state.isActive) {
+                    task.copy(
+                        state = DownloadState.DOWNLOADING,
+                        bytesDone = progress.bytesDone,
+                        totalBytes = progress.totalBytes,
+                        speedBytesPerSecond = progress.speedBytesPerSecond,
+                        currentHost = progress.host,
+                        fileName = progress.fileName,
+                    )
+                } else {
+                    task
+                }
+            }
+        }
+    }
+
+    private fun finish(
+        taskId: String,
+        state: DownloadState,
+        reasons: List<String> = emptyList(),
+        note: String? = null,
+        fileName: String? = null,
+        alreadyExisted: Boolean = false,
+    ) {
+        var finishedTask: DownloadTask? = null
+        _tasks.update { tasks ->
+            tasks.map { task ->
+                if (task.id == taskId && task.state.isActive) {
+                    finishedTask = task
+                    task.copy(
+                        state = state,
+                        speedBytesPerSecond = 0L,
+                        currentHost = null,
+                        failureReasons = reasons,
+                        note = note,
+                        fileName = fileName ?: task.fileName,
+                        alreadyExisted = alreadyExisted,
+                        finishedAt = System.currentTimeMillis(),
+                        bytesDone = if (state == DownloadState.DONE) {
+                            maxOf(task.bytesDone, task.totalBytes)
+                        } else {
+                            task.bytesDone
+                        },
+                    )
+                } else {
+                    task
+                }
+            }
+        }
+        persist()
+        val completed = finishedTask
+        if (state == DownloadState.DONE && completed != null) {
+            // Keep the "last episode" of a followed anime in sync with real downloads.
+            scope.launch {
+                runCatching {
+                    subscriptions.recordDownloadedEpisode(
+                        slug = completed.animeSlug,
+                        episodeNumber = completed.episodeNumber,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun persist() {
+        scope.launch {
+            persistMutex.withLock {
+                runCatching { queueStore.save(_tasks.value) }
+            }
+        }
+    }
+}
