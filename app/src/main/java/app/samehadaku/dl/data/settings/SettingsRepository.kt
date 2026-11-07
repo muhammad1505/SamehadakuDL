@@ -58,6 +58,11 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_LAST_AUTO_CHECK_AT] ?: 0L
     }
 
+    /** Automatic retry of downloads that failed because a host link was dead. */
+    val failedRetryEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEY_FAILED_RETRY_ENABLED] ?: true
+    }
+
     suspend fun addRecentUrl(url: String) {
         val current = recentUrls.first()
         val updated = (listOf(url) + current.filterNot { it.equals(url, ignoreCase = true) })
@@ -130,6 +135,12 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { it[KEY_LAST_AUTO_CHECK_AT] = epochMillis }
     }
 
+    suspend fun setFailedRetryEnabled(enabled: Boolean) {
+        dataStore.edit { it[KEY_FAILED_RETRY_ENABLED] = enabled }
+    }
+
+    suspend fun currentFailedRetryEnabled(): Boolean = failedRetryEnabled.first()
+
     suspend fun currentAutoCheckEnabled(): Boolean = autoCheckEnabled.first()
 
     suspend fun currentAutoCheckIntervalHours(): Int = autoCheckIntervalHours.first()
@@ -177,5 +188,6 @@ class SettingsRepository @Inject constructor(
         val KEY_AUTO_CHECK_ENABLED = booleanPreferencesKey("auto_check_enabled")
         val KEY_AUTO_CHECK_INTERVAL_HOURS = intPreferencesKey("auto_check_interval_hours")
         val KEY_LAST_AUTO_CHECK_AT = longPreferencesKey("last_auto_check_at")
+        val KEY_FAILED_RETRY_ENABLED = booleanPreferencesKey("failed_retry_enabled")
     }
 }

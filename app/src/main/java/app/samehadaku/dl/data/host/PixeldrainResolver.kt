@@ -29,7 +29,7 @@ class PixeldrainResolver @javax.inject.Inject constructor() : HostResolver {
         return if (direct != null) {
             HostResolveResult.Success(direct)
         } else {
-            HostResolveResult.Failure("Link Pixeldrain tidak valid")
+            HostResolveResult.Failure("Link Pixeldrain tidak valid", permanent = true)
         }
     }
 }

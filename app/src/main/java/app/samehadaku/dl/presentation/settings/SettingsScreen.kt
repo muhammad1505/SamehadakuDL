@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Remove
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
@@ -365,6 +366,52 @@ fun SettingsScreen(
                                 "dan memberi notifikasi.",
                         )
                     }
+                }
+            }
+
+            item {
+                SettingSection(
+                    title = "Coba ulang otomatis",
+                    subtitle = "Unduhan yang gagal karena link mati",
+                    icon = Icons.Rounded.Restore,
+                    tint = Warning,
+                    badge = if (state.failedRetryEnabled) "Aktif" else "Nonaktif",
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Ulangi unduhan gagal",
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                text = "Link host sering diunggah ulang beberapa jam kemudian. " +
+                                    "Aplikasi memeriksa ulang lalu mengunduhnya sendiri.",
+                                color = TextMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Switch(
+                            checked = state.failedRetryEnabled,
+                            onCheckedChange = viewModel::setFailedRetryEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Ink,
+                                checkedTrackColor = BrandMint,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
+                                uncheckedBorderColor = Color.White.copy(alpha = 0.16f),
+                            ),
+                        )
+                    }
+                    Spacer(Modifier.height(9.dp))
+                    Caption(
+                        "Maksimal 3 kali per episode, dengan jeda 12 jam sejak percobaan " +
+                            "terakhir. Hanya unduhan gagal atau link mati yang diulang.",
+                    )
                 }
             }
 

@@ -23,6 +23,7 @@ class MediafireResolver @Inject constructor(
 
     override suspend fun resolve(url: String): HostResolveResult {
         var reason = "tombol unduh tidak ditemukan (kemungkinan file sudah dihapus)"
+        var permanent = false
 
         for (candidate in MediafireUrlParser.buildCandidates(url)) {
             val request = Request.Builder()
@@ -40,6 +41,7 @@ class MediafireResolver @Inject constructor(
             try {
                 if (response.code != 200) {
                     reason = mediafireHttpReason(response.code)
+                    permanent = response.code in PERMANENT_CODES
                     continue
                 }
                 val body = response.body?.string().orEmpty()
@@ -49,13 +51,14 @@ class MediafireResolver @Inject constructor(
                 }
                 if (DEAD_MARKERS.any { marker -> marker in body.lowercase() }) {
                     reason = "file sudah dihapus / link tidak valid di Mediafire"
+                    permanent = true
                 }
             } finally {
                 response.close()
             }
         }
 
-        return HostResolveResult.Failure(reason)
+        return HostResolveResult.Failure(reason, permanent)
     }
 
     private fun parseDirectLink(document: Document, body: String): String? {
@@ -97,6 +100,8 @@ class MediafireResolver @Inject constructor(
         const val BROWSER_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+        private val PERMANENT_CODES = setOf(404, 410, 451)
 
         private val DIRECT_LINK_REGEX =
             Regex("https?://download\\d*\\.mediafire\\.com/[^\\s\"'<>]+")

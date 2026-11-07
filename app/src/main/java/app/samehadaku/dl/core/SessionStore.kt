@@ -28,6 +28,10 @@ class SessionStore @Inject constructor() {
     @Volatile
     var selectedHost: Host? = null
 
+    /** Report from the last enqueue (how many links were dead) shown on the queue screen. */
+    @Volatile
+    var queueNotice: String? = null
+
     fun saveDetection(result: DetectionResult) {
         detection = result
         selectedEpisodes = result.episodes

@@ -2,10 +2,12 @@ package app.samehadaku.dl.presentation.queue
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.samehadaku.dl.core.SessionStore
 import app.samehadaku.dl.data.download.DownloadQueue
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.model.DownloadState
 import app.samehadaku.dl.domain.model.DownloadTask
+import app.samehadaku.dl.domain.usecase.AutoRetryFailedUseCase
 import app.samehadaku.dl.domain.usecase.DeleteDownloadUseCase
 import app.samehadaku.dl.domain.usecase.DownloadControlUseCase
 import app.samehadaku.dl.domain.usecase.OpenDownloadUseCase
@@ -66,6 +68,8 @@ class QueueViewModel @Inject constructor(
     private val control: DownloadControlUseCase,
     private val openDownload: OpenDownloadUseCase,
     private val deleteDownload: DeleteDownloadUseCase,
+    private val autoRetryFailed: AutoRetryFailedUseCase,
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -77,6 +81,17 @@ class QueueViewModel @Inject constructor(
     private val duplicateNotified = mutableSetOf<String>()
 
     init {
+        viewModelScope.launch {
+            // Report from the enqueue screen: how many links were dead up front.
+            sessionStore.queueNotice?.let { notice ->
+                sessionStore.queueNotice = null
+                _messages.send(notice)
+            }
+            val retried = runCatching { autoRetryFailed() }.getOrDefault(0)
+            if (retried > 0) {
+                _messages.send("$retried unduhan gagal dicoba ulang otomatis.")
+            }
+        }
         viewModelScope.launch {
             queue.tasks.collect { tasks ->
                 val recentThreshold = System.currentTimeMillis() - DUPLICATE_NOTICE_WINDOW_MS

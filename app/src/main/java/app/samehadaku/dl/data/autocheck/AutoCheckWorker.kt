@@ -125,8 +125,11 @@ class AutoCheckWorker(
                     format = quality.format,
                     resolution = quality.resolution,
                     preferredHost = quality.host,
-                )
+                ).queued
                 alreadyQueued += fresh.map { episode -> episode.url }
+            } catch (verification: NeedsVerificationException) {
+                // The preflight hit Cloudflare; the caller turns this into a notification.
+                throw verification
             } catch (error: Exception) {
                 Timber.w(error, "Failed to queue %s for download", check.subscription.name)
             }

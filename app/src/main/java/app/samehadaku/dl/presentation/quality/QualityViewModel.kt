@@ -6,6 +6,7 @@ import app.samehadaku.dl.core.SessionStore
 import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.model.DownloadLinks
+import app.samehadaku.dl.domain.model.EnqueueResult
 import app.samehadaku.dl.domain.model.Episode
 import app.samehadaku.dl.domain.model.Host
 import app.samehadaku.dl.domain.model.VideoFormat
@@ -165,6 +166,18 @@ class QualityViewModel @Inject constructor(
         _state.update { it.copy(selectedHost = host) }
     }
 
+    private fun deadLinkNotice(result: EnqueueResult): String? {
+        if (result.deadEpisodes.isEmpty()) return null
+        val listed = result.deadEpisodes.take(6).joinToString(", ") { "Ep $it" }
+        val extra = if (result.deadEpisodes.size > 6) {
+            " +${result.deadEpisodes.size - 6} lain"
+        } else {
+            ""
+        }
+        return "${result.queued} dari ${result.total} episode diantrekan. " +
+            "${result.deadCount} link mati ($listed$extra) dan akan dicoba ulang otomatis."
+    }
+
     fun prepareVerification() {
         val target = _state.value.needsVerificationUrl
             ?: _state.value.sampleEpisodeUrl
@@ -200,15 +213,26 @@ class QualityViewModel @Inject constructor(
             try {
                 sessionStore.saveSelection(format, resolution, host)
                 runCatching { settings.saveQualityPreference(format, resolution, host) }
-                enqueueDownloads(
+                val result = enqueueDownloads(
                     episodes = current.episodes,
                     animeSlug = current.animeSlug.ifBlank { detection?.animeSlug.orEmpty() },
                     format = format,
                     resolution = resolution,
                     preferredHost = host,
                 )
+                sessionStore.queueNotice = deadLinkNotice(result)
                 _state.update { it.copy(starting = false) }
                 _events.send(QualityEvent.OpenQueue)
+            } catch (verification: NeedsVerificationException) {
+                _state.update {
+                    it.copy(
+                        starting = false,
+                        needsVerification = true,
+                        needsVerificationUrl = verification.pageUrl.ifBlank {
+                            current.sampleEpisodeUrl ?: detection?.sourceUrl.orEmpty()
+                        },
+                    )
+                }
             } catch (error: Exception) {
                 _state.update {
                     it.copy(

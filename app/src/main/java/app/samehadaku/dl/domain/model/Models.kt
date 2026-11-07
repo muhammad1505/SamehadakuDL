@@ -104,6 +104,8 @@ data class DownloadTask(
     val note: String? = null,
     val fileName: String? = null,
     val alreadyExisted: Boolean = false,
+    /** How many automatic retries were already spent on this task. */
+    val retryCount: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val finishedAt: Long? = null,
 ) {
@@ -147,5 +149,21 @@ data class DetectionResult(
 
 sealed interface HostResolveResult {
     data class Success(val directUrl: String) : HostResolveResult
-    data class Failure(val reason: String) : HostResolveResult
+
+    /**
+     * [permanent] marks a failure the host will not recover from on its own (deleted,
+     * takedown, invalid link), which is what makes a link safe to call dead up front.
+     */
+    data class Failure(
+        val reason: String,
+        val permanent: Boolean = false,
+    ) : HostResolveResult
+}
+
+data class EnqueueResult(
+    val total: Int,
+    val queued: Int,
+    val deadEpisodes: List<Int>,
+) {
+    val deadCount: Int get() = deadEpisodes.size
 }

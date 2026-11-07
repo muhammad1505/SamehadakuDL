@@ -39,6 +39,7 @@ class QueueStore @Inject constructor(
                         put("fileName", task.fileName)
                         put("note", task.note)
                         put("alreadyExisted", task.alreadyExisted)
+                        put("retryCount", task.retryCount)
                         put("createdAt", task.createdAt)
                         if (task.finishedAt != null) {
                             put("finishedAt", task.finishedAt)
@@ -108,6 +109,7 @@ class QueueStore @Inject constructor(
             note = if (item.isNull("note")) null else item.optString("note").ifBlank { null },
             fileName = if (item.isNull("fileName")) null else item.optString("fileName").ifBlank { null },
             alreadyExisted = item.optBoolean("alreadyExisted", false),
+            retryCount = item.optInt("retryCount", 0),
             createdAt = if (createdAt > 0L) createdAt else System.currentTimeMillis(),
             finishedAt = finishedAt,
         )

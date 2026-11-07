@@ -24,6 +24,7 @@ data class SettingsUiState(
     val quality: QualityPreference? = null,
     val autoCheckEnabled: Boolean = true,
     val autoCheckIntervalHours: Int = 24,
+    val failedRetryEnabled: Boolean = true,
     val lastAutoCheckAt: Long = 0L,
     val sessionActive: Boolean = false,
     val loading: Boolean = true,
@@ -63,10 +64,11 @@ class SettingsViewModel @Inject constructor(
                 ) { treeUri, concurrency, downgrade, autoEnabled, autoHours ->
                     SettingsValues(treeUri, concurrency, downgrade, autoEnabled, autoHours)
                 },
+                settings.failedRetryEnabled,
                 settings.lastAutoCheckAt,
-            ) { values, lastCheck ->
-                values to lastCheck
-            }.collect { (values, lastCheck) ->
+            ) { values, retryEnabled, lastCheck ->
+                Triple(values, retryEnabled, lastCheck)
+            }.collect { (values, retryEnabled, lastCheck) ->
                 _state.update {
                     it.copy(
                         treeUri = values.treeUri,
@@ -74,6 +76,7 @@ class SettingsViewModel @Inject constructor(
                         qualityDowngrade = values.downgrade,
                         autoCheckEnabled = values.autoEnabled,
                         autoCheckIntervalHours = values.autoHours,
+                        failedRetryEnabled = retryEnabled,
                         lastAutoCheckAt = lastCheck,
                         loading = false,
                     )
@@ -180,6 +183,21 @@ class SettingsViewModel @Inject constructor(
             settings.setAutoCheckIntervalHours(hours)
             runCatching { autoCheckScheduler.sync() }
             _state.update { it.copy(message = "Cek otomatis dijadwalkan setiap $hours jam.") }
+        }
+    }
+
+    fun setFailedRetryEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settings.setFailedRetryEnabled(enabled)
+            _state.update {
+                it.copy(
+                    message = if (enabled) {
+                        "Percobaan ulang otomatis diaktifkan."
+                    } else {
+                        "Percobaan ulang otomatis dimatikan."
+                    },
+                )
+            }
         }
     }
 

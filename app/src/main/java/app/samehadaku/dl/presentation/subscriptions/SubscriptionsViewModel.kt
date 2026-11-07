@@ -278,18 +278,21 @@ class SubscriptionsViewModel @Inject constructor(
             var queued = 0
             var skipped = 0
             var failed = 0
+            var dead = 0
             for (check in chosen) {
                 val fresh = check.newEpisodes.filterNot { it.url in queuedUrls }
                 skipped += check.newEpisodes.size - fresh.size
                 if (fresh.isEmpty()) continue
                 try {
-                    queued += enqueueDownloadsUseCase(
+                    val result = enqueueDownloadsUseCase(
                         episodes = fresh,
                         animeSlug = check.subscription.slug,
                         format = quality.format,
                         resolution = quality.resolution,
                         preferredHost = quality.host,
                     )
+                    queued += result.queued
+                    dead += result.deadCount
                     queuedUrls += fresh.map { it.url }
                 } catch (_: Exception) {
                     failed += fresh.size
@@ -297,6 +300,7 @@ class SubscriptionsViewModel @Inject constructor(
             }
             val parts = buildList {
                 if (queued > 0) add("$queued episode diantrekan")
+                if (dead > 0) add("$dead link mati, akan dicoba ulang otomatis")
                 if (skipped > 0) add("$skipped sudah ada di antrean")
                 if (failed > 0) add("$failed gagal diantrekan")
             }

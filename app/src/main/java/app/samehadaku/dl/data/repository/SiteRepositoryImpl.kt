@@ -1,8 +1,10 @@
 package app.samehadaku.dl.data.repository
 
+import app.samehadaku.dl.core.SiteMirrors
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.network.FetchFailureException
 import app.samehadaku.dl.data.network.HtmlFetcher
+import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.parser.DownloadLinkParser
 import app.samehadaku.dl.data.parser.EpisodeListParser
 import app.samehadaku.dl.domain.model.DetectionResult
@@ -13,6 +15,7 @@ import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import timber.log.Timber
 
 @Singleton
 class SiteRepositoryImpl @Inject constructor(
@@ -21,7 +24,12 @@ class SiteRepositoryImpl @Inject constructor(
 
     private data class CachedLinks(val links: DownloadLinks, val savedAt: Long)
 
+    private data class WorkingMirror(val url: String, val savedAt: Long)
+
     private val linkCache = ConcurrentHashMap<String, CachedLinks>()
+
+    /** Episode page that last produced usable links when it was not the URL's own host. */
+    private val mirrorCache = ConcurrentHashMap<String, WorkingMirror>()
 
     override suspend fun detectEpisodes(url: String): DetectionResult {
         val input = UrlUtils.normalizeInput(url)
@@ -65,18 +73,84 @@ class SiteRepositoryImpl @Inject constructor(
         )
     }
 
+    /**
+     * Reads the episode page from its own domain, remembering a mirror that already
+     * served this episode. Mirrors are tried when the page cannot be read or carries no
+     * download links at all.
+     */
     override suspend fun loadDownloadLinks(episodeUrl: String): DownloadLinks? {
         val key = UrlUtils.normalizeUrl(episodeUrl)
-        val cached = linkCache[key]
-        if (cached != null && System.currentTimeMillis() - cached.savedAt < CACHE_TTL_MS) {
-            return cached.links
+        freshLinks(key)?.let { return it }
+
+        var failure: Exception? = null
+        var verification: NeedsVerificationException? = null
+
+        for (source in sourceOrder(key, episodeUrl)) {
+            val page = try {
+                fetcher.fetchDownloadLinksPage(source)
+            } catch (challenge: NeedsVerificationException) {
+                // Only the URL the user gave us should send them to the verify screen.
+                if (source == episodeUrl) verification = challenge
+                continue
+            } catch (error: Exception) {
+                Timber.d(error, "Episode page unavailable at %s", source)
+                failure = failure ?: error
+                continue
+            }
+            val links = DownloadLinkParser.parse(page.html, page.finalUrl)
+            if (links != null && !links.isEmpty) {
+                return remember(key, episodeUrl, source, links)
+            }
         }
 
-        val page = fetcher.fetchDownloadLinksPage(episodeUrl)
-        val links = DownloadLinkParser.parse(page.html, page.finalUrl)
-        if (links != null && !links.isEmpty) {
-            linkCache[key] = CachedLinks(links, System.currentTimeMillis())
+        verification?.let { throw it }
+        failure?.let { throw it }
+        return null
+    }
+
+    override suspend fun loadMirrorLinks(episodeUrl: String): DownloadLinks? {
+        val key = UrlUtils.normalizeUrl(episodeUrl)
+        for (mirror in SiteMirrors.candidates(episodeUrl)) {
+            val page = try {
+                fetcher.fetchDownloadLinksPage(mirror)
+            } catch (challenge: NeedsVerificationException) {
+                continue
+            } catch (error: Exception) {
+                Timber.d(error, "Mirror page unavailable at %s", mirror)
+                continue
+            }
+            val links = DownloadLinkParser.parse(page.html, page.finalUrl)
+            if (links != null && !links.isEmpty) {
+                Timber.d("Mirror %s served links for %s", mirror, episodeUrl)
+                return remember(key, episodeUrl, mirror, links)
+            }
         }
+        return null
+    }
+
+    private fun sourceOrder(key: String, episodeUrl: String): List<String> = buildList {
+        mirrorCache[key]?.let { mirror ->
+            if (System.currentTimeMillis() - mirror.savedAt < CACHE_TTL_MS) add(mirror.url)
+        }
+        add(episodeUrl)
+        addAll(SiteMirrors.candidates(episodeUrl))
+    }.distinct()
+
+    private fun freshLinks(key: String): DownloadLinks? {
+        val cached = linkCache[key] ?: return null
+        if (System.currentTimeMillis() - cached.savedAt >= CACHE_TTL_MS) return null
+        return cached.links
+    }
+
+    private fun remember(
+        key: String,
+        episodeUrl: String,
+        source: String,
+        links: DownloadLinks,
+    ): DownloadLinks {
+        val now = System.currentTimeMillis()
+        linkCache[key] = CachedLinks(links, now)
+        if (source != episodeUrl) mirrorCache[key] = WorkingMirror(source, now)
         return links
     }
 

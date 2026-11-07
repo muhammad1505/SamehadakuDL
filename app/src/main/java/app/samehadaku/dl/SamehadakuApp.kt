@@ -5,6 +5,7 @@ import android.os.Build
 import android.webkit.WebView
 import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
 import app.samehadaku.dl.data.network.CloudflareSession
+import app.samehadaku.dl.domain.usecase.AutoRetryFailedUseCase
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,9 @@ class SamehadakuApp : Application() {
     @Inject
     lateinit var autoCheckScheduler: AutoCheckScheduler
 
+    @Inject
+    lateinit var autoRetryFailed: AutoRetryFailedUseCase
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -32,6 +36,8 @@ class SamehadakuApp : Application() {
         }
         appScope.launch {
             runCatching { cloudflareSession.restore() }
+            // Failed links are often re-uploaded later; retry them on every app start.
+            runCatching { autoRetryFailed() }
             // Re-register the periodic check after reboots, updates or a settings change.
             runCatching { autoCheckScheduler.sync() }
             // Some OEMs freeze WorkManager; catch up when the user opens the app.

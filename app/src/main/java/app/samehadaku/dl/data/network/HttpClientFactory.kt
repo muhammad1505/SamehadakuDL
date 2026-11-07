@@ -58,6 +58,17 @@ class HttpClientFactory @Inject constructor(
         .retryOnConnectionFailure(true)
         .build()
 
+    /** Link health probes: one byte requests with short timeouts. */
+    val probeClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor(browserUserAgentInterceptor)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .retryOnConnectionFailure(true)
+        .build()
+
     companion object {
         const val BROWSER_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +

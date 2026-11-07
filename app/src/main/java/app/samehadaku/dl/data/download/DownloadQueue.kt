@@ -247,6 +247,7 @@ class DownloadQueue @Inject constructor(
                             failureReasons = emptyList(),
                             note = null,
                             finishedAt = null,
+                            retryCount = 0,
                         )
                     } else {
                         task
@@ -273,6 +274,7 @@ class DownloadQueue @Inject constructor(
                             failureReasons = emptyList(),
                             note = null,
                             finishedAt = null,
+                            retryCount = 0,
                         )
                     } else {
                         task
@@ -282,6 +284,47 @@ class DownloadQueue @Inject constructor(
             persist()
             schedule()
         }
+    }
+
+    /**
+     * Re-queues failed or skipped tasks whose last attempt is older than [minAgeMillis],
+     * at most [maxAttempts] automatic retries per task. Dead host links often reappear
+     * when the uploader refreshes them, so the episode page is worth another look.
+     */
+    suspend fun retryFailedDue(minAgeMillis: Long, maxAttempts: Int): Int {
+        ready.await()
+        val now = System.currentTimeMillis()
+        val due = _tasks.value
+            .filter { task ->
+                (task.state == DownloadState.FAILED || task.state == DownloadState.SKIPPED) &&
+                    task.retryCount < maxAttempts &&
+                    now - (task.finishedAt ?: task.createdAt) >= minAgeMillis
+            }
+            .map { it.id }
+            .toSet()
+        if (due.isEmpty()) return 0
+        _tasks.update { tasks ->
+            tasks.map { task ->
+                if (task.id in due) {
+                    task.copy(
+                        state = DownloadState.QUEUED,
+                        bytesDone = 0L,
+                        totalBytes = 0L,
+                        speedBytesPerSecond = 0L,
+                        currentHost = null,
+                        failureReasons = emptyList(),
+                        note = null,
+                        finishedAt = null,
+                        retryCount = task.retryCount + 1,
+                    )
+                } else {
+                    task
+                }
+            }
+        }
+        persist()
+        schedule()
+        return due.size
     }
 
     fun clearFinished() {
@@ -352,15 +395,31 @@ class DownloadQueue @Inject constructor(
                 return
             }
 
-            val outcome = downloader.download(initial, links) { progress ->
+            var outcome = downloader.download(initial, links) { progress ->
                 updateProgress(taskId, progress)
+            }
+            var mirrorNote: String? = null
+
+            if (outcome is DownloadOutcome.Failed || outcome is DownloadOutcome.Skipped) {
+                // The upload links may be refreshed on another Samehadaku mirror.
+                val mirrorLinks = runCatching {
+                    siteRepository.loadMirrorLinks(initial.episodeUrl)
+                }.getOrNull()
+                if (mirrorLinks != null && !mirrorLinks.isEmpty) {
+                    outcome = downloader.download(initial, mirrorLinks) { progress ->
+                        updateProgress(taskId, progress)
+                    }
+                    if (outcome is DownloadOutcome.Done) {
+                        mirrorNote = "Diunduh dari mirror Samehadaku karena link domain utama mati."
+                    }
+                }
             }
 
             when (outcome) {
                 is DownloadOutcome.Done -> finish(
                     taskId = taskId,
                     state = DownloadState.DONE,
-                    note = if (outcome.alreadyExisted) {
+                    note = mirrorNote ?: if (outcome.alreadyExisted) {
                         "File sudah ada di penyimpanan, unduhan tidak diulang."
                     } else {
                         null
