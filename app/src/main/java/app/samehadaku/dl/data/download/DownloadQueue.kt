@@ -5,6 +5,7 @@ import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.data.subscriptions.SubscriptionRepository
 import app.samehadaku.dl.domain.model.DownloadState
 import app.samehadaku.dl.domain.model.DownloadTask
+import app.samehadaku.dl.domain.model.VideoFormat
 import app.samehadaku.dl.domain.repository.SiteRepository
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -419,13 +420,18 @@ class DownloadQueue @Inject constructor(
                 is DownloadOutcome.Done -> finish(
                     taskId = taskId,
                     state = DownloadState.DONE,
-                    note = mirrorNote ?: if (outcome.alreadyExisted) {
-                        "File sudah ada di penyimpanan, unduhan tidak diulang."
-                    } else {
-                        null
+                    note = mirrorNote ?: when {
+                        outcome.adjusted -> "Kualitas disesuaikan otomatis ke " +
+                            "${outcome.format.label} ${outcome.resolution} karena pilihan awal " +
+                            "tidak tersedia di episode ini."
+                        outcome.alreadyExisted ->
+                            "File sudah ada di penyimpanan, unduhan tidak diulang."
+                        else -> null
                     },
                     fileName = outcome.fileName,
                     alreadyExisted = outcome.alreadyExisted,
+                    format = outcome.format,
+                    resolution = outcome.resolution,
                 )
                 is DownloadOutcome.Failed -> finish(
                     taskId = taskId,
@@ -485,6 +491,8 @@ class DownloadQueue @Inject constructor(
         note: String? = null,
         fileName: String? = null,
         alreadyExisted: Boolean = false,
+        format: VideoFormat? = null,
+        resolution: String? = null,
     ) {
         var finishedTask: DownloadTask? = null
         _tasks.update { tasks ->
@@ -493,6 +501,8 @@ class DownloadQueue @Inject constructor(
                     finishedTask = task
                     task.copy(
                         state = state,
+                        format = format ?: task.format,
+                        resolution = resolution ?: task.resolution,
                         speedBytesPerSecond = 0L,
                         currentHost = null,
                         failureReasons = reasons,

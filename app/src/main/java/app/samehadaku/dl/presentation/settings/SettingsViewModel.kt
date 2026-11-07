@@ -20,10 +20,10 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val treeUri: String? = null,
     val concurrency: Int = 1,
-    val qualityDowngrade: Boolean = false,
+    val qualityDowngrade: Boolean = true,
     val quality: QualityPreference? = null,
     val autoCheckEnabled: Boolean = true,
-    val autoCheckIntervalHours: Int = 24,
+    val autoCheckIntervalMinutes: Int = 60,
     val failedRetryEnabled: Boolean = true,
     val lastAutoCheckAt: Long = 0L,
     val sessionActive: Boolean = false,
@@ -60,9 +60,9 @@ class SettingsViewModel @Inject constructor(
                     settings.concurrency,
                     settings.qualityDowngrade,
                     settings.autoCheckEnabled,
-                    settings.autoCheckIntervalHours,
-                ) { treeUri, concurrency, downgrade, autoEnabled, autoHours ->
-                    SettingsValues(treeUri, concurrency, downgrade, autoEnabled, autoHours)
+                    settings.autoCheckIntervalMinutes,
+                ) { treeUri, concurrency, downgrade, autoEnabled, autoMinutes ->
+                    SettingsValues(treeUri, concurrency, downgrade, autoEnabled, autoMinutes)
                 },
                 settings.failedRetryEnabled,
                 settings.lastAutoCheckAt,
@@ -75,7 +75,7 @@ class SettingsViewModel @Inject constructor(
                         concurrency = values.concurrency,
                         qualityDowngrade = values.downgrade,
                         autoCheckEnabled = values.autoEnabled,
-                        autoCheckIntervalHours = values.autoHours,
+                        autoCheckIntervalMinutes = values.autoMinutes,
                         failedRetryEnabled = retryEnabled,
                         lastAutoCheckAt = lastCheck,
                         loading = false,
@@ -178,11 +178,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setAutoCheckInterval(hours: Int) {
+    fun setAutoCheckInterval(minutes: Int) {
         viewModelScope.launch {
-            settings.setAutoCheckIntervalHours(hours)
+            settings.setAutoCheckIntervalMinutes(minutes)
             runCatching { autoCheckScheduler.sync() }
-            _state.update { it.copy(message = "Cek otomatis dijadwalkan setiap $hours jam.") }
+            _state.update {
+                it.copy(message = "Cek otomatis dijadwalkan setiap ${intervalLabel(minutes)}.")
+            }
         }
     }
 
@@ -234,8 +236,11 @@ class SettingsViewModel @Inject constructor(
         val concurrency: Int,
         val downgrade: Boolean,
         val autoEnabled: Boolean,
-        val autoHours: Int,
+        val autoMinutes: Int,
     )
+
+    private fun intervalLabel(minutes: Int): String =
+        if (minutes % 60 == 0) "${minutes / 60} jam" else "$minutes menit"
 
     private companion object {
         val DEFAULT_QUALITY = QualityPreference(

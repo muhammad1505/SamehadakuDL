@@ -44,13 +44,16 @@ fun SamehadakuNavHost(
 ) {
     val navController = rememberNavController()
 
+    /**
+     * Tabs always replace whatever is on top of the start destination, so selecting a
+     * tab can never leave the previous screen visible (the bug with Langganan before it
+     * became a tab). Detail screens (episodes, quality, verification) are popped too.
+     */
     fun navigateToTab(tab: AppTab) {
+        if (navController.currentDestination?.route == tab.route) return
         navController.navigate(tab.route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
-            }
+            popUpTo(navController.graph.findStartDestination().id)
             launchSingleTop = true
-            restoreState = true
         }
     }
 
@@ -60,8 +63,13 @@ fun SamehadakuNavHost(
 
     LaunchedEffect(pendingRoute) {
         val route = pendingRoute ?: return@LaunchedEffect
-        runCatching {
-            navController.navigate(route) { launchSingleTop = true }
+        val tab = AppTab.entries.firstOrNull { it.route == route }
+        if (tab != null) {
+            navigateToTab(tab)
+        } else {
+            runCatching {
+                navController.navigate(route) { launchSingleTop = true }
+            }
         }
         onPendingRouteConsumed()
     }
@@ -86,7 +94,7 @@ fun SamehadakuNavHost(
                     onOpenQuality = { navController.navigate(Routes.QUALITY) },
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
                     onOpenDownloads = { navigateToTab(AppTab.QUEUE) },
-                    onOpenSubscriptions = { navController.navigate(Routes.SUBSCRIPTIONS) },
+                    onOpenSubscriptions = { navigateToTab(AppTab.SUBSCRIPTIONS) },
                     onTabSelected = ::navigateToTab,
                     verified = verified,
                     onVerifiedHandled = { entry.savedStateHandle["verified"] = false },
@@ -149,7 +157,7 @@ fun SamehadakuNavHost(
                     .collectAsStateWithLifecycle()
 
                 SubscriptionsScreen(
-                    onBack = { navController.popBackStack() },
+                    onTabSelected = ::navigateToTab,
                     onOpenEpisodes = { navController.navigate(Routes.EPISODES) },
                     onOpenQueue = { navigateToTab(AppTab.QUEUE) },
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },

@@ -67,6 +67,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.samehadaku.dl.domain.model.Episode
 import app.samehadaku.dl.domain.model.Subscription
+import app.samehadaku.dl.presentation.components.AppBottomBar
+import app.samehadaku.dl.presentation.components.AppTab
 import app.samehadaku.dl.presentation.components.EmptyState
 import app.samehadaku.dl.presentation.components.GlassButton
 import app.samehadaku.dl.presentation.components.GlassCard
@@ -91,7 +93,7 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun SubscriptionsScreen(
-    onBack: () -> Unit,
+    onTabSelected: (AppTab) -> Unit,
     onOpenEpisodes: () -> Unit,
     onOpenQueue: () -> Unit,
     onOpenCloudflare: () -> Unit,
@@ -520,7 +522,6 @@ fun SubscriptionsScreen(
                 } else {
                     "${state.subscriptions.size} anime diikuti"
                 },
-                onBack = onBack,
                 actions = {
                     GlassIconButton(
                         icon = Icons.Rounded.FileDownload,
@@ -534,6 +535,12 @@ fun SubscriptionsScreen(
                         onClick = { showAddDialog = true },
                     )
                 },
+            )
+        },
+        bottomBar = {
+            AppBottomBar(
+                selectedTab = AppTab.SUBSCRIPTIONS,
+                onTabSelected = onTabSelected,
             )
         },
         snackbarHostState = snackbarHostState,
@@ -614,7 +621,7 @@ fun SubscriptionsScreen(
                     Spacer(Modifier.height(3.dp))
                     Text(
                         text = if (state.autoCheckEnabled) {
-                            "Cek otomatis setiap ${state.autoCheckIntervalHours} jam • " +
+                            "Cek otomatis setiap ${intervalLabel(state.autoCheckIntervalMinutes)} • " +
                                 "episode baru langsung diunduh"
                         } else {
                             "Cek otomatis nonaktif • atur di Pengaturan"
@@ -780,6 +787,9 @@ private fun SubscriptionRow(
         }
     }
 }
+
+private fun intervalLabel(minutes: Int): String =
+    if (minutes % 60 == 0) "${minutes / 60} jam" else "$minutes menit"
 
 private fun episodesLabel(episodes: List<Episode>): String {
     if (episodes.isEmpty()) return "Tidak ada episode"

@@ -89,18 +89,13 @@ class LinkPreflight @Inject constructor(
         allowDowngrade: Boolean,
         links: DownloadLinks,
     ): List<TargetLink> {
-        val targets = HostSelector.findTargets(
-            links = links,
-            format = task.format.label,
-            resolution = task.resolution,
-            preferredHost = task.preferredHost.label,
-        )
-        if (targets.isNotEmpty() || !allowDowngrade) return targets
-        return HostSelector.findNearestTargets(
+        val selection = HostSelector.findBestTargets(
             links = links,
             format = task.format,
             resolution = task.resolution,
             preferredHost = task.preferredHost,
-        )?.targets.orEmpty()
+        ) ?: return emptyList()
+        if (selection.adjusted && !allowDowngrade) return emptyList()
+        return selection.targets
     }
 }

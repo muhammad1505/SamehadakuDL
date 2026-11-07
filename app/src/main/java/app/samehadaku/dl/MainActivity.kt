@@ -13,17 +13,26 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
 import app.samehadaku.dl.presentation.navigation.SamehadakuNavHost
 import app.samehadaku.dl.presentation.splash.SplashScreen
 import app.samehadaku.dl.presentation.theme.SamehadakuTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var autoCheckScheduler: AutoCheckScheduler
 
     private var sharedUrl by mutableStateOf<String?>(null)
     private var pendingRoute by mutableStateOf<String?>(null)
@@ -38,6 +47,14 @@ class MainActivity : ComponentActivity() {
         )
         setContent {
             SamehadakuTheme {
+                // WorkManager runs are inexact and OEMs may freeze them; catch up when
+                // the app becomes visible so new episodes show up without a manual check.
+                val checkScope = rememberCoroutineScope()
+                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+                    checkScope.launch {
+                        runCatching { autoCheckScheduler.runNowIfDue() }
+                    }
+                }
                 var showSplash by rememberSaveable { mutableStateOf(true) }
                 Crossfade(
                     targetState = showSplash,

@@ -42,6 +42,10 @@ sealed interface DownloadOutcome {
     data class Done(
         val fileName: String,
         val alreadyExisted: Boolean,
+        /** Quality actually downloaded, which may differ from the requested one. */
+        val format: VideoFormat,
+        val resolution: String,
+        val adjusted: Boolean = false,
     ) : DownloadOutcome
 
     data class Failed(val reasons: List<String>) : DownloadOutcome
@@ -63,33 +67,21 @@ class Downloader @Inject constructor(
         links: DownloadLinks,
         listener: DownloadProgressListener,
     ): DownloadOutcome = withContext(Dispatchers.IO) {
-        var actualFormat = task.format
-        var actualResolution = task.resolution
-
-        var targets = HostSelector.findTargets(
+        val allowQualityFallback = settings.currentQualityDowngrade()
+        val selection = HostSelector.findBestTargets(
             links = links,
-            format = task.format.label,
+            format = task.format,
             resolution = task.resolution,
-            preferredHost = task.preferredHost.label,
-        )
+            preferredHost = task.preferredHost,
+        )?.takeIf { !it.adjusted || allowQualityFallback }
 
-        if (targets.isEmpty() && settings.currentQualityDowngrade()) {
-            val nearest = HostSelector.findNearestTargets(
-                links = links,
-                format = task.format,
-                resolution = task.resolution,
-                preferredHost = task.preferredHost,
-            )
-            if (nearest != null) {
-                actualFormat = nearest.format
-                actualResolution = nearest.resolution
-                targets = nearest.targets
-            }
-        }
-
-        if (targets.isEmpty()) {
+        if (selection == null) {
             return@withContext DownloadOutcome.Skipped("Kualitas tidak tersedia")
         }
+
+        val actualFormat = selection.format
+        val actualResolution = selection.resolution
+        val targets = selection.targets
 
         val downloadDir = File(context.cacheDir, "downloads").apply { mkdirs() }
         if (!downloadDir.isDirectory) {
@@ -130,6 +122,9 @@ class Downloader @Inject constructor(
                     return@withContext DownloadOutcome.Done(
                         fileName = fileName,
                         alreadyExisted = result.alreadyExisted,
+                        format = actualFormat,
+                        resolution = actualResolution,
+                        adjusted = selection.adjusted,
                     )
                 }
                 is SingleOutcome.HostFailure -> {

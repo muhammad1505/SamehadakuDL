@@ -4,6 +4,7 @@ import app.samehadaku.dl.domain.model.DownloadLinks
 import app.samehadaku.dl.domain.model.Host
 import app.samehadaku.dl.domain.model.VideoFormat
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -44,6 +45,71 @@ class HostSelectorTest {
     fun `no matching quality returns empty list`() {
         assertTrue(HostSelector.findTargets(links, "x265", "1080p", "pixeldrain").isEmpty())
         assertTrue(HostSelector.findTargets(links, "mkv", "360p", "pixeldrain").isEmpty())
+    }
+
+    @Test
+    fun `same resolution on another format is used when the chosen format is missing`() {
+        val selection = HostSelector.findBestTargets(
+            links,
+            VideoFormat.X265,
+            "720p",
+            Host.PIXELDRAIN,
+        )!!
+        assertTrue(selection.adjusted)
+        assertEquals(VideoFormat.MP4, selection.format)
+        assertEquals("720p", selection.resolution)
+        assertEquals(Host.PIXELDRAIN, selection.targets.first().host)
+    }
+
+    @Test
+    fun `adjustment keeps the preferred host ahead of a closer resolution`() {
+        val mixed = DownloadLinks(
+            linkedMapOf(
+                VideoFormat.MKV to linkedMapOf(
+                    "480p" to linkedMapOf(
+                        Host.MEDIAFIRE to "https://www.mediafire.com/file/m480",
+                    ),
+                ),
+                VideoFormat.MP4 to linkedMapOf(
+                    "480p" to linkedMapOf(
+                        Host.PIXELDRAIN to "https://pixeldrain.com/u/p480",
+                    ),
+                ),
+            ),
+        )
+        val selection = HostSelector.findBestTargets(
+            mixed,
+            VideoFormat.X265,
+            "480p",
+            Host.PIXELDRAIN,
+        )!!
+        assertTrue(selection.adjusted)
+        assertEquals(VideoFormat.MP4, selection.format)
+        assertEquals(Host.PIXELDRAIN, selection.targets.first().host)
+    }
+
+    @Test
+    fun `exact quality is not reported as adjusted`() {
+        val selection = HostSelector.findBestTargets(
+            links,
+            VideoFormat.MKV,
+            "1080p",
+            Host.MEDIAFIRE,
+        )!!
+        assertEquals(false, selection.adjusted)
+        assertEquals(Host.MEDIAFIRE, selection.targets.first().host)
+    }
+
+    @Test
+    fun `no links at all returns null`() {
+        assertNull(
+            HostSelector.findBestTargets(
+                DownloadLinks.EMPTY,
+                VideoFormat.MKV,
+                "480p",
+                Host.PIXELDRAIN,
+            ),
+        )
     }
 
     @Test

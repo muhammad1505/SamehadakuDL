@@ -258,7 +258,12 @@ fun SettingsScreen(
             }
 
             item {
-                val intervals = listOf(1, 6, 12, 24)
+                val intervals = listOf(15, 30, 60, 180)
+                val selectedIntervalIndex = intervals.indexOf(state.autoCheckIntervalMinutes)
+                    .takeIf { it >= 0 }
+                    ?: intervals.indices.minByOrNull {
+                        kotlin.math.abs(intervals[it] - state.autoCheckIntervalMinutes)
+                    } ?: 0
                 val lastChecked = if (state.lastAutoCheckAt > 0L) {
                     shortDateTime(state.lastAutoCheckAt)
                 } else {
@@ -270,7 +275,7 @@ fun SettingsScreen(
                     icon = Icons.Rounded.NotificationsActive,
                     tint = BrandMint,
                     badge = if (state.autoCheckEnabled) {
-                        "${state.autoCheckIntervalHours} jam"
+                        intervalLabel(state.autoCheckIntervalMinutes)
                     } else {
                         "Nonaktif"
                     },
@@ -314,10 +319,10 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.height(7.dp))
                         SegmentedTabs(
-                            tabs = intervals.map { hours -> SegmentTab(label = "$hours jam") },
-                            selectedIndex = intervals
-                                .indexOf(state.autoCheckIntervalHours)
-                                .coerceAtLeast(0),
+                            tabs = intervals.map { minutes ->
+                                SegmentTab(label = intervalLabel(minutes))
+                            },
+                            selectedIndex = selectedIntervalIndex,
                             onSelect = { index ->
                                 viewModel.setAutoCheckInterval(intervals[index])
                             },
@@ -355,10 +360,11 @@ fun SettingsScreen(
                         }
                         Spacer(Modifier.height(9.dp))
                         Caption(
-                            "Terakhir dicek: $lastChecked. WorkManager menjadwalkan " +
-                                "pemeriksaan meski aplikasi ditutup. Di Realme/ColorOS buka " +
-                                "Info aplikasi → Baterai → izinkan aktivitas latar belakang, " +
-                                "lalu aktifkan Auto-start di Phone Manager.",
+                            "Terakhir dicek: $lastChecked. Pemeriksaan juga dijalankan saat " +
+                                "aplikasi dibuka bila jadwalnya sudah lewat, jadi episode baru " +
+                                "cepat terlihat. Di Realme/ColorOS buka Info aplikasi → " +
+                                "Baterai → izinkan aktivitas latar belakang, lalu aktifkan " +
+                                "Auto-start di Phone Manager.",
                         )
                     } else {
                         Caption(
@@ -495,11 +501,11 @@ fun SettingsScreen(
 
             item {
                 SettingSection(
-                    title = "Cadangan kualitas",
+                    title = "Sesuaikan kualitas otomatis",
                     subtitle = "Bila format atau resolusi pilihan tidak tersedia",
                     icon = Icons.Rounded.Tune,
                     tint = BrandAccent,
-                    badge = if (state.qualityDowngrade) "Turun" else "Tetap",
+                    badge = if (state.qualityDowngrade) "Otomatis" else "Tetap",
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -507,12 +513,13 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Turun ke kualitas terdekat",
+                                text = "Pakai link terdekat yang tersedia",
                                 color = TextPrimary,
                                 style = MaterialTheme.typography.titleSmall,
                             )
                             Text(
-                                text = "Bila format/resolusi pilihan tidak tersedia, unduh resolusi terdekat.",
+                                text = "Misalnya pilihan X265 480p Pixeldrain tidak ada, " +
+                                    "episode baru diunduh lewat MKV 480p Pixeldrain.",
                                 color = TextMuted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -702,7 +709,7 @@ private fun SettingsSummary(state: SettingsUiState) {
             )
             MetricTile(
                 label = "Kualitas",
-                value = if (state.qualityDowngrade) "Turun" else "Tetap",
+                value = if (state.qualityDowngrade) "Otomatis" else "Tetap",
                 icon = Icons.Rounded.Tune,
                 accent = BrandAccent,
                 modifier = Modifier.weight(1f),
@@ -896,6 +903,9 @@ private fun CloudflareStatusCard(active: Boolean) {
         )
     }
 }
+
+private fun intervalLabel(minutes: Int): String =
+    if (minutes % 60 == 0) "${minutes / 60} jam" else "$minutes mnt"
 
 private fun prettyFolderPath(treeUri: String): String {
     val documentId = runCatching {

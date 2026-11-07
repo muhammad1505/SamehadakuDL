@@ -31,8 +31,13 @@ class SettingsRepository @Inject constructor(
         (preferences[KEY_CONCURRENCY] ?: 1).coerceIn(1, 3)
     }
 
+    /**
+     * Lets a download use the closest available quality when the exact saved
+     * format/resolution is not uploaded yet. On by default so followed anime keep
+     * downloading even when the uploader changes format between episodes.
+     */
     val qualityDowngrade: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[KEY_QUALITY_DOWNGRADE] ?: false
+        preferences[KEY_QUALITY_DOWNGRADE] ?: true
     }
 
     val downloadTreeUri: Flow<String?> = dataStore.data.map { preferences ->
@@ -49,9 +54,15 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_AUTO_CHECK_ENABLED] ?: true
     }
 
-    val autoCheckIntervalHours: Flow<Int> = dataStore.data.map { preferences ->
-        (preferences[KEY_AUTO_CHECK_INTERVAL_HOURS] ?: DEFAULT_AUTO_CHECK_HOURS)
-            .coerceIn(MIN_AUTO_CHECK_HOURS, MAX_AUTO_CHECK_HOURS)
+    /**
+     * How often followed anime are checked, in minutes. Reads the old hours key for
+     * installs that still have a value from before the interval could go below 1 hour.
+     */
+    val autoCheckIntervalMinutes: Flow<Int> = dataStore.data.map { preferences ->
+        val stored = preferences[KEY_AUTO_CHECK_INTERVAL_MINUTES]
+            ?: preferences[KEY_AUTO_CHECK_INTERVAL_HOURS]?.times(60)
+            ?: DEFAULT_AUTO_CHECK_MINUTES
+        stored.coerceIn(MIN_AUTO_CHECK_MINUTES, MAX_AUTO_CHECK_MINUTES)
     }
 
     val lastAutoCheckAt: Flow<Long> = dataStore.data.map { preferences ->
@@ -124,10 +135,10 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { it[KEY_AUTO_CHECK_ENABLED] = enabled }
     }
 
-    suspend fun setAutoCheckIntervalHours(hours: Int) {
+    suspend fun setAutoCheckIntervalMinutes(minutes: Int) {
         dataStore.edit {
-            it[KEY_AUTO_CHECK_INTERVAL_HOURS] =
-                hours.coerceIn(MIN_AUTO_CHECK_HOURS, MAX_AUTO_CHECK_HOURS)
+            it[KEY_AUTO_CHECK_INTERVAL_MINUTES] =
+                minutes.coerceIn(MIN_AUTO_CHECK_MINUTES, MAX_AUTO_CHECK_MINUTES)
         }
     }
 
@@ -143,7 +154,7 @@ class SettingsRepository @Inject constructor(
 
     suspend fun currentAutoCheckEnabled(): Boolean = autoCheckEnabled.first()
 
-    suspend fun currentAutoCheckIntervalHours(): Int = autoCheckIntervalHours.first()
+    suspend fun currentAutoCheckIntervalMinutes(): Int = autoCheckIntervalMinutes.first()
 
     suspend fun currentLastAutoCheckAt(): Long = lastAutoCheckAt.first()
 
@@ -177,15 +188,18 @@ class SettingsRepository @Inject constructor(
 
     private companion object {
         const val MAX_RECENT_URLS = 10
-        const val DEFAULT_AUTO_CHECK_HOURS = 24
-        const val MIN_AUTO_CHECK_HOURS = 1
-        const val MAX_AUTO_CHECK_HOURS = 24
+        const val DEFAULT_AUTO_CHECK_MINUTES = 60
+
+        /** WorkManager refuses periodic work shorter than 15 minutes. */
+        const val MIN_AUTO_CHECK_MINUTES = 15
+        const val MAX_AUTO_CHECK_MINUTES = 24 * 60
         val KEY_RECENT_URLS = stringPreferencesKey("recent_urls")
         val KEY_CONCURRENCY = intPreferencesKey("concurrency")
         val KEY_QUALITY_DOWNGRADE = booleanPreferencesKey("quality_downgrade")
         val KEY_DOWNLOAD_TREE_URI = stringPreferencesKey("download_tree_uri")
         val KEY_QUALITY_PREFERENCE = stringPreferencesKey("quality_preference")
         val KEY_AUTO_CHECK_ENABLED = booleanPreferencesKey("auto_check_enabled")
+        val KEY_AUTO_CHECK_INTERVAL_MINUTES = intPreferencesKey("auto_check_interval_minutes")
         val KEY_AUTO_CHECK_INTERVAL_HOURS = intPreferencesKey("auto_check_interval_hours")
         val KEY_LAST_AUTO_CHECK_AT = longPreferencesKey("last_auto_check_at")
         val KEY_FAILED_RETRY_ENABLED = booleanPreferencesKey("failed_retry_enabled")

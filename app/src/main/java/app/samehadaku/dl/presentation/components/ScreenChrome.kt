@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Home
@@ -56,6 +57,7 @@ enum class AppTab(
     val icon: ImageVector,
 ) {
     HOME("home", "Beranda", Icons.Rounded.Home),
+    SUBSCRIPTIONS("subscriptions", "Langganan", Icons.Rounded.Bookmark),
     QUEUE("queue", "Unduhan", Icons.Rounded.Download),
     COLLECTIONS("collections", "Koleksi", Icons.Rounded.Folder),
     SETTINGS("settings", "Pengaturan", Icons.Rounded.Settings),
@@ -152,7 +154,7 @@ fun AppBottomBar(
                 ),
             )
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
         Row(
             modifier = Modifier
@@ -174,8 +176,8 @@ fun AppBottomBar(
                     ),
                     shape = RoundedCornerShape(26.dp),
                 )
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             AppTab.entries.forEach { tab ->
                 val selected = tab == selectedTab
@@ -204,14 +206,14 @@ fun AppBottomBar(
                             },
                         )
                         .clickable(role = Role.Tab, onClick = { onTabSelected(tab) })
-                        .padding(vertical = 7.dp),
+                        .padding(horizontal = 1.dp, vertical = 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
                         imageVector = tab.icon,
                         contentDescription = tab.label,
                         tint = if (selected) BrandPrimary else TextMuted,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(19.dp),
                     )
                     Spacer(Modifier.size(3.dp))
                     Text(
@@ -220,6 +222,8 @@ fun AppBottomBar(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

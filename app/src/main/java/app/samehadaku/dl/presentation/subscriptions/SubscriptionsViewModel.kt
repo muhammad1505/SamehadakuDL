@@ -46,7 +46,7 @@ data class SubscriptionsUiState(
     val quality: QualityPreference? = null,
     val qualityAutomatic: Boolean = false,
     val autoCheckEnabled: Boolean = true,
-    val autoCheckIntervalHours: Int = 24,
+    val autoCheckIntervalMinutes: Int = 60,
     val enqueueing: Boolean = false,
     val addInProgress: Boolean = false,
     val addError: String? = null,
@@ -108,13 +108,13 @@ class SubscriptionsViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 settings.autoCheckEnabled,
-                settings.autoCheckIntervalHours,
-            ) { enabled, hours -> enabled to hours }
-                .collect { (enabled, hours) ->
+                settings.autoCheckIntervalMinutes,
+            ) { enabled, minutes -> enabled to minutes }
+                .collect { (enabled, minutes) ->
                     _state.update {
                         it.copy(
                             autoCheckEnabled = enabled,
-                            autoCheckIntervalHours = hours,
+                            autoCheckIntervalMinutes = minutes,
                         )
                     }
                 }
