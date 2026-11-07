@@ -31,22 +31,29 @@ class LinkHealthChecker @Inject constructor(
 ) {
 
     suspend fun check(target: TargetLink): LinkHealth = withContext(Dispatchers.IO) {
-        val directUrl = when (val resolved = resolvers.resolve(target.host, target.url)) {
-            is HostResolveResult.Success -> resolved.directUrl
+        val resolved = when (val result = resolvers.resolve(target.host, target.url)) {
+            is HostResolveResult.Success -> result
             is HostResolveResult.Failure ->
-                return@withContext if (resolved.permanent) {
-                    LinkHealth.Dead("${target.host.label}: ${resolved.reason}")
+                return@withContext if (result.permanent) {
+                    LinkHealth.Dead("${target.host.label}: ${result.reason}")
                 } else {
                     LinkHealth.Unknown
                 }
         }
-        probe(target.host, directUrl)
+        probe(target.host, resolved.directUrl, resolved.headers)
     }
 
-    private fun probe(host: Host, url: String): LinkHealth {
+    private fun probe(
+        host: Host,
+        url: String,
+        headers: Map<String, String>,
+    ): LinkHealth {
         val request = Request.Builder()
             .url(url)
             .header("Range", "bytes=0-0")
+            .apply {
+                for ((name, value) in headers) header(name, value)
+            }
             .build()
         return try {
             clients.probeClient.newCall(request).execute().use { response ->
@@ -60,7 +67,14 @@ class LinkHealthChecker @Inject constructor(
                     response.isSuccessful -> {
                         val contentType = response.header("Content-Type").orEmpty().lowercase()
                         if ("text/html" in contentType) {
-                            LinkHealth.Dead("${host.label}: server mengirim halaman, bukan file")
+                            // Gofile/Acefile can answer with a landing or login page when
+                            // their session headers are stale; let the download try instead
+                            // of skipping the episode as dead.
+                            if (host == Host.GOFILE || host == Host.ACEFILE) {
+                                LinkHealth.Unknown
+                            } else {
+                                LinkHealth.Dead("${host.label}: server mengirim halaman, bukan file")
+                            }
                         } else {
                             LinkHealth.Alive
                         }

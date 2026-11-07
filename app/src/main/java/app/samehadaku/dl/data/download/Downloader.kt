@@ -103,13 +103,14 @@ class Downloader @Inject constructor(
         for (target in targets) {
             currentCoroutineContext().ensureActive()
 
-            val directUrl = when (val resolved = resolvers.resolve(target.host, target.url)) {
-                is HostResolveResult.Success -> resolved.directUrl
+            val resolved = when (val result = resolvers.resolve(target.host, target.url)) {
+                is HostResolveResult.Success -> result
                 is HostResolveResult.Failure -> {
-                    reasons += "${target.host.label}: ${resolved.reason}"
+                    reasons += "${target.host.label}: ${result.reason}"
                     continue
                 }
             }
+            val directUrl = resolved.directUrl
 
             val extension = extensionFor(actualFormat, directUrl)
             val fileName = buildFileName(task, actualFormat, actualResolution, extension)
@@ -118,6 +119,7 @@ class Downloader @Inject constructor(
                 val result = downloadSingle(
                     host = target.host,
                     directUrl = directUrl,
+                    headers = resolved.headers,
                     fileName = fileName,
                     animeSlug = task.animeSlug,
                     listener = listener,
@@ -147,6 +149,7 @@ class Downloader @Inject constructor(
     private suspend fun downloadSingle(
         host: Host,
         directUrl: String,
+        headers: Map<String, String>,
         fileName: String,
         animeSlug: String,
         listener: DownloadProgressListener,
@@ -161,6 +164,7 @@ class Downloader @Inject constructor(
             val request = Request.Builder()
                 .url(directUrl)
                 .apply {
+                    for ((name, value) in headers) header(name, value)
                     if (resumeFrom > 0L) header("Range", "bytes=$resumeFrom-")
                 }
                 .build()
@@ -231,6 +235,14 @@ class Downloader @Inject constructor(
             partFile.delete()
             return ResponseOutcome.Complete(
                 SingleOutcome.HostFailure(httpReason(response.code)),
+            )
+        }
+
+        val contentType = response.header("Content-Type").orEmpty().lowercase()
+        if ("text/html" in contentType) {
+            partFile.delete()
+            return ResponseOutcome.Complete(
+                SingleOutcome.HostFailure("Host mengirim halaman web, bukan file"),
             )
         }
 

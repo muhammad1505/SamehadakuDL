@@ -21,6 +21,8 @@ enum class VideoFormat(val label: String) {
 enum class Host(val label: String) {
     PIXELDRAIN("Pixeldrain"),
     MEDIAFIRE("Mediafire"),
+    GOFILE("Gofile"),
+    ACEFILE("Acefile"),
     ;
 
     companion object {
@@ -29,6 +31,8 @@ enum class Host(val label: String) {
             return when {
                 "pixeldrain" in haystack -> PIXELDRAIN
                 "mediafire" in haystack -> MEDIAFIRE
+                "gofile" in haystack -> GOFILE
+                "acefile" in haystack -> ACEFILE
                 else -> null
             }
         }
@@ -148,7 +152,14 @@ data class DetectionResult(
 )
 
 sealed interface HostResolveResult {
-    data class Success(val directUrl: String) : HostResolveResult
+    /**
+     * [headers] are required by some hosts (Gofile) on the file request itself,
+     * so they must be forwarded to both the health probe and the download.
+     */
+    data class Success(
+        val directUrl: String,
+        val headers: Map<String, String> = emptyMap(),
+    ) : HostResolveResult
 
     /**
      * [permanent] marks a failure the host will not recover from on its own (deleted,

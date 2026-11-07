@@ -33,10 +33,7 @@ object DownloadLinkParser {
             if (anchors.isEmpty()) continue
 
             val valid = anchors.any { anchor ->
-                val text = anchor.text().lowercase()
-                val href = anchor.attr("href").lowercase()
-                "pixeldrain" in text || "pixeldrain.com" in href ||
-                    "mediafire" in text || "mediafire.com" in href
+                Host.fromLink(anchor.attr("href"), anchor.text()) != null
             }
             if (!valid) continue
 
@@ -56,15 +53,10 @@ object DownloadLinkParser {
                 .getOrPut(resolution) { linkedMapOf() }
 
             for (anchor in anchors) {
-                val text = anchor.text().lowercase()
                 val href = anchor.attr("href")
                 if (href.isEmpty()) continue
-                val lowerHref = href.lowercase()
-                if ("pixeldrain" in text || "pixeldrain.com" in lowerHref) {
-                    hosts[Host.PIXELDRAIN] = href
-                } else if ("mediafire" in text || "mediafire.com" in lowerHref) {
-                    hosts[Host.MEDIAFIRE] = href
-                }
+                val host = Host.fromLink(href, anchor.text()) ?: continue
+                hosts[host] = href
             }
         }
 

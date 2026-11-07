@@ -18,6 +18,8 @@ class DownloadLinkParserTest {
             <ul>
               <li>1080p <a href="https://pixeldrain.com/u/abc123">Pixeldrain</a></li>
               <li>1080p <a href="https://www.mediafire.com/file/xyz789/file.mkv">Mediafire</a></li>
+              <li>1080p <a href="https://gofile.io/d/gofile123">Gofile</a></li>
+              <li>1080p <a href="https://acefile.co/f/987654/file.mkv">Acefile</a></li>
             </ul>
           </div>
           <div class="links">
@@ -47,6 +49,14 @@ class DownloadLinkParserTest {
         assertEquals(
             "https://www.mediafire.com/file/xyz789/file.mkv",
             links.url(VideoFormat.MKV, "1080p", Host.MEDIAFIRE),
+        )
+        assertEquals(
+            "https://gofile.io/d/gofile123",
+            links.url(VideoFormat.MKV, "1080p", Host.GOFILE),
+        )
+        assertEquals(
+            "https://acefile.co/f/987654/file.mkv",
+            links.url(VideoFormat.MKV, "1080p", Host.ACEFILE),
         )
         assertEquals(
             "https://pixeldrain.com/u/mp4file",
@@ -98,6 +108,27 @@ class DownloadLinkParserTest {
         """.trimIndent()
 
         assertNull(DownloadLinkParser.parse(html, pageUrl))
+    }
+
+    @Test
+    fun `host detection accepts all supported hosts`() {
+        assertEquals(
+            Host.GOFILE,
+            Host.fromLink("https://gofile.io/d/abc", "Gofile"),
+        )
+        assertEquals(
+            Host.ACEFILE,
+            Host.fromLink("https://acefile.co/f/123/file", "Acefile"),
+        )
+        assertEquals(
+            Host.PIXELDRAIN,
+            Host.fromLink("https://pixeldrain.com/u/abc", "Pixeldrain"),
+        )
+        assertEquals(
+            Host.MEDIAFIRE,
+            Host.fromLink("https://www.mediafire.com/file/abc", "Mediafire"),
+        )
+        assertNull(Host.fromLink("https://example.com/file", "Other"))
     }
 
     @Test
