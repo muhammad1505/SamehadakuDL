@@ -23,6 +23,20 @@ fun signingValue(property: String, envName: String): String? =
 val releaseKeystoreFile = signingValue("storeFile", "KEYSTORE_FILE")
     ?.let { path -> if (File(path).isAbsolute) file(path) else rootProject.file(path) }
 
+// README is the single source of truth for release notes. Package its release
+// sections into the APK so the About screen follows every documented release.
+val generatedChangelogDir = layout.buildDirectory.dir("generated/assets/changelog")
+val generateChangelogAsset = tasks.register("generateChangelogAsset") {
+    val readme = rootProject.file("README.md")
+    inputs.file(readme)
+    outputs.dir(generatedChangelogDir)
+    doLast {
+        val output = generatedChangelogDir.get().file("changelog.md").asFile
+        output.parentFile.mkdirs()
+        output.writeText(readme.readText())
+    }
+}
+
 android {
     namespace = "app.samehadaku.dl"
     compileSdk = 35
@@ -87,6 +101,10 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 }
+
+android.sourceSets["main"].assets.srcDir(generatedChangelogDir)
+tasks.matching { it.name == "preBuild" || Regex("merge.*Assets").matches(it.name) }
+    .configureEach { dependsOn(generateChangelogAsset) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)

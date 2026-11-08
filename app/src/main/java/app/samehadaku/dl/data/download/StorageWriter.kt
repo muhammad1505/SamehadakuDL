@@ -29,6 +29,7 @@ data class StoredFile(
     val size: Long,
     val modifiedAt: Long,
     val uri: Uri?,
+    val path: String? = null,
 )
 
 /** A folder (one anime title) discovered in the download storage. */
@@ -386,6 +387,7 @@ class StorageWriter @Inject constructor(
                             size = file.length(),
                             modifiedAt = file.lastModified(),
                             uri = null,
+                            path = file.absolutePath,
                         )
                     }
                     .orEmpty()

@@ -13,6 +13,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import app.samehadaku.dl.presentation.about.AboutScreen
 import app.samehadaku.dl.presentation.cloudflare.CloudflareScreen
 import app.samehadaku.dl.presentation.collections.CollectionsScreen
 import app.samehadaku.dl.presentation.components.AppBackground
@@ -37,6 +38,7 @@ object Routes {
     const val SUBSCRIPTIONS = "subscriptions"
     const val SEARCH = "search"
     const val NOTIFICATIONS = "notifications"
+    const val ABOUT = "about"
 }
 
 @Composable
@@ -141,6 +143,10 @@ fun SamehadakuNavHost(
                 )
             }
 
+            composable(Routes.ABOUT) {
+                AboutScreen(onBack = { navController.popBackStack() })
+            }
+
             composable(Routes.CLOUDFLARE) {
                 CloudflareScreen(
                     onVerified = {
@@ -208,6 +214,7 @@ fun SamehadakuNavHost(
                 SettingsScreen(
                     onTabSelected = ::navigateToTab,
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
+                    onOpenAbout = { navController.navigate(Routes.ABOUT) },
                 )
             }
         }

@@ -2,7 +2,10 @@ package app.samehadaku.dl.presentation.collections
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
 import android.os.Build
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
@@ -13,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -62,7 +67,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,6 +101,8 @@ import app.samehadaku.dl.presentation.theme.titleAccent
 import app.samehadaku.dl.presentation.util.formatBytes
 import app.samehadaku.dl.presentation.util.prettyName
 import app.samehadaku.dl.presentation.util.shortDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CollectionsScreen(
@@ -501,25 +510,7 @@ private fun FolderGroup(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0.07f)),
-                        ),
-                    )
-                    .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(15.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = if (expanded) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
+            FolderThumbnail(folder = folder, accent = accent, expanded = expanded)
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -749,3 +740,76 @@ private fun FileRow(
         )
     }
 }
+
+@Composable
+private fun FolderThumbnail(
+    folder: StoredFolder,
+    accent: Color,
+    expanded: Boolean,
+) {
+    val context = LocalContext.current
+    val previewFile = remember(folder.name, folder.lastModified) {
+        folder.files.maxWithOrNull(compareBy<StoredFile> { it.modifiedAt }.thenBy { it.name })
+    }
+    val bitmap by produceState<Bitmap?>(initialValue = null, previewFile?.uri, previewFile?.path) {
+        value = previewFile?.let { file ->
+            withContext(Dispatchers.IO) {
+                loadVideoThumbnail(context, file.uri, file.path)
+            }
+        }
+    }
+    val shape = RoundedCornerShape(15.dp)
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0.07f)),
+                ),
+            )
+            .border(1.dp, accent.copy(alpha = 0.30f), shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = "Thumbnail ${prettyName(folder.name)}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.FolderOpen else Icons.Rounded.Folder,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+}
+
+private fun loadVideoThumbnail(
+    context: android.content.Context,
+    uri: android.net.Uri?,
+    path: String?,
+): Bitmap? =
+    runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
+            context.contentResolver.loadThumbnail(uri, Size(256, 256), null)
+        } else {
+            val retriever = MediaMetadataRetriever()
+            try {
+                if (uri != null) {
+                    retriever.setDataSource(context, uri)
+                } else if (!path.isNullOrBlank()) {
+                    retriever.setDataSource(path)
+                } else {
+                    return@runCatching null
+                }
+                retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } finally {
+                retriever.release()
+            }
+        }
+    }.getOrNull()

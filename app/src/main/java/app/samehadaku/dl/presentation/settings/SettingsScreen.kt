@@ -97,6 +97,7 @@ import app.samehadaku.dl.presentation.util.shortDateTime
 fun SettingsScreen(
     onTabSelected: (AppTab) -> Unit,
     onOpenCloudflare: () -> Unit,
+    onOpenAbout: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -588,6 +589,7 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     contentPadding = PaddingValues(14.dp),
+                    onClick = onOpenAbout,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
