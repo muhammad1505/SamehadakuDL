@@ -1,5 +1,6 @@
 package app.samehadaku.dl.presentation.queue
 
+import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -15,6 +16,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,7 +64,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -280,6 +284,7 @@ fun QueueScreen(
                     items(state.tasks, key = { it.id }) { task ->
                         QueueTaskCard(
                             task = task,
+                            cover = state.covers[task.animeSlug],
                             // New cards fade in and the list reflows smoothly whenever
                             // the filter tab or the search query changes the result set.
                             modifier = Modifier.animateItem(
@@ -493,6 +498,7 @@ private fun styleFor(state: DownloadState): TaskStyle = when (state) {
 @Composable
 private fun QueueTaskCard(
     task: DownloadTask,
+    cover: Bitmap?,
     modifier: Modifier = Modifier,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -539,12 +545,21 @@ private fun QueueTaskCard(
                     .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(15.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = style.icon,
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(22.dp),
-                )
+                if (cover != null) {
+                    Image(
+                        bitmap = cover.asImageBitmap(),
+                        contentDescription = "Cover ${prettyName(task.animeSlug)}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = style.icon,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
                 // Semantic status dot keeps the state readable on the tinted tile.
                 Box(
                     modifier = Modifier

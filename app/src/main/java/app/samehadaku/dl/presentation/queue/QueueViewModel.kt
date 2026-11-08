@@ -1,9 +1,11 @@
 package app.samehadaku.dl.presentation.queue
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.samehadaku.dl.core.SessionStore
 import app.samehadaku.dl.data.download.DownloadQueue
+import app.samehadaku.dl.data.repository.AnimeCoverRepository
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.model.DownloadState
 import app.samehadaku.dl.domain.model.DownloadTask
@@ -33,6 +35,7 @@ enum class QueueTab(val label: String) {
 data class QueueUiState(
     val tasks: List<DownloadTask> = emptyList(),
     val allTasks: List<DownloadTask> = emptyList(),
+    val covers: Map<String, Bitmap?> = emptyMap(),
     val concurrency: Int = 1,
     val query: String = "",
     val tab: QueueTab = QueueTab.ALL,
@@ -64,6 +67,7 @@ data class QueueUiState(
 @HiltViewModel
 class QueueViewModel @Inject constructor(
     private val queue: DownloadQueue,
+    private val coverRepository: AnimeCoverRepository,
     settings: SettingsRepository,
     private val control: DownloadControlUseCase,
     private val openDownload: OpenDownloadUseCase,
@@ -79,6 +83,7 @@ class QueueViewModel @Inject constructor(
     val messages = _messages.receiveAsFlow()
 
     private val duplicateNotified = mutableSetOf<String>()
+    private val covers = MutableStateFlow<Map<String, Bitmap?>>(emptyMap())
 
     init {
         viewModelScope.launch {
@@ -109,6 +114,20 @@ class QueueViewModel @Inject constructor(
                     }
             }
         }
+        viewModelScope.launch {
+            queue.tasks.collect { tasks ->
+                val slugs = tasks.map { it.animeSlug }.distinct()
+                covers.update { current -> current.filterKeys { it in slugs } }
+                slugs.forEach { slug ->
+                    if (slug !in covers.value) {
+                        viewModelScope.launch {
+                            val cover = coverRepository.load(slug)
+                            covers.update { current -> current + (slug to cover) }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     val state: StateFlow<QueueUiState> = combine(
@@ -116,7 +135,8 @@ class QueueViewModel @Inject constructor(
         settings.concurrency,
         query,
         tab,
-    ) { tasks, concurrency, currentQuery, currentTab ->
+        covers,
+    ) { tasks, concurrency, currentQuery, currentTab, currentCovers ->
         val visible = tasks
             .filter { matchesTab(it, currentTab) && matchesQuery(it, currentQuery) }
             .sortedWith(
@@ -126,6 +146,7 @@ class QueueViewModel @Inject constructor(
         QueueUiState(
             tasks = visible,
             allTasks = tasks,
+            covers = currentCovers,
             concurrency = concurrency,
             query = currentQuery,
             tab = currentTab,
