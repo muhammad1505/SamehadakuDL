@@ -124,7 +124,9 @@ class HomeViewModel @Inject constructor(
 
     fun onVerifiedReturned() {
         _state.update { it.copy(needsVerification = false) }
-        detect()
+        // Verification can be opened from a notification too; only retry detection
+        // when the composer actually holds a link, so returning does not show an error.
+        if (_state.value.url.isNotBlank()) detect()
     }
 
     fun removeRecentUrl(url: String) {
