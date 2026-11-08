@@ -10,19 +10,25 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.samehadaku.dl.MainActivity
 import app.samehadaku.dl.R
+import app.samehadaku.dl.data.notifications.NotificationRepository
+import app.samehadaku.dl.domain.model.AppNotificationKind
 import app.samehadaku.dl.domain.usecase.SubscriptionCheckResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import timber.log.Timber
 
-/** Posts the result of a background subscription check. */
+/**
+ * Posts the result of a background subscription check. Each notification is also
+ * stored in the inbox so the Beranda bell can show it again with the right route.
+ */
 @Singleton
 class AutoCheckNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val inbox: NotificationRepository,
 ) {
 
-    fun notifyNewEpisodes(result: SubscriptionCheckResult) {
+    suspend fun notifyNewEpisodes(result: SubscriptionCheckResult) {
         val count = result.newEpisodeCount
         if (count <= 0) return
         val title = if (count == 1) {
@@ -30,17 +36,24 @@ class AutoCheckNotifier @Inject constructor(
         } else {
             "$count episode baru tersedia"
         }
+        val body = collapsedNames(result)
+        inbox.add(
+            kind = AppNotificationKind.NEW_EPISODES,
+            title = title,
+            message = body,
+            route = MainActivity.ROUTE_SUBSCRIPTIONS,
+        )
         notify(
             id = NEW_EPISODES_ID,
             title = title,
-            text = collapsedNames(result),
+            text = body,
             bigText = expandedEpisodes(result),
             route = MainActivity.ROUTE_SUBSCRIPTIONS,
         )
     }
 
     /** Posted after the background check has queued the new episodes for download. */
-    fun notifyDownloadsQueued(
+    suspend fun notifyDownloadsQueued(
         result: SubscriptionCheckResult,
         queuedCount: Int,
         skippedCount: Int,
@@ -51,16 +64,23 @@ class AutoCheckNotifier @Inject constructor(
         } else {
             "Mengunduh $queuedCount episode baru"
         }
+        val body = collapsedNames(result)
         val bigText = buildString {
             append(expandedEpisodes(result))
             if (skippedCount > 0) {
                 append("\n$skippedCount episode sudah ada di antrean.")
             }
         }
-        notify(
-            id = NEW_EPISODES_ID,
+        inbox.add(
+            kind = AppNotificationKind.QUEUED,
             title = title,
-            text = collapsedNames(result),
+            message = body,
+            route = MainActivity.ROUTE_QUEUE,
+        )
+        notify(
+            id = QUEUED_ID,
+            title = title,
+            text = body,
             bigText = bigText,
             route = MainActivity.ROUTE_QUEUE,
         )
@@ -68,10 +88,10 @@ class AutoCheckNotifier @Inject constructor(
 
     private fun collapsedNames(result: SubscriptionCheckResult): String {
         val names = result.checks.map { it.subscription.name }
-        return if (names.size <= 2) {
-            names.joinToString(" • ")
-        } else {
-            "${names.take(2).joinToString(" • ")} +${names.size - 2} anime"
+        return when {
+            names.isEmpty() -> "Cek episode baru selesai."
+            names.size <= 2 -> names.joinToString(" • ")
+            else -> "${names.take(2).joinToString(" • ")} +${names.size - 2} anime"
         }
     }
 
@@ -79,6 +99,7 @@ class AutoCheckNotifier @Inject constructor(
         result.checks.joinToString("\n") { check ->
             val numbers = check.newEpisodes.map { it.number }.sorted()
             val label = when {
+                numbers.isEmpty() -> "tanpa episode baru"
                 numbers.size == 1 -> "Ep ${numbers.first()}"
                 numbers.zipWithNext().all { (first, second) -> second == first + 1 } ->
                     "Ep ${numbers.first()}–${numbers.last()}"
@@ -87,11 +108,18 @@ class AutoCheckNotifier @Inject constructor(
             "${check.subscription.name}: $label"
         }
 
-    fun notifyVerificationNeeded() {
+    suspend fun notifyVerificationNeeded() {
+        val message = "Cek episode baru tertunda. Buka aplikasi untuk verifikasi."
+        inbox.add(
+            kind = AppNotificationKind.VERIFICATION,
+            title = "Verifikasi Cloudflare diperlukan",
+            message = message,
+            route = MainActivity.ROUTE_CLOUDFLARE,
+        )
         notify(
             id = VERIFICATION_ID,
             title = "Verifikasi Cloudflare diperlukan",
-            text = "Cek episode baru tertunda. Buka aplikasi untuk verifikasi.",
+            text = message,
             bigText = "Situs meminta verifikasi Cloudflare. Selesaikan verifikasi agar " +
                 "pemeriksaan episode baru bisa berjalan lagi.",
             route = MainActivity.ROUTE_CLOUDFLARE,
@@ -152,5 +180,6 @@ class AutoCheckNotifier @Inject constructor(
         const val CHANNEL_ID = "subscription_updates"
         const val NEW_EPISODES_ID = 4201
         const val VERIFICATION_ID = 4202
+        const val QUEUED_ID = 4203
     }
 }

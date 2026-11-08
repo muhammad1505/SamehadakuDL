@@ -6,6 +6,7 @@ import app.samehadaku.dl.core.SessionStore
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.network.CloudflareSession
 import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.notifications.NotificationRepository
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.usecase.DetectEpisodesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +25,7 @@ data class HomeUiState(
     val error: String? = null,
     val recentUrls: List<String> = emptyList(),
     val needsVerification: Boolean = false,
+    val unreadNotifications: Int = 0,
 )
 
 sealed interface HomeEvent {
@@ -37,6 +39,7 @@ class HomeViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val sessionStore: SessionStore,
     private val cloudflareSession: CloudflareSession,
+    private val notifications: NotificationRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -49,6 +52,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             settings.recentUrls.collect { urls ->
                 _state.update { it.copy(recentUrls = urls) }
+            }
+        }
+        viewModelScope.launch {
+            notifications.unreadCount.collect { count ->
+                _state.update { it.copy(unreadNotifications = count) }
             }
         }
     }

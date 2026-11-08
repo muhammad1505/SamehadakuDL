@@ -19,8 +19,10 @@ import app.samehadaku.dl.presentation.components.AppBackground
 import app.samehadaku.dl.presentation.components.AppTab
 import app.samehadaku.dl.presentation.episodes.EpisodesScreen
 import app.samehadaku.dl.presentation.home.HomeScreen
+import app.samehadaku.dl.presentation.notifications.NotificationsScreen
 import app.samehadaku.dl.presentation.quality.QualityScreen
 import app.samehadaku.dl.presentation.queue.QueueScreen
+import app.samehadaku.dl.presentation.search.SearchScreen
 import app.samehadaku.dl.presentation.settings.SettingsScreen
 import app.samehadaku.dl.presentation.subscriptions.SubscriptionsScreen
 
@@ -33,6 +35,8 @@ object Routes {
     const val COLLECTIONS = "collections"
     const val SETTINGS = "settings"
     const val SUBSCRIPTIONS = "subscriptions"
+    const val SEARCH = "search"
+    const val NOTIFICATIONS = "notifications"
 }
 
 @Composable
@@ -57,20 +61,33 @@ fun SamehadakuNavHost(
         }
     }
 
+    /** Opens a tab route when possible, otherwise a detail route such as verification. */
+    fun openRoute(route: String) {
+        if (route.isBlank()) return
+        when (route) {
+            Routes.SEARCH, Routes.NOTIFICATIONS -> navController.navigate(route) {
+                launchSingleTop = true
+            }
+            else -> {
+                val tab = AppTab.entries.firstOrNull { it.route == route }
+                if (tab != null) {
+                    navigateToTab(tab)
+                } else {
+                    runCatching {
+                        navController.navigate(route) { launchSingleTop = true }
+                    }
+                }
+            }
+        }
+    }
+
     LaunchedEffect(sharedUrl) {
         if (sharedUrl != null) navigateToTab(AppTab.HOME)
     }
 
     LaunchedEffect(pendingRoute) {
         val route = pendingRoute ?: return@LaunchedEffect
-        val tab = AppTab.entries.firstOrNull { it.route == route }
-        if (tab != null) {
-            navigateToTab(tab)
-        } else {
-            runCatching {
-                navController.navigate(route) { launchSingleTop = true }
-            }
-        }
+        openRoute(route)
         onPendingRouteConsumed()
     }
 
@@ -93,11 +110,34 @@ fun SamehadakuNavHost(
                     onOpenEpisodes = { navController.navigate(Routes.EPISODES) },
                     onOpenQuality = { navController.navigate(Routes.QUALITY) },
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
+                    onOpenSearch = { navController.navigate(Routes.SEARCH) { launchSingleTop = true } },
+                    onOpenNotifications = {
+                        navController.navigate(Routes.NOTIFICATIONS) { launchSingleTop = true }
+                    },
                     onTabSelected = ::navigateToTab,
                     verified = verified,
                     onVerifiedHandled = { entry.savedStateHandle["verified"] = false },
                     sharedUrl = sharedUrl,
                     onSharedUrlConsumed = onSharedUrlConsumed,
+                )
+            }
+
+            composable(Routes.SEARCH) {
+                SearchScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenEpisodes = { navController.navigate(Routes.EPISODES) },
+                    onOpenQuality = { navController.navigate(Routes.QUALITY) },
+                    onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
+                )
+            }
+
+            composable(Routes.NOTIFICATIONS) {
+                NotificationsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenRoute = { route ->
+                        navController.popBackStack()
+                        openRoute(route)
+                    },
                 )
             }
 

@@ -17,6 +17,8 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import app.samehadaku.dl.MainActivity
 import app.samehadaku.dl.R
+import app.samehadaku.dl.data.notifications.NotificationRepository
+import app.samehadaku.dl.domain.model.AppNotificationKind
 import app.samehadaku.dl.domain.model.DownloadState
 import app.samehadaku.dl.domain.model.DownloadTask
 import dagger.hilt.android.AndroidEntryPoint
@@ -36,6 +38,9 @@ class DownloadService : Service() {
 
     @Inject
     lateinit var queue: DownloadQueue
+
+    @Inject
+    lateinit var inbox: NotificationRepository
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var collectJob: Job? = null
@@ -165,6 +170,16 @@ class DownloadService : Service() {
         } catch (error: SecurityException) {
             Timber.w(error, "Notification permission denied")
         }
+        scope.launch {
+            runCatching {
+                inbox.add(
+                    kind = AppNotificationKind.COMPLETED,
+                    title = title,
+                    message = text,
+                    route = MainActivity.ROUTE_QUEUE,
+                )
+            }
+        }
     }
 
     private fun buildProgressNotification(tasks: List<DownloadTask>): Notification {
@@ -236,6 +251,8 @@ class DownloadService : Service() {
     private fun contentIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // Always land on the download queue, not whichever tab was open last.
+            putExtra(MainActivity.EXTRA_OPEN_ROUTE, MainActivity.ROUTE_QUEUE)
         }
         return PendingIntent.getActivity(
             this,

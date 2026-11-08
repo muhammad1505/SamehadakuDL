@@ -1,0 +1,220 @@
+package app.samehadaku.dl.presentation.search
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import app.samehadaku.dl.core.SessionStore
+import app.samehadaku.dl.data.network.CloudflareSession
+import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.settings.SettingsRepository
+import app.samehadaku.dl.domain.model.AnimeSearchResult
+import app.samehadaku.dl.domain.repository.SiteRepository
+import app.samehadaku.dl.domain.usecase.AddSubscriptionUseCase
+import app.samehadaku.dl.domain.usecase.DetectEpisodesUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class SearchUiState(
+    val query: String = "",
+    val loading: Boolean = false,
+    val searched: Boolean = false,
+    val results: List<AnimeSearchResult> = emptyList(),
+    val error: String? = null,
+    val needsVerification: Boolean = false,
+    val busyUrl: String? = null,
+    val busyAction: String? = null,
+    val message: String? = null,
+)
+
+sealed interface SearchEvent {
+    data object OpenEpisodes : SearchEvent
+    data object OpenQuality : SearchEvent
+}
+
+/**
+ * Finds anime on the site and lets the user act on a result immediately: queue it
+ * for download (episode picker) or follow it so new episodes are checked later.
+ */
+@HiltViewModel
+class SearchViewModel @Inject constructor(
+    private val repository: SiteRepository,
+    private val detectEpisodes: DetectEpisodesUseCase,
+    private val addSubscription: AddSubscriptionUseCase,
+    private val settings: SettingsRepository,
+    private val sessionStore: SessionStore,
+    private val cloudflareSession: CloudflareSession,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(SearchUiState())
+    val state: StateFlow<SearchUiState> = _state.asStateFlow()
+
+    private val _events = Channel<SearchEvent>(Channel.BUFFERED)
+    val events = _events.receiveAsFlow()
+
+    private var searchJob: Job? = null
+
+    fun onQueryChange(value: String) {
+        _state.update { it.copy(query = value, error = null) }
+        searchJob?.cancel()
+        if (value.trim().length < MIN_QUERY_LENGTH) {
+            _state.update {
+                it.copy(loading = false, searched = false, results = emptyList())
+            }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(DEBOUNCE_MS)
+            runSearch(value)
+        }
+    }
+
+    fun submit() {
+        searchJob?.cancel()
+        viewModelScope.launch { runSearch(_state.value.query) }
+    }
+
+    private suspend fun runSearch(rawQuery: String) {
+        val query = rawQuery.trim()
+        if (query.length < MIN_QUERY_LENGTH) return
+        _state.update {
+            it.copy(
+                loading = true,
+                searched = true,
+                error = null,
+                needsVerification = false,
+            )
+        }
+        runCatching { cloudflareSession.restore() }
+        try {
+            val results = repository.searchAnime(query)
+            _state.update {
+                it.copy(
+                    loading = false,
+                    results = results,
+                    error = if (results.isEmpty()) {
+                        "Tidak ada anime yang cocok dengan \"$query\"."
+                    } else {
+                        null
+                    },
+                )
+            }
+        } catch (verification: NeedsVerificationException) {
+            sessionStore.pendingVerificationUrl = verification.pageUrl
+            _state.update {
+                it.copy(
+                    loading = false,
+                    results = emptyList(),
+                    needsVerification = true,
+                    error = null,
+                )
+            }
+        } catch (error: Exception) {
+            _state.update {
+                it.copy(
+                    loading = false,
+                    results = emptyList(),
+                    error = error.message ?: "Pencarian gagal. Coba lagi.",
+                )
+            }
+        }
+    }
+
+    /** Opens the episode picker for this anime, exactly like pasting its URL. */
+    fun download(result: AnimeSearchResult) {
+        if (_state.value.busyUrl != null) return
+        viewModelScope.launch {
+            _state.update { it.copy(busyUrl = result.url, busyAction = "download") }
+            runCatching { cloudflareSession.restore() }
+            try {
+                val detection = detectEpisodes(result.url)
+                if (detection.episodes.isEmpty()) {
+                    throw IllegalStateException("Tidak ada episode yang terdeteksi.")
+                }
+                sessionStore.saveDetection(detection)
+                settings.addRecentUrl(detection.sourceUrl)
+                _state.update { it.copy(busyUrl = null, busyAction = null) }
+                _events.send(
+                    if (detection.isListPage) SearchEvent.OpenEpisodes else SearchEvent.OpenQuality,
+                )
+            } catch (verification: NeedsVerificationException) {
+                sessionStore.pendingVerificationUrl =
+                    verification.pageUrl.ifBlank { result.url }
+                _state.update {
+                    it.copy(
+                        busyUrl = null,
+                        busyAction = null,
+                        needsVerification = true,
+                    )
+                }
+            } catch (error: Exception) {
+                _state.update {
+                    it.copy(
+                        busyUrl = null,
+                        busyAction = null,
+                        message = error.message ?: "Gagal menyiapkan unduhan.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun subscribe(result: AnimeSearchResult) {
+        if (_state.value.busyUrl != null) return
+        viewModelScope.launch {
+            _state.update { it.copy(busyUrl = result.url, busyAction = "subscribe") }
+            runCatching { cloudflareSession.restore() }
+            try {
+                val subscription = addSubscription(result.url)
+                _state.update {
+                    it.copy(
+                        busyUrl = null,
+                        busyAction = null,
+                        message = "${subscription.name} masuk ke Langganan.",
+                    )
+                }
+            } catch (verification: NeedsVerificationException) {
+                sessionStore.pendingVerificationUrl =
+                    verification.pageUrl.ifBlank { result.url }
+                _state.update {
+                    it.copy(
+                        busyUrl = null,
+                        busyAction = null,
+                        needsVerification = true,
+                    )
+                }
+            } catch (error: Exception) {
+                _state.update {
+                    it.copy(
+                        busyUrl = null,
+                        busyAction = null,
+                        message = error.message ?: "Gagal menambah langganan.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissMessage() {
+        _state.update { it.copy(message = null) }
+    }
+
+    fun clearQuery() {
+        searchJob?.cancel()
+        _state.update {
+            it.copy(query = "", results = emptyList(), searched = false, error = null, loading = false)
+        }
+    }
+
+    private companion object {
+        const val MIN_QUERY_LENGTH = 2
+        const val DEBOUNCE_MS = 450L
+    }
+}

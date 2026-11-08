@@ -43,6 +43,8 @@ import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.NotificationsNone
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -71,6 +73,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +99,7 @@ import app.samehadaku.dl.presentation.components.TinyStatusDot
 import app.samehadaku.dl.presentation.theme.BrandAccent
 import app.samehadaku.dl.presentation.theme.BrandGold
 import app.samehadaku.dl.presentation.theme.BrandMint
+import app.samehadaku.dl.presentation.theme.BrandPink
 import app.samehadaku.dl.presentation.theme.BrandPrimary
 import app.samehadaku.dl.presentation.theme.Danger
 import app.samehadaku.dl.presentation.theme.Ink
@@ -112,6 +116,8 @@ fun HomeScreen(
     onOpenEpisodes: () -> Unit,
     onOpenQuality: () -> Unit,
     onOpenCloudflare: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onTabSelected: (AppTab) -> Unit,
     verified: Boolean,
     onVerifiedHandled: () -> Unit,
@@ -221,7 +227,13 @@ fun HomeScreen(
     }
 
     ScreenScaffold(
-        topBar = { HomeHeader() },
+        topBar = {
+            HomeHeader(
+                unreadNotifications = state.unreadNotifications,
+                onOpenSearch = onOpenSearch,
+                onOpenNotifications = onOpenNotifications,
+            )
+        },
         bottomBar = {
             AppBottomBar(
                 selectedTab = AppTab.HOME,
@@ -237,12 +249,11 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .imePadding(),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
             HeroSection(
                 modifier = Modifier.fillMaxWidth(),
-                onDetect = ::pasteAndDetect,
-                onPickQuality = { onTabSelected(AppTab.SETTINGS) },
+                onSearch = onOpenSearch,
             )
 
             LinkComposerCard(
@@ -294,12 +305,16 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeHeader() {
+private fun HomeHeader(
+    unreadNotifications: Int,
+    onOpenSearch: () -> Unit,
+    onOpenNotifications: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 4.dp),
+            .padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BrandMark(size = 38.dp)
@@ -330,45 +345,76 @@ private fun HomeHeader() {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.width(8.dp))
-        ReadyChip()
+        Spacer(Modifier.width(6.dp))
+        HeaderAction(
+            icon = Icons.Rounded.Search,
+            contentDescription = "Cari anime",
+            onClick = onOpenSearch,
+        )
+        Spacer(Modifier.width(6.dp))
+        HeaderAction(
+            icon = Icons.Rounded.NotificationsNone,
+            contentDescription = "Notifikasi",
+            onClick = onOpenNotifications,
+            badgeCount = unreadNotifications,
+        )
     }
 }
 
 @Composable
-private fun ReadyChip() {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(BrandMint.copy(alpha = 0.12f))
-            .border(1.dp, BrandMint.copy(alpha = 0.26f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 9.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Rounded.Eco,
-            contentDescription = null,
-            tint = BrandMint,
-            modifier = Modifier.size(13.dp),
-        )
-        Text(
-            text = "Siap",
-            color = BrandMint,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-        )
+private fun HeaderAction(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    badgeCount: Int = 0,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    Box {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(shape)
+                .background(Color.White.copy(alpha = 0.07f))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
+                .clickable(role = Role.Button, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = TextPrimary,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+        if (badgeCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(17.dp)
+                    .clip(CircleShape)
+                    .background(BrandPink),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (badgeCount > 9) "9+" else badgeCount.toString(),
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    lineHeight = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun HeroSection(
     modifier: Modifier = Modifier,
-    onDetect: () -> Unit,
-    onPickQuality: () -> Unit,
+    onSearch: () -> Unit,
 ) {
     Column(
-        modifier = modifier.padding(top = 36.dp, bottom = 12.dp),
+        modifier = modifier.padding(top = 24.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
@@ -435,14 +481,9 @@ private fun HeroSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 HeroActionChip(
-                    icon = Icons.Rounded.Bolt,
-                    label = "Deteksi Otomatis",
-                    onClick = onDetect,
-                )
-                HeroActionChip(
-                    icon = Icons.Rounded.HighQuality,
-                    label = "Pilih Kualitas",
-                    onClick = onPickQuality,
+                    icon = Icons.Rounded.Search,
+                    label = "Cari & unduh anime",
+                    onClick = onSearch,
                 )
             }
             Row(

@@ -21,6 +21,9 @@ object SiteMirrors {
         "samehadaku.mba",
     )
 
+    /** Every known host, most reliable first; used for site-wide pages such as search. */
+    fun knownHosts(): List<String> = HOSTS
+
     /**
      * The same page on the other mirrors, in order. Returns an empty list for URLs that
      * are not Samehadaku pages or point at the site root, where swapping the host

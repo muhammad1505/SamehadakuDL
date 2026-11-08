@@ -7,11 +7,14 @@ import app.samehadaku.dl.data.network.HtmlFetcher
 import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.parser.DownloadLinkParser
 import app.samehadaku.dl.data.parser.EpisodeListParser
+import app.samehadaku.dl.data.parser.SearchResultParser
+import app.samehadaku.dl.domain.model.AnimeSearchResult
 import app.samehadaku.dl.domain.model.DetectionResult
 import app.samehadaku.dl.domain.model.DownloadLinks
 import app.samehadaku.dl.domain.model.Episode
 import app.samehadaku.dl.domain.repository.SiteRepository
 import java.net.URI
+import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -71,6 +74,33 @@ class SiteRepositoryImpl @Inject constructor(
             episodes = episodes,
             isListPage = true,
         )
+    }
+
+    override suspend fun searchAnime(query: String): List<AnimeSearchResult> {
+        val term = query.trim()
+        if (term.length < MIN_SEARCH_LENGTH) return emptyList()
+
+        var lastError: Exception? = null
+        var verification: NeedsVerificationException? = null
+
+        for (host in SiteMirrors.knownHosts().take(MAX_SEARCH_MIRRORS)) {
+            val root = "https://$host/"
+            val url = "$root?s=" + URLEncoder.encode(term, "UTF-8")
+            try {
+                val page = fetcher.fetch(url, referer = root)
+                // A readable result page is authoritative, even when it has no cards.
+                return SearchResultParser.parse(page.html, page.finalUrl)
+            } catch (challenge: NeedsVerificationException) {
+                verification = verification ?: challenge
+            } catch (error: Exception) {
+                Timber.d(error, "Search failed on %s", host)
+                lastError = error
+            }
+        }
+
+        verification?.let { throw it }
+        lastError?.let { throw it }
+        return emptyList()
     }
 
     /**
@@ -156,5 +186,7 @@ class SiteRepositoryImpl @Inject constructor(
 
     private companion object {
         const val CACHE_TTL_MS = 10 * 60 * 1000L
+        const val MIN_SEARCH_LENGTH = 2
+        const val MAX_SEARCH_MIRRORS = 3
     }
 }

@@ -1,10 +1,17 @@
 package app.samehadaku.dl.domain.repository
 
+import app.samehadaku.dl.domain.model.AnimeSearchResult
 import app.samehadaku.dl.domain.model.DetectionResult
 import app.samehadaku.dl.domain.model.DownloadLinks
 
 interface SiteRepository {
     suspend fun detectEpisodes(url: String): DetectionResult
+
+    /**
+     * Searches the site (`/?s=`) and returns the anime cards on the result page.
+     * Mirrors are tried when the first host cannot be read.
+     */
+    suspend fun searchAnime(query: String): List<AnimeSearchResult>
     suspend fun loadDownloadLinks(episodeUrl: String): DownloadLinks?
 
     /**

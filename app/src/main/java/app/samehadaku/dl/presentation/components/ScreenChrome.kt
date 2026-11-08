@@ -1,8 +1,11 @@
 package app.samehadaku.dl.presentation.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,12 +39,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -241,11 +247,34 @@ private fun NavTabItem(
     modifier: Modifier = Modifier,
 ) {
     val tint = if (selected) BrandPrimary else InactiveTabColor.copy(alpha = 0.92f)
+    // A rounded press glow instead of the default rectangular ripple, which showed up
+    // as a white box on the glass bar.
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.92f else 1f,
+        label = "nav-tab-scale",
+    )
+    val glow by animateFloatAsState(
+        targetValue = if (pressed) 0.10f else 0f,
+        label = "nav-tab-glow",
+    )
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .clickable(role = Role.Tab, onClick = onClick)
-            .padding(top = 16.dp),
+            .padding(horizontal = 3.dp, vertical = 3.dp)
+            .background(Color.White.copy(alpha = glow), RoundedCornerShape(18.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Tab,
+                onClick = onClick,
+            )
+            .padding(top = 13.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -275,18 +304,34 @@ private fun HomeTabItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.90f else 1f,
+        label = "home-tab-scale",
+    )
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .clickable(role = Role.Tab, onClick = onClick)
-            .padding(top = 16.dp),
+            .padding(horizontal = 3.dp, vertical = 3.dp)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Tab,
+                onClick = onClick,
+            )
+            .padding(top = 13.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Box(
             modifier = Modifier
                 .offset(y = (-9).dp)
-                .size(68.dp),
+                .size(68.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
             contentAlignment = Alignment.Center,
         ) {
             // Soft halo behind the raised button.
