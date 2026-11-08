@@ -60,9 +60,22 @@ class SearchViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     private var searchJob: Job? = null
+    // Network calls cannot always be cancelled immediately. Keep a generation so
+    // a slower response for an older query can never replace newer results.
+    private var queryGeneration = 0
 
     fun onQueryChange(value: String) {
-        _state.update { it.copy(query = value, error = null) }
+        queryGeneration++
+        _state.update {
+            it.copy(
+                query = value,
+                error = null,
+                needsVerification = false,
+                loading = false,
+                searched = false,
+                results = emptyList(),
+            )
+        }
         searchJob?.cancel()
         if (value.trim().length < MIN_QUERY_LENGTH) {
             _state.update {
@@ -70,20 +83,23 @@ class SearchViewModel @Inject constructor(
             }
             return
         }
+        val generation = queryGeneration
         searchJob = viewModelScope.launch {
             delay(DEBOUNCE_MS)
-            runSearch(value)
+            runSearch(value, generation)
         }
     }
 
     fun submit() {
         searchJob?.cancel()
-        viewModelScope.launch { runSearch(_state.value.query) }
+        val generation = queryGeneration
+        viewModelScope.launch { runSearch(_state.value.query, generation) }
     }
 
-    private suspend fun runSearch(rawQuery: String) {
+    private suspend fun runSearch(rawQuery: String, generation: Int) {
         val query = rawQuery.trim()
         if (query.length < MIN_QUERY_LENGTH) return
+        if (generation != queryGeneration) return
         _state.update {
             it.copy(
                 loading = true,
@@ -95,6 +111,7 @@ class SearchViewModel @Inject constructor(
         runCatching { cloudflareSession.restore() }
         try {
             val results = repository.searchAnime(query)
+            if (generation != queryGeneration) return
             _state.update {
                 it.copy(
                     loading = false,
@@ -107,6 +124,7 @@ class SearchViewModel @Inject constructor(
                 )
             }
         } catch (verification: NeedsVerificationException) {
+            if (generation != queryGeneration) return
             sessionStore.pendingVerificationUrl = verification.pageUrl
             _state.update {
                 it.copy(
@@ -117,6 +135,7 @@ class SearchViewModel @Inject constructor(
                 )
             }
         } catch (error: Exception) {
+            if (generation != queryGeneration) return
             _state.update {
                 it.copy(
                     loading = false,
@@ -207,6 +226,7 @@ class SearchViewModel @Inject constructor(
     }
 
     fun clearQuery() {
+        queryGeneration++
         searchJob?.cancel()
         _state.update {
             it.copy(query = "", results = emptyList(), searched = false, error = null, loading = false)

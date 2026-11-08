@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -53,6 +54,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.samehadaku.dl.presentation.theme.Abyss
@@ -110,43 +112,67 @@ fun ScreenTopBar(
     onBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = 16.dp, end = 16.dp, top = 7.dp, bottom = 5.dp),
     ) {
-        if (onBack != null) {
-            GlassIconButton(
-                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Kembali",
-                onClick = onBack,
-            )
-            Spacer(Modifier.width(11.dp))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = TextPrimary,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (subtitle != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onBack != null) {
+                GlassIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Kembali",
+                    onClick = onBack,
+                )
+                Spacer(Modifier.width(11.dp))
+            } else {
+                // Main sections keep the same brand anchor as Beranda.
+                BrandMark(size = 34.dp)
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = subtitle,
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.labelSmall,
+                    text = title,
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions,
+            )
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            content = actions,
+        Spacer(Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            BrandPrimary.copy(alpha = 0.72f),
+                            BrandAccent.copy(alpha = 0.28f),
+                            Color.Transparent,
+                        ),
+                    ),
+                ),
         )
     }
 }
@@ -176,11 +202,16 @@ fun AppBottomBar(
             .padding(top = 10.dp, bottom = 14.dp),
     ) {
         // 76dp tall: a 60dp glass pill plus headroom for the raised Beranda button.
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(76.dp),
         ) {
+            val compactHomeSize = when {
+                maxWidth < 340.dp -> 56.dp
+                maxWidth < 400.dp -> 62.dp
+                else -> 68.dp
+            }
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -223,6 +254,7 @@ fun AppBottomBar(
                         HomeTabItem(
                             selected = tab == selectedTab,
                             onClick = { onTabSelected(tab) },
+                            homeSize = compactHomeSize,
                             modifier = Modifier.weight(1f),
                         )
                     } else {
@@ -302,6 +334,7 @@ private fun NavTabItem(
 private fun HomeTabItem(
     selected: Boolean,
     onClick: () -> Unit,
+    homeSize: Dp,
     modifier: Modifier = Modifier,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -327,7 +360,7 @@ private fun HomeTabItem(
         Box(
             modifier = Modifier
                 .offset(y = (-9).dp)
-                .size(68.dp)
+                .size(homeSize)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -337,7 +370,7 @@ private fun HomeTabItem(
             // Soft halo behind the raised button.
             Box(
                 modifier = Modifier
-                    .size(78.dp)
+                    .size(homeSize + 10.dp)
                     .background(
                         Brush.radialGradient(
                             listOf(
@@ -351,7 +384,7 @@ private fun HomeTabItem(
             // Bright ring hugging the raised button.
             Box(
                 modifier = Modifier
-                    .size(68.dp)
+                    .size(homeSize)
                     .shadow(
                         elevation = 20.dp,
                         shape = CircleShape,
@@ -374,7 +407,7 @@ private fun HomeTabItem(
             // Violet disc holding both the home icon and its label.
             Box(
                 modifier = Modifier
-                    .size(63.dp)
+                    .size(homeSize - 5.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.verticalGradient(
@@ -440,8 +473,23 @@ fun ActionBottomBar(
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            content = content,
-        )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                BrandPrimary.copy(alpha = 0.75f),
+                                BrandPink.copy(alpha = 0.55f),
+                                Color.Transparent,
+                            ),
+                        ),
+                    ),
+            )
+            content()
+        }
     }
 }
 

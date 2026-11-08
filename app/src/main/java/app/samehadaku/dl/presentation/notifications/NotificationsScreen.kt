@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -103,7 +104,26 @@ fun NotificationsScreen(
         snackbarHostState = snackbarHostState,
     ) { padding ->
         when {
-            state.loading -> Unit
+            state.loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GlassCard(
+                        shape = RoundedCornerShape(22.dp),
+                        contentPadding = PaddingValues(22.dp),
+                        glow = true,
+                    ) {
+                        CircularProgressIndicator(
+                            color = BrandPrimary,
+                            trackColor = Color.White.copy(alpha = 0.10f),
+                            strokeWidth = 3.dp,
+                        )
+                    }
+                }
+            }
 
             state.items.isEmpty() -> {
                 EmptyState(
