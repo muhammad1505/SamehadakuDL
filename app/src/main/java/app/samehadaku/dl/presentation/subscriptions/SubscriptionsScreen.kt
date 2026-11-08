@@ -1,9 +1,11 @@
 package app.samehadaku.dl.presentation.subscriptions
 
+import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +58,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -656,6 +660,7 @@ fun SubscriptionsScreen(
                 items(state.subscriptions, key = { it.slug }) { subscription ->
                     SubscriptionRow(
                         subscription = subscription,
+                        cover = state.covers[subscription.slug],
                         onOpenEpisodes = { viewModel.openEpisodes(subscription) },
                         onMarkLast = { pendingLast = subscription },
                         onRemove = { pendingDelete = subscription },
@@ -670,6 +675,7 @@ fun SubscriptionsScreen(
 @Composable
 private fun SubscriptionRow(
     subscription: Subscription,
+    cover: Bitmap?,
     onOpenEpisodes: () -> Unit,
     onMarkLast: () -> Unit,
     onRemove: () -> Unit,
@@ -686,20 +692,7 @@ private fun SubscriptionRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(BrandPrimary.copy(alpha = 0.13f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Bookmark,
-                    contentDescription = null,
-                    tint = BrandPrimary,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            SubscriptionCover(cover = cover, title = subscription.name)
             Spacer(Modifier.width(11.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -767,6 +760,37 @@ private fun SubscriptionRow(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SubscriptionCover(
+    cover: Bitmap?,
+    title: String,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    Box(
+        modifier = Modifier
+            .size(42.dp)
+            .clip(shape)
+            .background(BrandPrimary.copy(alpha = 0.13f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (cover != null) {
+            Image(
+                bitmap = cover.asImageBitmap(),
+                contentDescription = "Cover $title",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.Bookmark,
+                contentDescription = null,
+                tint = BrandPrimary,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

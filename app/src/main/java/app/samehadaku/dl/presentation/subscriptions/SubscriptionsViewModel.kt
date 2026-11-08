@@ -1,11 +1,13 @@
 package app.samehadaku.dl.presentation.subscriptions
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.samehadaku.dl.core.SessionStore
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.download.DownloadQueue
 import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.repository.AnimeCoverRepository
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.data.subscriptions.SubscriptionRepository
 import app.samehadaku.dl.domain.model.QualityPreference
@@ -37,6 +39,7 @@ data class CheckReport(
 
 data class SubscriptionsUiState(
     val subscriptions: List<Subscription> = emptyList(),
+    val covers: Map<String, Bitmap?> = emptyMap(),
     val loading: Boolean = true,
     val checking: Boolean = false,
     val checkProgress: String = "",
@@ -75,6 +78,7 @@ sealed interface SubscriptionsEvent {
 @HiltViewModel
 class SubscriptionsViewModel @Inject constructor(
     private val repository: SubscriptionRepository,
+    private val coverRepository: AnimeCoverRepository,
     private val addSubscriptionUseCase: AddSubscriptionUseCase,
     private val checkSubscriptionsUseCase: CheckSubscriptionsUseCase,
     private val importSubscriptionsUseCase: ImportSubscriptionsUseCase,
@@ -95,7 +99,27 @@ class SubscriptionsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.subscriptions.collect { subscriptions ->
-                _state.update { it.copy(subscriptions = subscriptions, loading = false) }
+                _state.update { current ->
+                    current.copy(
+                        subscriptions = subscriptions,
+                        loading = false,
+                        covers = current.covers.filterKeys { key ->
+                            subscriptions.any { subscription -> subscription.slug == key }
+                        },
+                    )
+                }
+                subscriptions.forEach { subscription ->
+                    if (subscription.slug !in _state.value.covers) {
+                        viewModelScope.launch {
+                            val cover = coverRepository.load(subscription.slug)
+                            _state.update { current ->
+                                current.copy(
+                                    covers = current.covers + (subscription.slug to cover),
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
         viewModelScope.launch {

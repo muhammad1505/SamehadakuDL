@@ -244,6 +244,23 @@ fun AppBottomBar(
                         shape = barShape,
                     ),
             )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth(0.46f)
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color.Transparent,
+                                BrandPrimary.copy(alpha = 0.9f),
+                                BrandPink.copy(alpha = 0.8f),
+                                Color.Transparent,
+                            ),
+                        ),
+                    ),
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -295,7 +312,30 @@ private fun NavTabItem(
         modifier = modifier
             .fillMaxHeight()
             .padding(horizontal = 3.dp, vertical = 3.dp)
-            .background(Color.White.copy(alpha = glow), RoundedCornerShape(18.dp))
+            .background(
+                if (selected) {
+                    Brush.horizontalGradient(
+                        listOf(
+                            BrandPrimary.copy(alpha = 0.16f),
+                            BrandAccent.copy(alpha = 0.10f),
+                        ),
+                    )
+                } else {
+                    Brush.solidColor(Color.White.copy(alpha = glow))
+                },
+                RoundedCornerShape(18.dp),
+            )
+            .then(
+                if (selected) {
+                    Modifier.border(
+                        1.dp,
+                        BrandPrimary.copy(alpha = 0.28f),
+                        RoundedCornerShape(18.dp),
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .clickable(
                 interactionSource = interaction,
                 indication = null,
@@ -310,12 +350,22 @@ private fun NavTabItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = tab.icon,
-            contentDescription = tab.label,
-            tint = tint,
-            modifier = Modifier.size(24.dp),
-        )
+        Box(
+            modifier = Modifier
+                .size(width = 38.dp, height = 28.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (selected) BrandPrimary.copy(alpha = 0.18f) else Color.Transparent,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = tab.icon,
+                contentDescription = tab.label,
+                tint = tint,
+                modifier = Modifier.size(if (selected) 22.dp else 23.dp),
+            )
+        }
         Spacer(Modifier.height(5.dp))
         Text(
             text = tab.label,
