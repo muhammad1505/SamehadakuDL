@@ -57,6 +57,13 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Menambahkan halaman Tentang dengan versi aplikasi dan changelog yang dibaca dinamis dari
   catatan rilis README saat proses build.
 
+## Rilis 2.6.4
+
+- Mengganti preview frame video di Koleksi dengan cover poster anime dari halaman detailnya.
+- Menambahkan cache cover di memory, fallback lintas mirror, dan fallback ikon folder bila cover
+  tidak tersedia atau provider penyimpanan menolak akses gambar.
+- Menambahkan test parser cover untuk metadata sosial dan gambar lazy-load.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
