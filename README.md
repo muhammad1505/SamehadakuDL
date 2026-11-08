@@ -64,6 +64,13 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   tidak tersedia atau provider penyimpanan menolak akses gambar.
 - Menambahkan test parser cover untuk metadata sosial dan gambar lazy-load.
 
+## Rilis 2.6.5
+
+- Menerapkan cover anime yang sama pada daftar Langganan dan Unduhan agar seluruh daftar
+  utama konsisten.
+- Memoles navigasi bawah dengan state aktif glass-gradient, glow neon, indikator pilihan,
+  dan animasi tekan yang lebih premium.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
