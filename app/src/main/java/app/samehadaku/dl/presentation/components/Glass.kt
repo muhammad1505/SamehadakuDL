@@ -63,38 +63,32 @@ fun GlassCard(
     }
     Column(
         modifier = modifier
-            .then(
-                if (glow) {
-                    Modifier.shadow(
-                        elevation = 22.dp,
-                        shape = shape,
-                        ambientColor = BrandPrimary.copy(alpha = 0.35f),
-                        spotColor = BrandAccent.copy(alpha = 0.30f),
-                    )
-                } else {
-                    Modifier
-                },
+            .shadow(
+                elevation = if (glow) 24.dp else 14.dp,
+                shape = shape,
+                ambientColor = BrandPrimary.copy(alpha = if (glow) 0.50f else 0.30f),
+                spotColor = BrandAccent.copy(alpha = if (glow) 0.42f else 0.26f),
             )
             .clip(shape)
             .background(
                 if (highlighted) {
                     Brush.verticalGradient(
                         listOf(
-                            BrandPrimary.copy(alpha = 0.14f),
-                            GlassSurface.copy(alpha = 0.56f),
+                            BrandPrimary.copy(alpha = 0.18f),
+                            GlassSurface.copy(alpha = 0.86f),
                         ),
                     )
                 } else {
                     Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.10f),
-                            GlassSurface.copy(alpha = 0.38f),
+                            Color.White.copy(alpha = 0.07f),
+                            GlassSurface.copy(alpha = 0.80f),
                         ),
                     )
                 },
             )
             .border(
-                width = 1.dp,
+                width = 1.4.dp,
                 brush = if (highlighted) {
                     Brush.linearGradient(
                         listOf(
@@ -106,9 +100,9 @@ fun GlassCard(
                 } else {
                     Brush.linearGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.30f),
-                            BrandPrimary.copy(alpha = 0.16f),
-                            Color.White.copy(alpha = 0.04f),
+                            BrandPrimary.copy(alpha = 0.95f),
+                            BrandAccent.copy(alpha = 0.78f),
+                            BrandPrimary.copy(alpha = 0.28f),
                         ),
                     )
                 },
@@ -215,7 +209,7 @@ fun InfoBanner(
     GlassCard(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        contentPadding = PaddingValues(14.dp),
+        contentPadding = PaddingValues(12.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Box(

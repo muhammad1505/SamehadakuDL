@@ -3,6 +3,7 @@ package app.samehadaku.dl.presentation.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,27 +18,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ContentPaste
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -60,29 +59,25 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.samehadaku.dl.BuildConfig
 import app.samehadaku.dl.presentation.components.AppBottomBar
 import app.samehadaku.dl.presentation.components.AppTab
 import app.samehadaku.dl.presentation.components.BrandMark
-import app.samehadaku.dl.presentation.components.GlassButton
 import app.samehadaku.dl.presentation.components.GlassCard
-import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.GlassTextField
 import app.samehadaku.dl.presentation.components.GradientButton
 import app.samehadaku.dl.presentation.components.IconDot
 import app.samehadaku.dl.presentation.components.InfoBanner
-import app.samehadaku.dl.presentation.components.SceneryArt
 import app.samehadaku.dl.presentation.components.ScreenScaffold
-import app.samehadaku.dl.presentation.components.SectionHeader
 import app.samehadaku.dl.presentation.components.StatusPill
 import app.samehadaku.dl.presentation.components.TinyStatusDot
 import app.samehadaku.dl.presentation.theme.BrandAccent
@@ -103,8 +98,6 @@ fun HomeScreen(
     onOpenEpisodes: () -> Unit,
     onOpenQuality: () -> Unit,
     onOpenCloudflare: () -> Unit,
-    onOpenDownloads: () -> Unit,
-    onOpenSubscriptions: () -> Unit,
     onTabSelected: (AppTab) -> Unit,
     verified: Boolean,
     onVerifiedHandled: () -> Unit,
@@ -118,7 +111,6 @@ fun HomeScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
-    var showAllRecent by rememberSaveable { mutableStateOf(false) }
     var confirmClearRecent by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -215,7 +207,7 @@ fun HomeScreen(
     }
 
     ScreenScaffold(
-        topBar = { HomeHeader(onOpenSubscriptions = onOpenSubscriptions) },
+        topBar = { HomeHeader() },
         bottomBar = {
             AppBottomBar(
                 selectedTab = AppTab.HOME,
@@ -224,155 +216,85 @@ fun HomeScreen(
         },
         snackbarHostState = snackbarHostState,
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .padding(horizontal = 16.dp)
                 .imePadding(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            item {
-                HeroCard(onOpenDownloads = onOpenDownloads)
-            }
+            HeroSection(
+                modifier = Modifier.fillMaxWidth(),
+                onDetect = ::pasteAndDetect,
+                onPickQuality = { onTabSelected(AppTab.SETTINGS) },
+            )
 
-            item {
-                LinkComposerCard(
-                    url = state.url,
-                    loading = state.loading,
-                    onUrlChange = ::handleUrlChange,
-                    onClear = { viewModel.onUrlChange("") },
-                    onPaste = { pasteAndDetect() },
-                    onStart = ::startDetection,
-                )
-            }
+            LinkComposerCard(
+                url = state.url,
+                loading = state.loading,
+                onUrlChange = ::handleUrlChange,
+                onClear = { viewModel.onUrlChange("") },
+                onPaste = { pasteAndDetect() },
+                onStart = ::startDetection,
+            )
 
             if (state.loading) {
-                item { DetectingStrip() }
+                DetectingStrip()
             }
 
             if (state.needsVerification) {
-                item {
-                    InfoBanner(
-                        title = "Verifikasi Cloudflare diperlukan",
-                        message = "Situs meminta pemeriksaan Cloudflare. Buka halaman verifikasi, " +
-                            "tunggu hingga selesai, lalu deteksi lagi.",
-                        icon = Icons.Rounded.CloudOff,
-                        accent = Warning,
-                        actionLabel = "Buka verifikasi",
-                        onAction = {
-                            viewModel.prepareVerification()
-                            onOpenCloudflare()
-                        },
-                    )
-                }
+                InfoBanner(
+                    title = "Verifikasi Cloudflare diperlukan",
+                    message = "Buka halaman verifikasi, tunggu hingga selesai, lalu deteksi lagi.",
+                    icon = Icons.Rounded.CloudOff,
+                    accent = Warning,
+                    actionLabel = "Buka verifikasi",
+                    onAction = {
+                        viewModel.prepareVerification()
+                        onOpenCloudflare()
+                    },
+                )
             }
+
+            Spacer(Modifier.height(9.dp))
+            TipsCard()
 
             if (state.recentUrls.isNotEmpty()) {
-                item {
-                    SectionHeader(
-                        title = "URL Terakhir",
-                        icon = Icons.Rounded.History,
-                        action = if (state.recentUrls.size > 3) {
-                            if (showAllRecent) "Ringkas" else "Semua"
-                        } else {
-                            null
-                        },
-                        onAction = if (state.recentUrls.size > 3) {
-                            { showAllRecent = !showAllRecent }
-                        } else {
-                            null
-                        },
-                    )
-                }
-                val visibleUrls = if (showAllRecent) state.recentUrls else state.recentUrls.take(3)
-                items(
-                    count = visibleUrls.size,
-                    key = { index -> visibleUrls[index] },
-                ) { index ->
-                    val url = visibleUrls[index]
-                    RecentUrlRow(
-                        url = url,
-                        onUse = {
-                            viewModel.onUrlChange(url)
-                            startDetection()
-                        },
-                        onRemove = { viewModel.removeRecentUrl(url) },
-                    )
-                }
-                item {
-                    GlassButton(
-                        text = "Bersihkan riwayat URL",
-                        onClick = { confirmClearRecent = true },
-                        icon = Icons.Rounded.DeleteOutline,
-                        modifier = Modifier.fillMaxWidth(),
-                        height = 42.dp,
-                        tint = Danger,
-                    )
-                }
-            } else if (!state.loading && !state.needsVerification) {
-                item {
-                    InfoBanner(
-                        title = "Tips mengunduh",
-                        message = "Tempel link daftar anime untuk mengambil banyak episode " +
-                            "sekaligus, atau link satu episode untuk mengunduh satu file saja.",
-                        icon = Icons.Rounded.Bolt,
-                        accent = BrandMint,
-                    )
-                }
+                RecentUrlsSection(
+                    urls = state.recentUrls,
+                    onUse = { url ->
+                        viewModel.onUrlChange(url)
+                        startDetection()
+                    },
+                    onRemove = viewModel::removeRecentUrl,
+                    onClear = { confirmClearRecent = true },
+                )
             }
 
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(46.dp)
-                            .height(2.dp)
-                            .clip(CircleShape)
-                            .background(BrandPrimary.copy(alpha = 0.22f)),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Aplikasi ini hanya untuk penggunaan pribadi.",
-                        color = TextMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        text = "Hormati hak cipta pemilik konten. v${BuildConfig.VERSION_NAME}",
-                        color = TextMuted.copy(alpha = 0.75f),
-                        style = MaterialTheme.typography.labelSmall,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
+            // Breathing room so the artwork horizon stays visible under the content.
+            Spacer(Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun HomeHeader(onOpenSubscriptions: () -> Unit) {
+private fun HomeHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BrandMark(size = 46.dp)
-        Spacer(Modifier.width(11.dp))
+        BrandMark(size = 38.dp)
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = "Samehadaku",
                     color = TextPrimary,
-                    fontSize = 21.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.3).sp,
                 )
@@ -380,7 +302,7 @@ private fun HomeHeader(onOpenSubscriptions: () -> Unit) {
                 Text(
                     text = "DL",
                     color = BrandPrimary,
-                    fontSize = 21.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.3).sp,
                 )
@@ -394,14 +316,6 @@ private fun HomeHeader(onOpenSubscriptions: () -> Unit) {
             )
         }
         Spacer(Modifier.width(8.dp))
-        GlassIconButton(
-            icon = Icons.Rounded.Bookmark,
-            contentDescription = "Langganan",
-            onClick = onOpenSubscriptions,
-            size = 40.dp,
-            iconSize = 19.dp,
-        )
-        Spacer(Modifier.width(8.dp))
         ReadyChip()
     }
 }
@@ -413,9 +327,9 @@ private fun ReadyChip() {
             .clip(RoundedCornerShape(50))
             .background(BrandMint.copy(alpha = 0.12f))
             .border(1.dp, BrandMint.copy(alpha = 0.26f), RoundedCornerShape(50))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 9.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         TinyStatusDot(color = BrandMint)
         Text(
@@ -428,53 +342,24 @@ private fun ReadyChip() {
 }
 
 @Composable
-private fun HeroCard(onOpenDownloads: () -> Unit) {
-    val shape = RoundedCornerShape(28.dp)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(216.dp)
-            .clip(shape)
-            .border(
-                1.dp,
-                Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.30f),
-                        BrandPrimary.copy(alpha = 0.20f),
-                        Color.Transparent,
-                    ),
-                ),
-                shape,
-            ),
+private fun HeroSection(
+    modifier: Modifier = Modifier,
+    onDetect: () -> Unit,
+    onPickQuality: () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        SceneryArt(
-            modifier = Modifier.fillMaxSize(),
-            seed = 7,
-            shape = shape,
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Ink.copy(alpha = 0.18f),
-                            Color.Transparent,
-                            Ink.copy(alpha = 0.92f),
-                        ),
-                    ),
-                ),
-        )
         Row(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp)
                 .clip(RoundedCornerShape(50))
-                .background(Ink.copy(alpha = 0.35f))
-                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
-                .padding(horizontal = 10.dp, vertical = 5.dp),
+                .background(Ink.copy(alpha = 0.32f))
+                .border(1.dp, BrandPrimary.copy(alpha = 0.30f), RoundedCornerShape(50))
+                .padding(horizontal = 11.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Box(
                 modifier = Modifier
@@ -484,73 +369,106 @@ private fun HeroCard(onOpenDownloads: () -> Unit) {
             )
             Text(
                 text = "PREMIUM DOWNLOADER",
-                color = TextPrimary.copy(alpha = 0.92f),
+                color = TextPrimary.copy(alpha = 0.94f),
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.1.sp,
             )
         }
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .clip(RoundedCornerShape(50))
-                .background(Color.White.copy(alpha = 0.10f))
-                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
-                .clickable(onClick = onOpenDownloads)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Download,
-                contentDescription = null,
-                tint = BrandPrimary,
-                modifier = Modifier.size(15.dp),
-            )
+
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
-                text = "Unduhan",
+                text = "Unduh Anime",
                 color = TextPrimary,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            Text(
-                text = "Unduh anime favoritmu",
-                color = TextPrimary,
-                style = MaterialTheme.typography.headlineSmall,
+                fontSize = 29.sp,
+                lineHeight = 31.sp,
                 fontWeight = FontWeight.ExtraBold,
+                fontStyle = FontStyle.Italic,
+                letterSpacing = (-0.5).sp,
             )
             Text(
-                text = "Tempel URL daftar anime atau episode dari Samehadaku. " +
+                text = "Favoritmu",
+                style = TextStyle(
+                    brush = Brush.horizontalGradient(
+                        listOf(Color(0xFF38E1FF), Color(0xFF8A6BFF)),
+                    ),
+                    fontSize = 29.sp,
+                    lineHeight = 31.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontStyle = FontStyle.Italic,
+                    letterSpacing = (-0.5).sp,
+                ),
+            )
+            Text(
+                text = "Tempel URL anime satuan atau daftar (list) sekaligus. " +
                     "Episode dan kualitas terdeteksi otomatis.",
                 color = TextSecondary,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 278.dp),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HeroMetaChip(icon = Icons.Rounded.Bolt, label = "Deteksi otomatis")
-                HeroMetaChip(icon = Icons.Rounded.HighQuality, label = "Pilih kualitas")
+            Row(
+                modifier = Modifier.padding(top = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                HeroActionChip(
+                    icon = Icons.Rounded.Bolt,
+                    label = "Deteksi Otomatis",
+                    onClick = onDetect,
+                )
+                HeroActionChip(
+                    icon = Icons.Rounded.HighQuality,
+                    label = "Pilih Kualitas",
+                    onClick = onPickQuality,
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(20.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(BrandPrimary),
+                )
+                Spacer(Modifier.width(5.dp))
+                repeat(2) {
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.26f)),
+                    )
+                    Spacer(Modifier.width(5.dp))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HeroMetaChip(icon: ImageVector, label: String) {
+private fun HeroActionChip(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.09f))
-            .border(1.dp, Color.White.copy(alpha = 0.13f), RoundedCornerShape(50))
-            .padding(horizontal = 9.dp, vertical = 5.dp),
+            .background(
+                Brush.horizontalGradient(
+                    listOf(Color.White.copy(alpha = 0.10f), BrandPrimary.copy(alpha = 0.10f)),
+                ),
+            )
+            .border(1.dp, BrandPrimary.copy(alpha = 0.42f), RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
@@ -558,12 +476,13 @@ private fun HeroMetaChip(icon: ImageVector, label: String) {
             imageVector = icon,
             contentDescription = null,
             tint = BrandPrimary,
-            modifier = Modifier.size(13.dp),
+            modifier = Modifier.size(14.dp),
         )
         Text(
             text = label,
-            color = TextSecondary,
+            color = TextPrimary,
             style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
     }
@@ -580,36 +499,41 @@ private fun LinkComposerCard(
 ) {
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        contentPadding = PaddingValues(16.dp),
+        shape = RoundedCornerShape(20.dp),
+        contentPadding = PaddingValues(14.dp),
+        glow = true,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconDot(
                 icon = Icons.Rounded.Link,
-                size = 38.dp,
+                size = 36.dp,
                 tint = BrandPrimary,
             )
-            Spacer(Modifier.width(11.dp))
+            Spacer(Modifier.width(9.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Tempel Link",
+                    text = "Tempel URL",
                     color = TextPrimary,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "Daftar anime atau satu episode",
+                    text = "Link satuan atau daftar (multi-link)",
                     color = TextSecondary,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Spacer(Modifier.width(8.dp))
-            StatusPill(text = "Otomatis", color = BrandMint)
+            Spacer(Modifier.width(6.dp))
+            StatusPill(
+                text = "Otomatis",
+                color = BrandMint,
+                icon = Icons.Rounded.AutoAwesome,
+            )
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
 
         GlassTextField(
             value = url,
@@ -621,7 +545,7 @@ private fun LinkComposerCard(
                     if (url.isNotBlank()) {
                         Box(
                             modifier = Modifier
-                                .size(26.dp)
+                                .size(24.dp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.08f))
                                 .clickable(
@@ -637,13 +561,14 @@ private fun LinkComposerCard(
                                 style = MaterialTheme.typography.titleMedium,
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                     }
                     PasteAction(enabled = !loading, onClick = onPaste)
                 }
             },
             enabled = !loading,
-            maxLines = 2,
+            minHeight = 48.dp,
+            maxLines = 1,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Uri,
                 autoCorrectEnabled = false,
@@ -652,7 +577,7 @@ private fun LinkComposerCard(
             keyboardActions = KeyboardActions(onDone = { onStart() }),
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
 
         GradientButton(
             text = "Mulai Download",
@@ -661,10 +586,10 @@ private fun LinkComposerCard(
             enabled = url.isNotBlank(),
             loading = loading,
             modifier = Modifier.fillMaxWidth(),
-            height = 52.dp,
+            height = 50.dp,
         )
 
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(10.dp))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -677,7 +602,7 @@ private fun LinkComposerCard(
                 modifier = Modifier.size(13.dp),
             )
             Text(
-                text = "Link langsung terdeteksi setelah ditempel.",
+                text = "Link akan diproses dan episode terdeteksi otomatis.",
                 color = TextMuted,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
@@ -689,7 +614,7 @@ private fun LinkComposerCard(
 
 @Composable
 private fun DetectingStrip() {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         LinearProgressIndicator(
             modifier = Modifier
                 .fillMaxWidth()
@@ -713,79 +638,134 @@ private fun DetectingStrip() {
 }
 
 @Composable
-private fun RecentUrlRow(
+private fun TipsCard() {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        contentPadding = PaddingValues(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            IconDot(
+                icon = Icons.Rounded.Bolt,
+                size = 40.dp,
+                tint = BrandMint,
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "Tips Mengunduh",
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "Kamu bisa menempel 1 link atau banyak link sekaligus " +
+                        "(daftar episode) untuk mengunduh secara otomatis.",
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentUrlsSection(
+    urls: List<String>,
+    onUse: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.History,
+                contentDescription = null,
+                tint = BrandPrimary,
+                modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "URL Terakhir",
+                color = TextPrimary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "Bersihkan",
+                color = BrandPrimary,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .clickable(onClick = onClear)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            urls.take(5).forEach { url ->
+                RecentUrlChip(
+                    url = url,
+                    onUse = { onUse(url) },
+                    onRemove = { onRemove(url) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentUrlChip(
     url: String,
     onUse: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
-    GlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp),
-        onClick = onUse,
+    Row(
+        modifier = Modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onUse)
+            .padding(start = 9.dp, end = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BrandAccent.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AccessTime,
-                    contentDescription = null,
-                    tint = BrandAccent,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(Modifier.width(11.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = prettyTitleFromUrl(url),
-                    color = TextPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = url,
-                    color = TextMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Box {
-                GlassIconButton(
-                    icon = Icons.Rounded.MoreVert,
-                    contentDescription = "Opsi URL",
-                    onClick = { menuOpen = true },
-                    size = 32.dp,
-                    iconSize = 17.dp,
-                    tint = TextSecondary,
-                )
-                DropdownMenu(
-                    expanded = menuOpen,
-                    onDismissRequest = { menuOpen = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Gunakan URL") },
-                        onClick = {
-                            menuOpen = false
-                            onUse()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Hapus dari riwayat", color = Danger) },
-                        onClick = {
-                            menuOpen = false
-                            onRemove()
-                        },
-                    )
-                }
-            }
+        Icon(
+            imageVector = Icons.Rounded.AccessTime,
+            contentDescription = null,
+            tint = BrandAccent,
+            modifier = Modifier.size(13.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = prettyTitleFromUrl(url),
+            color = TextPrimary,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 132.dp),
+        )
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .clickable(onClickLabel = "Hapus dari riwayat", onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Close,
+                contentDescription = "Hapus dari riwayat",
+                tint = TextMuted,
+                modifier = Modifier.size(12.dp),
+            )
         }
     }
 }
@@ -795,18 +775,28 @@ private fun PasteAction(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(50)
+    val shape = RoundedCornerShape(11.dp)
     Row(
         modifier = Modifier
-            .height(34.dp)
+            .height(36.dp)
             .clip(shape)
             .background(
-                BrandPrimary.copy(alpha = if (enabled) 0.15f else 0.06f),
+                if (enabled) {
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFF12B8E8), Color(0xFF2CE4FF)),
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.06f)),
+                    )
+                },
             )
-            .border(
-                1.dp,
-                BrandPrimary.copy(alpha = if (enabled) 0.36f else 0.12f),
-                shape,
+            .then(
+                if (enabled) {
+                    Modifier.border(1.dp, Color.White.copy(alpha = 0.35f), shape)
+                } else {
+                    Modifier
+                },
             )
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp),
@@ -815,15 +805,15 @@ private fun PasteAction(
         Icon(
             imageVector = Icons.Rounded.ContentPaste,
             contentDescription = null,
-            tint = if (enabled) BrandPrimary else TextMuted,
+            tint = if (enabled) Color.White else TextMuted,
             modifier = Modifier.size(14.dp),
         )
         Spacer(Modifier.width(5.dp))
         Text(
             text = "Tempel",
-            color = if (enabled) BrandPrimary else TextMuted,
+            color = if (enabled) Color.White else TextMuted,
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
         )
     }
 }

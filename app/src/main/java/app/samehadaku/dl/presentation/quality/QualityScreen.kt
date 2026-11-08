@@ -190,7 +190,7 @@ private fun LazyQualityContent(
             .padding(padding)
             .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         GlassCard(
             modifier = Modifier.fillMaxWidth(),

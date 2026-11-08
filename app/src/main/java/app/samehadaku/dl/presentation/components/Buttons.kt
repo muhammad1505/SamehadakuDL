@@ -64,10 +64,10 @@ fun GradientButton(
             .then(
                 if (active) {
                     Modifier.shadow(
-                        elevation = 18.dp,
+                        elevation = 22.dp,
                         shape = shape,
-                        ambientColor = BrandPrimary.copy(alpha = 0.45f),
-                        spotColor = BrandAccent.copy(alpha = 0.35f),
+                        ambientColor = BrandPrimary.copy(alpha = 0.60f),
+                        spotColor = BrandAccent.copy(alpha = 0.50f),
                     )
                 } else {
                     Modifier
@@ -78,12 +78,18 @@ fun GradientButton(
                 if (active) {
                     PrimaryGradient
                 } else {
-                    Brush.linearGradient(listOf(SlateSurface, SlateSurface))
+                    Brush.linearGradient(
+                        listOf(
+                            BrandPrimary.copy(alpha = 0.30f),
+                            Color(0xFF39DCFF).copy(alpha = 0.30f),
+                            BrandAccent.copy(alpha = 0.30f),
+                        ),
+                    )
                 },
             )
             .border(
                 width = 1.dp,
-                color = if (active) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.06f),
+                color = if (active) Color.White.copy(alpha = 0.38f) else Color.White.copy(alpha = 0.06f),
                 shape = shape,
             )
             .clickable(
@@ -102,21 +108,21 @@ fun GradientButton(
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp,
-                    color = Ink,
+                    color = Color.White,
                 )
                 Spacer(Modifier.width(10.dp))
             } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (active) Ink else TextMuted,
+                    tint = if (active) Color.White else TextMuted,
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(Modifier.width(9.dp))
             }
             Text(
                 text = text,
-                color = if (active) Ink else TextMuted,
+                color = if (active) Color.White else Color.White.copy(alpha = 0.45f),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -141,8 +147,8 @@ fun GlassButton(
         modifier = modifier
             .height(height)
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.055f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
+            .background(Color.White.copy(alpha = 0.09f))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
             .clickable(
                 enabled = enabled,
                 role = Role.Button,
@@ -298,14 +304,25 @@ fun StatusPill(
     text: String,
     color: Color,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
 ) {
-    Box(
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
             .background(color.copy(alpha = 0.13f))
-            .border(1.dp, color.copy(alpha = 0.28f), RoundedCornerShape(50))
+            .border(1.dp, color.copy(alpha = 0.32f), RoundedCornerShape(50))
             .padding(horizontal = 9.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(11.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+        }
         Text(
             text = text,
             color = color,

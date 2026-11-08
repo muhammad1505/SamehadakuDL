@@ -52,6 +52,7 @@ fun GlassTextField(
     leadingIcon: ImageVector? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     singleLine: Boolean = true,
+    minHeight: Dp = 54.dp,
     minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else 3,
     enabled: Boolean = true,
@@ -64,14 +65,14 @@ fun GlassTextField(
         onValueChange = onValueChange,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 54.dp)
+            .heightIn(min = minHeight)
             .clip(shape)
             .background(
                 Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.07f), Color.White.copy(alpha = 0.035f)),
+                    listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f)),
                 ),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.11f), shape)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), shape)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         enabled = enabled,
         textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),

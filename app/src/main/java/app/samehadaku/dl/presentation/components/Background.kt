@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
@@ -35,6 +36,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -45,7 +47,6 @@ import app.samehadaku.dl.presentation.theme.BrandAccent
 import app.samehadaku.dl.presentation.theme.BrandMint
 import app.samehadaku.dl.presentation.theme.BrandPink
 import app.samehadaku.dl.presentation.theme.BrandPrimary
-import app.samehadaku.dl.presentation.theme.DeepNavy
 import app.samehadaku.dl.presentation.theme.Ink
 import app.samehadaku.dl.presentation.theme.Midnight
 import app.samehadaku.dl.presentation.theme.TextPrimary
@@ -156,12 +157,30 @@ fun AppBackground(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Abyss, Midnight, DeepNavy, Abyss),
-                ),
-            ),
+            .background(Abyss),
     ) {
+        Image(
+            painter = painterResource(R.drawable.bg_wallpaper),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alignment = BiasAlignment(horizontalBias = 0.5f, verticalBias = 0.42f),
+            alpha = 1f,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Abyss.copy(alpha = 0.18f),
+                            Midnight.copy(alpha = 0.26f),
+                            Abyss.copy(alpha = 0.42f),
+                            Abyss.copy(alpha = 0.60f),
+                        ),
+                    ),
+                ),
+        )
         Canvas(Modifier.fillMaxSize()) {
             drawAmbientBackdrop(drift)
         }
@@ -322,6 +341,25 @@ private fun DrawScope.drawAmbientBackdrop(drift: Float) {
             ),
         ),
         style = Stroke(width = 1.dp.toPx()),
+    )
+
+    // Neon horizon glow behind the floating bottom navigation.
+    val horizonCenter = Offset(width * 0.5f, height * 1.02f)
+    val horizonRadius = width * 0.85f
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(BrandPrimary.copy(alpha = 0.20f), Color.Transparent),
+            center = horizonCenter,
+            radius = horizonRadius,
+        ),
+        radius = horizonRadius,
+        center = horizonCenter,
+    )
+    drawCircle(
+        color = BrandPrimary.copy(alpha = 0.22f),
+        radius = horizonRadius,
+        center = horizonCenter,
+        style = Stroke(width = 1.3.dp.toPx()),
     )
 
     // Static sakura petals add depth without distracting motion.

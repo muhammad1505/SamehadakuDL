@@ -93,8 +93,6 @@ fun SamehadakuNavHost(
                     onOpenEpisodes = { navController.navigate(Routes.EPISODES) },
                     onOpenQuality = { navController.navigate(Routes.QUALITY) },
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
-                    onOpenDownloads = { navigateToTab(AppTab.QUEUE) },
-                    onOpenSubscriptions = { navigateToTab(AppTab.SUBSCRIPTIONS) },
                     onTabSelected = ::navigateToTab,
                     verified = verified,
                     onVerifiedHandled = { entry.savedStateHandle["verified"] = false },

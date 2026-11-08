@@ -3,6 +3,7 @@ package app.samehadaku.dl.presentation.splash
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,19 +29,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.samehadaku.dl.BuildConfig
+import app.samehadaku.dl.R
 import app.samehadaku.dl.presentation.components.BrandMark
-import app.samehadaku.dl.presentation.components.SceneryArt
 import app.samehadaku.dl.presentation.theme.Abyss
 import app.samehadaku.dl.presentation.theme.BrandAccent
 import app.samehadaku.dl.presentation.theme.BrandPrimary
@@ -85,10 +88,13 @@ fun SplashScreen(onFinished: () -> Unit) {
             .fillMaxSize()
             .background(Abyss),
     ) {
-        SceneryArt(
+        Image(
+            painter = painterResource(R.drawable.bg_wallpaper),
+            contentDescription = null,
             modifier = Modifier.fillMaxSize(),
-            seed = 17,
-            shape = RectangleShape,
+            contentScale = ContentScale.Crop,
+            alignment = BiasAlignment(horizontalBias = 0.55f, verticalBias = 0f),
+            alpha = 0.90f,
         )
         Box(
             modifier = Modifier
@@ -96,9 +102,9 @@ fun SplashScreen(onFinished: () -> Unit) {
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Abyss.copy(alpha = 0.30f),
-                            Abyss.copy(alpha = 0.58f),
-                            Abyss.copy(alpha = 0.92f),
+                            Abyss.copy(alpha = 0.42f),
+                            Abyss.copy(alpha = 0.64f),
+                            Abyss.copy(alpha = 0.94f),
                         ),
                     ),
                 ),

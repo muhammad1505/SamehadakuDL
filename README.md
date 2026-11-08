@@ -1,8 +1,8 @@
 # Samehadaku DL
 
 Aplikasi Android untuk mengunduh episode Samehadaku dengan antarmuka **Premium Glassmorphism**:
-tema gelap, aksen cyan/ungu, Plus Jakarta Sans, dan artwork scenery original yang digambar
-langsung dengan Compose Canvas (tanpa aset anime berhak cipta).
+tema gelap, aksen cyan/ungu, Plus Jakarta Sans, dan wallpaper kosmik buatan AI yang dipakai
+bersama di seluruh layar (splash, beranda, dan halaman episode).
 
 ## Fitur
 

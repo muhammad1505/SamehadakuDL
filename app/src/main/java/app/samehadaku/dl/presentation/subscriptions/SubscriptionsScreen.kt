@@ -592,8 +592,8 @@ fun SubscriptionsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item {
                     GradientButton(
@@ -610,26 +610,32 @@ fun SubscriptionsScreen(
                 }
 
                 item {
-                    Text(
-                        text = state.quality?.let {
-                            "Kualitas: ${it.format.label} • ${it.resolution} • ${it.host.label}"
-                        } ?: "Kualitas dipilih otomatis saat pertama kali melanjutkan.",
-                        color = TextMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = if (state.autoCheckEnabled) {
-                            "Cek otomatis setiap ${intervalLabel(state.autoCheckIntervalMinutes)} • " +
-                                "episode baru langsung diunduh"
-                        } else {
-                            "Cek otomatis nonaktif • atur di Pengaturan"
-                        },
-                        color = TextMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        Text(
+                            text = state.quality?.let {
+                                "Kualitas: ${it.format.label} • ${it.resolution} • ${it.host.label}"
+                            } ?: "Kualitas dipilih otomatis saat pertama kali melanjutkan.",
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        Text(
+                            text = if (state.autoCheckEnabled) {
+                                "Cek otomatis setiap ${intervalLabel(state.autoCheckIntervalMinutes)} • " +
+                                    "episode baru langsung diunduh"
+                            } else {
+                                "Cek otomatis nonaktif • atur di Pengaturan"
+                            },
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
                 }
 
                 if (state.needsVerification) {

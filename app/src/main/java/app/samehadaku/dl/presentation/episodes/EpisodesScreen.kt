@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmark
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +56,6 @@ import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.GlassTextField
 import app.samehadaku.dl.presentation.components.GradientButton
 import app.samehadaku.dl.presentation.components.NeonCheckbox
-import app.samehadaku.dl.presentation.components.SceneryArt
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
 import app.samehadaku.dl.presentation.components.SectionHeader
@@ -65,6 +66,7 @@ import app.samehadaku.dl.presentation.theme.Ink
 import app.samehadaku.dl.presentation.theme.TextMuted
 import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
+import app.samehadaku.dl.presentation.theme.titleAccent
 import app.samehadaku.dl.presentation.util.prettyName
 
 @Composable
@@ -165,8 +167,8 @@ fun EpisodesScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .imePadding(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
                     AnimeHeader(
@@ -219,66 +221,48 @@ private fun AnimeHeader(
     animeSlug: String,
     episodeCount: Int,
 ) {
-    val shape = RoundedCornerShape(26.dp)
-    Box(
+    // Same full-bleed treatment as Beranda: the shared wallpaper is the artwork,
+    // so only a per-anime accent keeps each title recognisable.
+    val accent = titleAccent(animeSlug)
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(178.dp)
-            .clip(shape)
-            .border(
-                1.dp,
-                Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.26f),
-                        BrandPrimary.copy(alpha = 0.18f),
-                        Color.Transparent,
-                    ),
-                ),
-                shape,
-            ),
+            .height(196.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        SceneryArt(
-            modifier = Modifier.fillMaxSize(),
-            seed = animeSlug.hashCode().let { if (it == Int.MIN_VALUE) 0 else it },
-            shape = shape,
-        )
-        Box(
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Ink.copy(alpha = 0.18f), Ink.copy(alpha = 0.92f)),
-                    ),
-                ),
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(14.dp)
                 .clip(RoundedCornerShape(50))
-                .background(BrandPrimary.copy(alpha = 0.16f))
-                .border(1.dp, BrandPrimary.copy(alpha = 0.30f), RoundedCornerShape(50))
-                .padding(horizontal = 10.dp, vertical = 4.dp),
+                .background(Ink.copy(alpha = 0.32f))
+                .border(1.dp, accent.copy(alpha = 0.34f), RoundedCornerShape(50))
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(accent),
+            )
             Text(
                 text = "DAFTAR EPISODE",
-                color = BrandPrimary,
-                style = MaterialTheme.typography.labelSmall,
+                color = TextPrimary.copy(alpha = 0.94f),
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
+                letterSpacing = 1.1.sp,
             )
         }
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(
                 text = prettyName(animeSlug),
-                color = TextPrimary,
-                style = MaterialTheme.typography.headlineSmall,
+                style = TextStyle(
+                    brush = Brush.horizontalGradient(listOf(TextPrimary, accent)),
+                ),
+                fontSize = 30.sp,
+                lineHeight = 34.sp,
                 fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.5).sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
