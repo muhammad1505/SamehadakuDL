@@ -3,9 +3,7 @@ package app.samehadaku.dl.presentation.collections
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
 import android.os.Build
-import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
@@ -58,7 +56,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -101,8 +98,6 @@ import app.samehadaku.dl.presentation.theme.titleAccent
 import app.samehadaku.dl.presentation.util.formatBytes
 import app.samehadaku.dl.presentation.util.prettyName
 import app.samehadaku.dl.presentation.util.shortDate
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Composable
 fun CollectionsScreen(
@@ -350,6 +345,7 @@ fun CollectionsScreen(
                                 fadeOutSpec = tween(durationMillis = 160),
                             ),
                             folder = folder,
+                            cover = state.covers[folder.name],
                             expanded = expandedFolder == folder.name,
                             onToggle = {
                                 expandedFolder = if (expandedFolder == folder.name) {
@@ -476,6 +472,7 @@ private data class PendingFileDelete(
 private fun FolderGroup(
     modifier: Modifier = Modifier,
     folder: StoredFolder,
+    cover: Bitmap?,
     expanded: Boolean,
     onToggle: () -> Unit,
     onOpenLatest: () -> Unit,
@@ -510,7 +507,12 @@ private fun FolderGroup(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FolderThumbnail(folder = folder, accent = accent, expanded = expanded)
+            FolderThumbnail(
+                folder = folder,
+                cover = cover,
+                accent = accent,
+                expanded = expanded,
+            )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -744,20 +746,10 @@ private fun FileRow(
 @Composable
 private fun FolderThumbnail(
     folder: StoredFolder,
+    cover: Bitmap?,
     accent: Color,
     expanded: Boolean,
 ) {
-    val context = LocalContext.current
-    val previewFile = remember(folder.name, folder.lastModified) {
-        folder.files.maxWithOrNull(compareBy<StoredFile> { it.modifiedAt }.thenBy { it.name })
-    }
-    val bitmap by produceState<Bitmap?>(initialValue = null, previewFile?.uri, previewFile?.path) {
-        value = previewFile?.let { file ->
-            withContext(Dispatchers.IO) {
-                loadVideoThumbnail(context, file.uri, file.path)
-            }
-        }
-    }
     val shape = RoundedCornerShape(15.dp)
     Box(
         modifier = Modifier
@@ -771,10 +763,10 @@ private fun FolderThumbnail(
             .border(1.dp, accent.copy(alpha = 0.30f), shape),
         contentAlignment = Alignment.Center,
     ) {
-        if (bitmap != null) {
+        if (cover != null) {
             Image(
-                bitmap = bitmap!!.asImageBitmap(),
-                contentDescription = "Thumbnail ${prettyName(folder.name)}",
+                bitmap = cover.asImageBitmap(),
+                contentDescription = "Cover ${prettyName(folder.name)}",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -788,28 +780,3 @@ private fun FolderThumbnail(
         }
     }
 }
-
-private fun loadVideoThumbnail(
-    context: android.content.Context,
-    uri: android.net.Uri?,
-    path: String?,
-): Bitmap? =
-    runCatching {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && uri != null) {
-            context.contentResolver.loadThumbnail(uri, Size(256, 256), null)
-        } else {
-            val retriever = MediaMetadataRetriever()
-            try {
-                if (uri != null) {
-                    retriever.setDataSource(context, uri)
-                } else if (!path.isNullOrBlank()) {
-                    retriever.setDataSource(path)
-                } else {
-                    return@runCatching null
-                }
-                retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            } finally {
-                retriever.release()
-            }
-        }
-    }.getOrNull()

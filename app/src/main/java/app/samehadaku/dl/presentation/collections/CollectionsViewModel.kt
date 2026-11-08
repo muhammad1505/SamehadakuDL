@@ -1,10 +1,12 @@
 package app.samehadaku.dl.presentation.collections
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.samehadaku.dl.data.download.StorageWriter
 import app.samehadaku.dl.data.download.StoredFile
 import app.samehadaku.dl.data.download.StoredFolder
+import app.samehadaku.dl.data.repository.AnimeCoverRepository
 import app.samehadaku.dl.domain.usecase.OpenDownloadUseCase
 import app.samehadaku.dl.domain.usecase.ShareDownloadUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +25,7 @@ data class CollectionsUiState(
     val folders: List<StoredFolder> = emptyList(),
     val query: String = "",
     val location: String = "",
+    val covers: Map<String, Bitmap?> = emptyMap(),
     val error: String? = null,
 ) {
     val isEmpty: Boolean get() = folders.isEmpty() && query.isBlank()
@@ -45,6 +48,7 @@ data class CollectionsUiState(
 @HiltViewModel
 class CollectionsViewModel @Inject constructor(
     private val storage: StorageWriter,
+    private val coverRepository: AnimeCoverRepository,
     private val openDownload: OpenDownloadUseCase,
     private val shareDownload: ShareDownloadUseCase,
 ) : ViewModel() {
@@ -71,9 +75,25 @@ class CollectionsViewModel @Inject constructor(
                 }
             val location = runCatching { storage.describeActiveLocation() }.getOrDefault("")
             _state.update {
-                it.copy(loading = false, folders = folders, allFolders = folders, location = location)
+                it.copy(
+                    loading = false,
+                    folders = folders,
+                    allFolders = folders,
+                    location = location,
+                    covers = it.covers.filterKeys { key -> folders.any { folder -> folder.name == key } },
+                )
             }
             applyQuery()
+            folders.forEach { folder ->
+                if (folder.name !in _state.value.covers) {
+                    launch {
+                        val cover = coverRepository.load(folder.name)
+                        _state.update { current ->
+                            current.copy(covers = current.covers + (folder.name to cover))
+                        }
+                    }
+                }
+            }
         }
     }
 
