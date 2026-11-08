@@ -9,7 +9,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Deteksi episode dari URL daftar anime maupun episode tunggal.
 - Terima link yang dibagikan dari browser/aplikasi lain lewat share sheet Android.
 - Pemilihan episode cepat lewat daftar, pilih semua, atau rentang (`1-12, 15`).
-- Pemilihan format (MKV/MP4/X265), resolusi, dan server (Pixeldrain/Mediafire) dengan fallback.
+- Pemilihan format (MKV/MP4/X265), resolusi, dan server (Pixeldrain/Mediafire/Gofile/Acefile)
+  dengan fallback.
 - Satu layar Unduhan untuk antrean berjalan sekaligus riwayat (Semua/Selesai/Gagal),
   dengan konkurensi 1–3, jeda/lanjut per episode maupun massal.
 - Progres, kecepatan, ukuran, server aktif, dan alasan kegagalan per task.
@@ -37,6 +38,16 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   dan Langganan.
 - Menambahkan fallback nomor episode dari judul episode dan mirror ketika halaman utama
   gagal diparse.
+
+## Rilis 2.6.2
+
+- Memperbaiki unduh movie dari hasil pencarian yang memakai permalink bersih tanpa teks
+  `episode-1`, termasuk pembacaan format, resolusi, dan host link.
+- Menyesuaikan parser dengan layout link download baru yang tidak selalu memakai elemen `li`
+  dan memastikan URL relatif dibaca sebagai URL absolut.
+- Menambahkan tombol salin link pada setiap hasil pencarian untuk pengecekan mandiri.
+- Merapikan aksi kartu pencarian, antrean, dan langganan menjadi ikon compact serta menghapus
+  aksi yang berulang.
 
 ## Build
 
