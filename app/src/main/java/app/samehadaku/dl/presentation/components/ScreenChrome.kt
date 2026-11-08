@@ -1,6 +1,5 @@
 package app.samehadaku.dl.presentation.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,8 +16,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -41,13 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -60,7 +54,6 @@ import app.samehadaku.dl.presentation.theme.BrandAccent
 import app.samehadaku.dl.presentation.theme.BrandPink
 import app.samehadaku.dl.presentation.theme.BrandPrimary
 import app.samehadaku.dl.presentation.theme.Midnight
-import app.samehadaku.dl.presentation.theme.TextMuted
 import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
 
@@ -152,80 +145,88 @@ fun ScreenTopBar(
     }
 }
 
+/** Light ink used by the inactive tabs, matching the mockup's near-white labels. */
+private val InactiveTabColor = Color(0xFFDCE7F7)
+
 @Composable
 fun AppBottomBar(
     selectedTab: AppTab,
     onTabSelected: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val barShape = RoundedCornerShape(30.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .background(
                 Brush.verticalGradient(
-                    listOf(
-                        Color.Transparent,
-                        Abyss.copy(alpha = 0.86f),
-                        Abyss.copy(alpha = 0.98f),
-                    ),
+                    0f to Color.Transparent,
+                    0.55f to Abyss.copy(alpha = 0.55f),
+                    1f to Abyss.copy(alpha = 0.92f),
                 ),
             )
             .navigationBarsPadding()
-            .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 20.dp),
+            .padding(horizontal = 10.dp)
+            .padding(top = 10.dp, bottom = 14.dp),
     ) {
-        // Neon orbit pill behind the tabs.
+        // 76dp tall: a 60dp glass pill plus headroom for the raised Beranda button.
         Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(68.dp)
-                .shadow(
-                    elevation = 30.dp,
-                    shape = RoundedCornerShape(34.dp),
-                    ambientColor = BrandPrimary.copy(alpha = 0.65f),
-                    spotColor = BrandAccent.copy(alpha = 0.58f),
-                )
-                .clip(RoundedCornerShape(34.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF0E2036).copy(alpha = 0.97f),
-                            Color(0xFF060C1B).copy(alpha = 0.99f),
-                        ),
-                    ),
-                )
-                .border(
-                    width = 1.8.dp,
-                    brush = Brush.horizontalGradient(
-                        listOf(
-                            BrandPrimary,
-                            BrandAccent.copy(alpha = 0.92f),
-                            BrandPink.copy(alpha = 0.72f),
-                        ),
-                    ),
-                    shape = RoundedCornerShape(34.dp),
-                ),
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(100.dp),
-            verticalAlignment = Alignment.Bottom,
+                .height(76.dp),
         ) {
-            AppTab.entries.forEach { tab ->
-                if (tab == AppTab.HOME) {
-                    HomeTabItem(
-                        selected = tab == selectedTab,
-                        onClick = { onTabSelected(tab) },
-                        modifier = Modifier.weight(1f),
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .shadow(
+                        elevation = 26.dp,
+                        shape = barShape,
+                        ambientColor = BrandPrimary.copy(alpha = 0.55f),
+                        spotColor = BrandPink.copy(alpha = 0.45f),
                     )
-                } else {
-                    NavTabItem(
-                        tab = tab,
-                        selected = tab == selectedTab,
-                        onClick = { onTabSelected(tab) },
-                        modifier = Modifier.weight(1f),
+                    .clip(barShape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF10203A).copy(alpha = 0.90f),
+                                Color(0xFF060C1A).copy(alpha = 0.95f),
+                            ),
+                        ),
                     )
+                    .border(
+                        width = 1.4.dp,
+                        brush = Brush.horizontalGradient(
+                            listOf(
+                                BrandPrimary.copy(alpha = 0.95f),
+                                Color.White.copy(alpha = 0.22f),
+                                BrandPink.copy(alpha = 0.85f),
+                            ),
+                        ),
+                        shape = barShape,
+                    ),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(76.dp),
+            ) {
+                AppTab.entries.forEach { tab ->
+                    if (tab == AppTab.HOME) {
+                        HomeTabItem(
+                            selected = tab == selectedTab,
+                            onClick = { onTabSelected(tab) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        NavTabItem(
+                            tab = tab,
+                            selected = tab == selectedTab,
+                            onClick = { onTabSelected(tab) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -239,24 +240,25 @@ private fun NavTabItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val tint = if (selected) BrandPrimary else InactiveTabColor.copy(alpha = 0.92f)
     Column(
         modifier = modifier
             .fillMaxHeight()
             .clickable(role = Role.Tab, onClick = onClick)
-            .padding(bottom = 14.dp),
+            .padding(top = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Bottom,
+        verticalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = tab.icon,
             contentDescription = tab.label,
-            tint = if (selected) BrandPrimary else TextMuted,
+            tint = tint,
             modifier = Modifier.size(24.dp),
         )
-        Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(5.dp))
         Text(
             text = tab.label,
-            color = if (selected) TextPrimary else TextMuted,
+            color = tint,
             fontSize = 12.sp,
             lineHeight = 14.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -277,110 +279,101 @@ private fun HomeTabItem(
         modifier = modifier
             .fillMaxHeight()
             .clickable(role = Role.Tab, onClick = onClick)
-            .padding(bottom = 15.dp),
+            .padding(top = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Bottom,
+        verticalArrangement = Arrangement.Center,
     ) {
         Box(
-            modifier = Modifier.size(70.dp),
+            modifier = Modifier
+                .offset(y = (-9).dp)
+                .size(68.dp),
             contentAlignment = Alignment.Center,
         ) {
             // Soft halo behind the raised button.
             Box(
                 modifier = Modifier
-                    .size(70.dp)
+                    .size(78.dp)
                     .background(
                         Brush.radialGradient(
                             listOf(
-                                BrandPrimary.copy(alpha = if (selected) 0.32f else 0.20f),
-                                BrandAccent.copy(alpha = 0.16f),
+                                BrandPrimary.copy(alpha = if (selected) 0.30f else 0.16f),
+                                BrandPink.copy(alpha = 0.14f),
                                 Color.Transparent,
                             ),
                         ),
                     ),
             )
-            // Neon ring hugging the raised button.
+            // Bright ring hugging the raised button.
             Box(
                 modifier = Modifier
-                    .size(66.dp)
+                    .size(68.dp)
                     .shadow(
-                        elevation = 18.dp,
+                        elevation = 20.dp,
                         shape = CircleShape,
-                        ambientColor = BrandPrimary.copy(alpha = 0.85f),
-                        spotColor = BrandPink.copy(alpha = 0.65f),
+                        ambientColor = BrandPrimary.copy(alpha = 0.90f),
+                        spotColor = BrandPink.copy(alpha = 0.70f),
                     )
                     .border(
-                        width = 2.dp,
+                        width = 2.4.dp,
                         brush = Brush.linearGradient(
-                            listOf(BrandPrimary, BrandPink, BrandAccent),
+                            listOf(
+                                Color(0xFFB9F6FF),
+                                Color(0xFF6FD3FF),
+                                BrandPink,
+                                Color(0xFFB46BFF),
+                            ),
                         ),
                         shape = CircleShape,
                     ),
             )
-            // Tilted orbit ring around the button.
-            Canvas(modifier = Modifier.requiredSize(98.dp)) {
-                val ringWidth = size.width * 0.94f
-                val ringHeight = ringWidth * 0.36f
-                rotate(degrees = -18f) {
-                    drawOval(
-                        brush = Brush.horizontalGradient(
-                            listOf(BrandPrimary, BrandPink, BrandAccent),
-                        ),
-                        topLeft = Offset(
-                            (size.width - ringWidth) / 2f,
-                            (size.height - ringHeight) / 2f,
-                        ),
-                        size = Size(ringWidth, ringHeight),
-                        style = Stroke(width = 2.2.dp.toPx()),
-                    )
-                }
-            }
+            // Violet disc holding both the home icon and its label.
             Box(
                 modifier = Modifier
-                    .size(62.dp)
-                    .shadow(
-                        elevation = 16.dp,
-                        shape = CircleShape,
-                        ambientColor = BrandPrimary.copy(alpha = 0.70f),
-                        spotColor = BrandAccent.copy(alpha = 0.60f),
-                    )
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                Color(0xFF2CE4FF),
-                                Color(0xFF7A5CFF),
-                                Color(0xFFC05CFF),
-                            ),
-                        ),
-                    )
-                    .padding(2.dp)
+                    .size(63.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color(0xFF10224A), Color(0xFF08122A)),
+                            listOf(
+                                Color(0xFF2B1C86),
+                                Color(0xFF5B2BD6),
+                                Color(0xFF8A38E8),
+                            ),
                         ),
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = AppTab.HOME.icon,
-                    contentDescription = AppTab.HOME.label,
-                    tint = if (selected) Color.White else Color(0xFF8EDFFF),
-                    modifier = Modifier.size(27.dp),
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = AppTab.HOME.icon,
+                        contentDescription = AppTab.HOME.label,
+                        tint = Color.White,
+                        modifier = Modifier.size(25.dp),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = AppTab.HOME.label,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        lineHeight = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF7CF3FF), BrandPink),
+                                ),
+                            ),
+                    )
+                }
             }
         }
-        Spacer(Modifier.height(1.dp))
-        Text(
-            text = AppTab.HOME.label,
-            color = if (selected) Color.White else TextMuted,
-            fontSize = 12.sp,
-            lineHeight = 14.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            softWrap = false,
-        )
     }
 }
 

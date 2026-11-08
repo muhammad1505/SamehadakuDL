@@ -686,7 +686,7 @@ private fun SettingsSummary(state: SettingsUiState) {
             }
             Spacer(Modifier.width(8.dp))
             StatusPill(
-                text = if (state.sessionActive) "Aktif" else "Belum",
+                text = if (state.sessionActive) "Cloudflare aktif" else "Cloudflare nonaktif",
                 color = if (state.sessionActive) BrandMint else Warning,
             )
         }
