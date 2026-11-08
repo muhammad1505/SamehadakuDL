@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -220,6 +221,7 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
                 .imePadding(),
             verticalArrangement = Arrangement.spacedBy(9.dp),
@@ -273,7 +275,7 @@ fun HomeScreen(
             }
 
             // Breathing room so the artwork horizon stays visible under the content.
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -348,8 +350,7 @@ private fun HeroSection(
     onPickQuality: () -> Unit,
 ) {
     Column(
-        modifier = modifier
-            .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 12.dp),
+        modifier = modifier.padding(top = 36.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
