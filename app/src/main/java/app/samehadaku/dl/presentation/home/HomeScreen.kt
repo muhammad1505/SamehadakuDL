@@ -1,5 +1,6 @@
 package app.samehadaku.dl.presentation.home
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,10 +30,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Eco
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
@@ -54,12 +58,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.samehadaku.dl.R
 import app.samehadaku.dl.presentation.components.AppBottomBar
 import app.samehadaku.dl.presentation.components.AppTab
 import app.samehadaku.dl.presentation.components.BrandMark
@@ -82,6 +89,7 @@ import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.StatusPill
 import app.samehadaku.dl.presentation.components.TinyStatusDot
 import app.samehadaku.dl.presentation.theme.BrandAccent
+import app.samehadaku.dl.presentation.theme.BrandGold
 import app.samehadaku.dl.presentation.theme.BrandMint
 import app.samehadaku.dl.presentation.theme.BrandPrimary
 import app.samehadaku.dl.presentation.theme.Danger
@@ -326,14 +334,19 @@ private fun HomeHeader() {
 private fun ReadyChip() {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(16.dp))
             .background(BrandMint.copy(alpha = 0.12f))
-            .border(1.dp, BrandMint.copy(alpha = 0.26f), RoundedCornerShape(50))
+            .border(1.dp, BrandMint.copy(alpha = 0.26f), RoundedCornerShape(16.dp))
             .padding(horizontal = 9.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        TinyStatusDot(color = BrandMint)
+        Icon(
+            imageVector = Icons.Rounded.Eco,
+            contentDescription = null,
+            tint = BrandMint,
+            modifier = Modifier.size(13.dp),
+        )
         Text(
             text = "Siap",
             color = BrandMint,
@@ -362,11 +375,11 @@ private fun HeroSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(BrandPrimary),
+            Icon(
+                painter = painterResource(R.drawable.ic_crown),
+                contentDescription = null,
+                tint = BrandGold,
+                modifier = Modifier.size(13.dp),
             )
             Text(
                 text = "PREMIUM DOWNLOADER",
@@ -405,7 +418,7 @@ private fun HeroSection(
                     "Episode dan kualitas terdeteksi otomatis.",
                 color = TextSecondary,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                maxLines = 2,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 278.dp),
             )
@@ -486,6 +499,20 @@ private fun HeroActionChip(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
+        Box(
+            modifier = Modifier
+                .size(15.dp)
+                .clip(CircleShape)
+                .background(BrandMint),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = Ink,
+                modifier = Modifier.size(10.dp),
+            )
+        }
     }
 }
 
@@ -640,10 +667,12 @@ private fun DetectingStrip() {
 
 @Composable
 private fun TipsCard() {
+    var expanded by rememberSaveable { mutableStateOf(false) }
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         contentPadding = PaddingValues(14.dp),
+        onClick = { expanded = !expanded },
     ) {
         Row(verticalAlignment = Alignment.Top) {
             IconDot(
@@ -652,7 +681,10 @@ private fun TipsCard() {
                 tint = BrandMint,
             )
             Spacer(Modifier.width(10.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 Text(
                     text = "Tips Mengunduh",
                     color = TextPrimary,
@@ -667,7 +699,26 @@ private fun TipsCard() {
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                AnimatedVisibility(visible = expanded) {
+                    Text(
+                        text = "Ikuti anime di tab Langganan supaya episode baru masuk " +
+                            "antrean sendiri, dan biarkan kualitas menyesuaikan bila " +
+                            "server pilihan tidak tersedia.",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = if (expanded) "Sembunyikan tips" else "Lihat tips lain",
+                tint = TextSecondary,
+                modifier = Modifier
+                    .size(18.dp)
+                    .rotate(if (expanded) 90f else 0f),
+            )
         }
     }
 }
