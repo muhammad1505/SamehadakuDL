@@ -23,6 +23,14 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Pengaturan unduhan paralel dan fallback kualitas terdekat.
 - Splash screen atmosferik, bottom navigation, dan transisi antar layar.
 
+## Rilis 2.6.0
+
+- Menyamakan bahasa visual semua menu dengan Beranda: brand anchor, hierarki judul,
+  aksen neon, kartu glass, dan action bar yang konsisten.
+- Bottom navigation menyesuaikan ukuran layar kecil agar tombol Beranda tidak meluber.
+- Menambahkan state loading yang jelas pada Pusat Notifikasi.
+- Mencegah hasil pencarian lama menimpa hasil dari query terbaru saat jaringan lambat.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
@@ -30,6 +38,9 @@ Prasyarat: JDK 17 dan Android SDK 35.
 ```bash
 ./gradlew assembleDebug
 ```
+
+Jika shell Android/shared storage menolak menjalankan wrapper secara langsung, gunakan
+`bash ./gradlew assembleDebug` (dan pola yang sama untuk perintah Gradle lainnya).
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
