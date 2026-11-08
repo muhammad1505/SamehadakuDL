@@ -53,9 +53,26 @@ object DownloadLinkParser {
                 .getOrPut(resolution) { linkedMapOf() }
 
             for (anchor in anchors) {
-                val href = anchor.attr("href")
+                val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
                 if (href.isEmpty()) continue
                 val host = Host.fromLink(href, anchor.text()) ?: continue
+                hosts[host] = href
+            }
+        }
+
+        // The current movie/episode layout does not always wrap download
+        // anchors in <li>. Walk supported host links directly so the parser
+        // remains compatible with both the legacy list and the redesigned
+        // format/resolution sections.
+        if (linkData.isEmpty()) {
+            for (anchor in document.select("a[href]")) {
+                val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+                val host = Host.fromLink(href, anchor.text()) ?: continue
+                val resolution = findResolution(anchor)
+                val format = resolveFormat(anchor, allNodes)
+                val hosts = linkData
+                    .getOrPut(format) { linkedMapOf() }
+                    .getOrPut(resolution) { linkedMapOf() }
                 hosts[host] = href
             }
         }
@@ -82,14 +99,15 @@ object DownloadLinkParser {
         return UrlUtils.resolve(UrlUtils.siteRoot(pageUrl), target)
     }
 
-    private fun resolveFormat(li: Element, allNodes: List<Node>): VideoFormat {
-        val ul = li.parents().firstOrNull { it.tagName().equals("ul", ignoreCase = true) }
-            ?: return VideoFormat.MKV
-        val ulIndex = allNodes.indexOfFirst { it === ul }
-        if (ulIndex < 0) return VideoFormat.MKV
+    private fun resolveFormat(node: Node, allNodes: List<Node>): VideoFormat {
+        val list = (node as? Element)?.parents()
+            ?.firstOrNull { it.tagName().equals("ul", ignoreCase = true) }
+        val target = list ?: node
+        val targetIndex = allNodes.indexOfFirst { it === target }
+        if (targetIndex < 0) return VideoFormat.MKV
 
         var checked = 0
-        var index = ulIndex - 1
+        var index = targetIndex - 1
         while (index >= 0 && checked < 30) {
             val node = allNodes[index]
             if (node is TextNode && !isInsideScriptOrStyle(node)) {
@@ -104,6 +122,22 @@ object DownloadLinkParser {
             index--
         }
         return VideoFormat.MKV
+    }
+
+    private fun findResolution(anchor: Element): String {
+        var current: Element? = anchor
+        repeat(7) {
+            val matches = RESOLUTION_REGEX.findAll(current?.text().orEmpty().uppercase())
+                .map { "${it.groupValues[1]}p" }
+                .distinct()
+                .toList()
+            when {
+                matches.size == 1 -> return matches.single()
+                current == null -> return "HD"
+            }
+            current = current?.parent()
+        }
+        return "HD"
     }
 
     private fun isInsideScriptOrStyle(node: Node): Boolean {

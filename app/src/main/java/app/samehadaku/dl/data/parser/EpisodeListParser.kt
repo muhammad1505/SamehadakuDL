@@ -45,7 +45,11 @@ object EpisodeListParser {
         val pageNorm = UrlUtils.normalizeUrl(pageUrl)
         val baseSlug = UrlUtils.lastPathSegment(pageUri.path.orEmpty())
 
-        fun candidate(href: String?, label: String = ""): Candidate? {
+        fun candidate(
+            href: String?,
+            label: String = "",
+            fallbackNumber: Int? = null,
+        ): Candidate? {
             if (href.isNullOrBlank()) return null
             val full = UrlUtils.resolve(pageUrl, href) ?: return null
             val uri = try {
@@ -80,6 +84,12 @@ object EpisodeListParser {
             } else if (baseSlug.isNotEmpty() && slug == baseSlug) {
                 number = 1
                 prefix = baseSlug
+            } else if (fallbackNumber != null && baseSlug.isNotEmpty()) {
+                // Movie pages commonly use a clean permalink such as
+                // /the-first-slam-dunk-movie/ and expose the episode number
+                // only through the position in the List Episode block.
+                number = fallbackNumber
+                prefix = baseSlug
             } else {
                 if (baseSlug.isEmpty()) return null
                 val slugMatch = Regex(
@@ -101,8 +111,12 @@ object EpisodeListParser {
         // block first so recommendation/sidebar links cannot become episodes.
         document.select("h3, h2").firstOrNull { heading ->
             heading.text().contains("List Episode", ignoreCase = true)
-        }?.parent()?.select("h4 a[href]")?.forEach { anchor ->
-            val item = candidate(anchor.attr("href"), anchor.text()) ?: return@forEach
+        }?.parent()?.select("h4 a[href]")?.forEachIndexed { index, anchor ->
+            val item = candidate(
+                href = anchor.attr("href"),
+                label = anchor.text(),
+                fallbackNumber = index + 1,
+            ) ?: return@forEachIndexed
             found.putIfAbsent(item.url, item.number)
         }
 

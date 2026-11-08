@@ -746,58 +746,62 @@ private fun QueueTaskCard(
                 task.state == DownloadState.DOWNLOADING ||
                     task.state == DownloadState.QUEUED ||
                     task.state == DownloadState.RESOLVING -> {
-                    GlassButton(
-                        text = "Jeda",
-                        onClick = onPause,
+                    GlassIconButton(
                         icon = Icons.Rounded.Pause,
-                        height = 40.dp,
-                        modifier = Modifier.weight(1f),
+                        contentDescription = "Jeda Episode ${task.episodeNumber}",
+                        onClick = onPause,
                         tint = Warning,
+                        size = 38.dp,
+                        iconSize = 19.dp,
                     )
-                    GlassButton(
-                        text = "Batalkan",
-                        onClick = onCancel,
+                    GlassIconButton(
                         icon = Icons.Rounded.Close,
-                        height = 40.dp,
-                        modifier = Modifier.weight(1f),
+                        contentDescription = "Batalkan Episode ${task.episodeNumber}",
+                        onClick = onCancel,
                         tint = Danger,
+                        size = 38.dp,
+                        iconSize = 19.dp,
                     )
                 }
                 task.state == DownloadState.PAUSED -> {
-                    GlassButton(
-                        text = "Lanjutkan",
-                        onClick = onResume,
+                    GlassIconButton(
                         icon = Icons.Rounded.PlayArrow,
-                        height = 40.dp,
-                        modifier = Modifier.weight(1f),
+                        contentDescription = "Lanjutkan Episode ${task.episodeNumber}",
+                        onClick = onResume,
                         tint = BrandMint,
+                        size = 38.dp,
+                        iconSize = 19.dp,
                     )
-                    GlassButton(
-                        text = "Batalkan",
-                        onClick = onCancel,
+                    GlassIconButton(
                         icon = Icons.Rounded.Close,
-                        height = 40.dp,
-                        modifier = Modifier.weight(1f),
+                        contentDescription = "Batalkan Episode ${task.episodeNumber}",
+                        onClick = onCancel,
                         tint = Danger,
+                        size = 38.dp,
+                        iconSize = 19.dp,
                     )
                 }
                 task.state == DownloadState.DONE -> {
-                    GlassButton(
-                        text = if (task.fileName != null) "Buka file" else "Buka",
-                        onClick = onOpen,
+                    GlassIconButton(
                         icon = Icons.Rounded.PlayArrow,
-                        height = 40.dp,
-                        modifier = Modifier.weight(1f),
+                        contentDescription = if (task.fileName != null) {
+                            "Buka file Episode ${task.episodeNumber}"
+                        } else {
+                            "Buka Episode ${task.episodeNumber}"
+                        },
+                        onClick = onOpen,
                         tint = BrandMint,
+                        size = 38.dp,
+                        iconSize = 19.dp,
                     )
                     if (task.fileName != null) {
-                        GlassButton(
-                            text = "Hapus file",
-                            onClick = onDeleteFile,
+                        GlassIconButton(
                             icon = Icons.Rounded.DeleteForever,
-                            height = 40.dp,
-                            modifier = Modifier.weight(1f),
+                            contentDescription = "Hapus file Episode ${task.episodeNumber}",
+                            onClick = onDeleteFile,
                             tint = Danger,
+                            size = 38.dp,
+                            iconSize = 19.dp,
                         )
                     } else {
                         GlassIconButton(
@@ -811,13 +815,13 @@ private fun QueueTaskCard(
                     }
                 }
                 else -> {
-                    GlassButton(
-                        text = "Ulangi",
-                        onClick = onRetry,
+                    GlassIconButton(
                         icon = Icons.Rounded.Refresh,
-                        height = 40.dp,
-                        modifier = Modifier.weight(1f),
+                        contentDescription = "Ulangi Episode ${task.episodeNumber}",
+                        onClick = onRetry,
                         tint = BrandGold,
+                        size = 38.dp,
+                        iconSize = 19.dp,
                     )
                     GlassIconButton(
                         icon = Icons.Rounded.History,

@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.TaskAlt
@@ -523,17 +522,19 @@ fun SubscriptionsScreen(
                     "${state.subscriptions.size} anime diikuti"
                 },
                 actions = {
-                    GlassIconButton(
-                        icon = Icons.Rounded.FileDownload,
-                        contentDescription = "Impor langganan dari script",
-                        onClick = ::pickImportFile,
-                        tint = TextSecondary,
-                    )
-                    GlassIconButton(
-                        icon = Icons.Rounded.Add,
-                        contentDescription = "Tambah langganan",
-                        onClick = { showAddDialog = true },
-                    )
+                    if (state.subscriptions.isNotEmpty()) {
+                        GlassIconButton(
+                            icon = Icons.Rounded.FileDownload,
+                            contentDescription = "Impor langganan dari script",
+                            onClick = ::pickImportFile,
+                            tint = TextSecondary,
+                        )
+                        GlassIconButton(
+                            icon = Icons.Rounded.Add,
+                            contentDescription = "Tambah langganan",
+                            onClick = { showAddDialog = true },
+                        )
+                    }
                 },
             )
         },
@@ -661,16 +662,6 @@ fun SubscriptionsScreen(
                     )
                 }
 
-                item {
-                    GlassButton(
-                        text = "Impor dari script",
-                        onClick = ::pickImportFile,
-                        icon = Icons.Rounded.FileDownload,
-                        modifier = Modifier.fillMaxWidth(),
-                        height = 44.dp,
-                        tint = TextSecondary,
-                    )
-                }
             }
         }
     }
@@ -745,20 +736,6 @@ private fun SubscriptionRow(
                     tint = TextSecondary,
                 )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Buka daftar episode") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Rounded.PlaylistPlay,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        },
-                        onClick = {
-                            menuOpen = false
-                            onOpenEpisodes()
-                        },
-                    )
                     DropdownMenuItem(
                         text = { Text("Atur episode terakhir") },
                         leadingIcon = {

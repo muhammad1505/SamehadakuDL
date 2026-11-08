@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Search
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,17 +40,19 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import app.samehadaku.dl.domain.model.AnimeSearchResult
 import app.samehadaku.dl.presentation.components.EmptyState
-import app.samehadaku.dl.presentation.components.GlassButton
 import app.samehadaku.dl.presentation.components.GlassCard
-import app.samehadaku.dl.presentation.components.GradientButton
+import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.IconDot
 import app.samehadaku.dl.presentation.components.InfoBanner
 import app.samehadaku.dl.presentation.components.ScreenScaffold
@@ -71,8 +75,10 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val clipboard = LocalClipboardManager.current
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -211,6 +217,10 @@ fun SearchScreen(
                                     keyboard?.hide()
                                     viewModel.subscribe(result)
                                 },
+                                onCopyLink = {
+                                    clipboard.setText(AnnotatedString(result.url))
+                                    scope.launch { snackbarHostState.showSnackbar("Link anime disalin") }
+                                },
                             )
                         }
                     }
@@ -271,6 +281,7 @@ private fun SearchResultCard(
     busyAction: String?,
     onDownload: () -> Unit,
     onSubscribe: () -> Unit,
+    onCopyLink: () -> Unit,
 ) {
     val busy = busyAction != null
     GlassCard(
@@ -311,25 +322,39 @@ private fun SearchResultCard(
             }
         }
 
-        Spacer(Modifier.height(11.dp))
+        Spacer(Modifier.height(9.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GradientButton(
-                text = if (busyAction == "download") "Menyiapkan…" else "Unduh",
-                onClick = onDownload,
-                modifier = Modifier.weight(1f),
-                icon = Icons.Rounded.Download,
-                enabled = !busy,
-                loading = busyAction == "download",
-                height = 44.dp,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GlassIconButton(
+                icon = Icons.Rounded.ContentCopy,
+                contentDescription = "Salin link ${result.title}",
+                onClick = onCopyLink,
+                size = 38.dp,
+                iconSize = 18.dp,
+                tint = TextSecondary,
             )
-            GlassButton(
-                text = if (busyAction == "subscribe") "Menyimpan…" else "Langganan",
-                onClick = onSubscribe,
-                modifier = Modifier.weight(1f),
-                icon = Icons.Rounded.Bookmark,
+            Spacer(Modifier.width(6.dp))
+            GlassIconButton(
+                icon = Icons.Rounded.Download,
+                contentDescription = "Unduh ${result.title}",
+                onClick = onDownload,
                 enabled = !busy,
-                height = 44.dp,
+                size = 38.dp,
+                iconSize = 19.dp,
+                tint = BrandPrimary,
+            )
+            Spacer(Modifier.width(6.dp))
+            GlassIconButton(
+                icon = Icons.Rounded.Bookmark,
+                contentDescription = "Langganan ${result.title}",
+                onClick = onSubscribe,
+                enabled = !busy,
+                size = 38.dp,
+                iconSize = 19.dp,
                 tint = BrandMint,
             )
         }

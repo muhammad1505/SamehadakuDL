@@ -7,6 +7,31 @@ import org.junit.Test
 class EpisodeListParserTest {
 
     @Test
+    fun `movie list accepts clean permalink and assigns episode one`() {
+        val html = """
+            <html><body>
+              <section>
+                <h3>List Episode The First Slam Dunk Subtitle Indonesia</h3>
+                <div>
+                  <h4><a href="/the-first-slam-dunk-movie/">The First Slam Dunk Movie</a></h4>
+                </div>
+              </section>
+            </body></html>
+        """.trimIndent()
+
+        val episodes = EpisodeListParser.parse(
+            html,
+            "https://v2.samehadaku.how/anime/the-first-slam-dunk/",
+        )
+
+        assertEquals(listOf(1), episodes.map { it.number })
+        assertEquals(
+            "https://v2.samehadaku.how/the-first-slam-dunk-movie/",
+            episodes.single().url,
+        )
+    }
+
+    @Test
     fun `redesigned list episode block reads numbers from episode titles`() {
         val html = """
             <html><body>

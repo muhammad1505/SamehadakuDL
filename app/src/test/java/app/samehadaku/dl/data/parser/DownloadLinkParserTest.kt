@@ -38,6 +38,39 @@ class DownloadLinkParserTest {
     """.trimIndent()
 
     @Test
+    fun `redesigned sections parse links without li wrappers`() {
+        val html = """
+            <html><body>
+              <h3>Link Download MKV</h3>
+              <div class="quality-row">
+                <h4>360p</h4>
+                <div><a href="/d/movie-gofile">Gofile</a></div>
+              </div>
+              <h3>Link Download MP4</h3>
+              <div class="quality-row">
+                <h4>720p</h4>
+                <div><a href="https://www.mediafire.com/file/movie-mp4/file.mp4">Mediafire</a></div>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val links = DownloadLinkParser.parse(
+            html,
+            "https://v2.samehadaku.how/the-first-slam-dunk-movie/",
+        )
+
+        assertNotNull(links)
+        assertEquals(
+            "https://v2.samehadaku.how/d/movie-gofile",
+            links!!.url(VideoFormat.MKV, "360p", Host.GOFILE),
+        )
+        assertEquals(
+            "https://www.mediafire.com/file/movie-mp4/file.mp4",
+            links.url(VideoFormat.MP4, "720p", Host.MEDIAFIRE),
+        )
+    }
+
+    @Test
     fun `parses formats resolutions and hosts`() {
         val links = DownloadLinkParser.parse(fixture, pageUrl)
         assertNotNull(links)
