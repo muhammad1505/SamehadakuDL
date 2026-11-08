@@ -31,6 +31,13 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Menambahkan state loading yang jelas pada Pusat Notifikasi.
 - Mencegah hasil pencarian lama menimpa hasil dari query terbaru saat jaringan lambat.
 
+## Rilis 2.6.1
+
+- Memperbaiki pembacaan daftar episode dari struktur baru Samehadaku pada aksi Unduh
+  dan Langganan.
+- Menambahkan fallback nomor episode dari judul episode dan mirror ketika halaman utama
+  gagal diparse.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
