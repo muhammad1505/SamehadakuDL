@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
+import app.samehadaku.dl.core.EpisodeFiles
 import app.samehadaku.dl.core.MimeTypes
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.settings.SettingsRepository
@@ -243,14 +244,33 @@ class StorageWriter @Inject constructor(
             !failure
         }
 
+    /**
+     * Scans the picked folder and, when the user selected a parent such as Download,
+     * the app folder inside it. Only folders that actually hold episode files become
+     * collections, so unrelated folders in a shared download location stay hidden.
+     */
     private fun scanTreeCollections(treeUri: Uri): List<StoredFolder> {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return emptyList()
-        return tree.listFiles()
+        val folders = mutableListOf<StoredFolder>()
+        folders += treeCollectionFolders(tree)
+        val appFolder = tree.findFile(APP_FOLDER)?.takeIf { it.isDirectory }
+        if (appFolder != null) folders += treeCollectionFolders(appFolder)
+        return folders
+    }
+
+    private fun treeCollectionFolders(root: DocumentFile): List<StoredFolder> =
+        root.listFiles()
             .filter { it.isDirectory }
+            .filter { directory ->
+                val name = directory.name.orEmpty()
+                name.isNotBlank() &&
+                    !name.startsWith(".") &&
+                    !name.equals(APP_FOLDER, ignoreCase = true)
+            }
             .mapNotNull { directory ->
                 val folderName = directory.name ?: return@mapNotNull null
                 val files = directory.listFiles()
-                    .filter { it.isFile }
+                    .filter { it.isFile && EpisodeFiles.isEpisode(it.name.orEmpty()) }
                     .mapNotNull { file ->
                         val name = file.name ?: return@mapNotNull null
                         StoredFile(
@@ -262,7 +282,6 @@ class StorageWriter @Inject constructor(
                     }
                 if (files.isEmpty()) null else StoredFolder(folderName, files)
             }
-    }
 
     /**
      * Read access to shared storage goes through the `files` collection, never through
@@ -322,7 +341,7 @@ class StorageWriter @Inject constructor(
             while (it.moveToNext()) {
                 if (pendingIndex >= 0 && it.getInt(pendingIndex) == 1) continue
                 val name = it.getString(nameIndex)
-                if (name.isNullOrBlank() || name.endsWith(".part", ignoreCase = true)) continue
+                if (name.isNullOrBlank() || !EpisodeFiles.isEpisode(name)) continue
                 val relativePath = it.getString(pathIndex)?.trim('/').orEmpty()
                 val owner = if (ownerIndex >= 0) it.getString(ownerIndex) else null
                 val inAppFolder = relativePath.contains(APP_FOLDER, ignoreCase = true)
@@ -331,6 +350,7 @@ class StorageWriter @Inject constructor(
                 // we write, including when the file sits directly in our root folder.
                 val folderName = relativePath.substringAfterLast('/')
                 if (folderName.isBlank()) continue
+                if (folderName.equals(APP_FOLDER, ignoreCase = true)) continue
                 folders.getOrPut(folderName) { mutableListOf() }.add(
                     StoredFile(
                         name = name,
@@ -359,7 +379,7 @@ class StorageWriter @Inject constructor(
             ?.filter { it.isDirectory }
             ?.mapNotNull { directory ->
                 val files = directory.listFiles()
-                    ?.filter { it.isFile }
+                    ?.filter { it.isFile && EpisodeFiles.isEpisode(it.name) }
                     ?.map { file ->
                         StoredFile(
                             name = file.name,

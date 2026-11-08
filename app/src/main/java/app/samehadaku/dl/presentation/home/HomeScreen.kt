@@ -1,6 +1,7 @@
 package app.samehadaku.dl.presentation.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -61,6 +63,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
@@ -400,19 +405,22 @@ private fun HeroSection(
                 fontStyle = FontStyle.Italic,
                 letterSpacing = (-0.5).sp,
             )
-            Text(
-                text = "Favoritmu",
-                style = TextStyle(
-                    brush = Brush.horizontalGradient(
-                        listOf(Color(0xFF38E1FF), Color(0xFF8A6BFF)),
+            Column {
+                Text(
+                    text = "Favoritmu",
+                    style = TextStyle(
+                        brush = Brush.horizontalGradient(
+                            listOf(Color(0xFF38E1FF), Color(0xFF8A6BFF)),
+                        ),
+                        fontSize = 29.sp,
+                        lineHeight = 31.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontStyle = FontStyle.Italic,
+                        letterSpacing = (-0.5).sp,
                     ),
-                    fontSize = 29.sp,
-                    lineHeight = 31.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontStyle = FontStyle.Italic,
-                    letterSpacing = (-0.5).sp,
-                ),
-            )
+                )
+                HeroSwoosh()
+            }
             Text(
                 text = "Tempel URL anime satuan atau daftar (list) sekaligus. " +
                     "Episode dan kualitas terdeteksi otomatis.",
@@ -463,6 +471,44 @@ private fun HeroSection(
                 }
             }
         }
+    }
+}
+
+/** Gradient swoosh the mockup draws under the highlighted hero word. */
+@Composable
+private fun HeroSwoosh() {
+    Canvas(
+        modifier = Modifier
+            .padding(start = 3.dp, top = 1.dp)
+            .offset(y = 1.dp)
+            .width(168.dp)
+            .height(9.dp),
+    ) {
+        val swoosh = Path().apply {
+            moveTo(0f, size.height * 0.70f)
+            cubicTo(
+                size.width * 0.30f,
+                size.height * 0.02f,
+                size.width * 0.58f,
+                size.height * 1.04f,
+                size.width,
+                size.height * 0.22f,
+            )
+        }
+        val brush = Brush.horizontalGradient(
+            listOf(Color(0xFF38E1FF), Color(0xFF8A6BFF), Color(0xFFFF5CBE)),
+        )
+        drawPath(
+            path = swoosh,
+            brush = brush,
+            style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
+            alpha = 0.22f,
+        )
+        drawPath(
+            path = swoosh,
+            brush = brush,
+            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round),
+        )
     }
 }
 
