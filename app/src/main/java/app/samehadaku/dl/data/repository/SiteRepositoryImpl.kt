@@ -52,8 +52,31 @@ class SiteRepositoryImpl @Inject constructor(
             )
         }
 
-        val page = fetcher.fetch(input, referer = UrlUtils.siteRoot(input))
-        val episodes = EpisodeListParser.parse(page.html, page.finalUrl)
+        var page = fetcher.fetch(input, referer = UrlUtils.siteRoot(input))
+        var episodes = EpisodeListParser.parse(page.html, page.finalUrl)
+        if (episodes.isEmpty() && page.finalUrl != input) {
+            // A WebView/redirect can return HTML whose final URL is a challenge or
+            // tracking URL. Parse once against the URL the user actually selected so
+            // relative episode links still resolve against the anime page.
+            episodes = EpisodeListParser.parse(page.html, input)
+        }
+
+        // Search results can point to a mirror whose anime page is readable but stale
+        // or rendered differently. Only try mirrors after parsing the selected URL
+        // fails, and keep the original source URL for the saved subscription.
+        if (episodes.isEmpty()) {
+            for (mirror in SiteMirrors.candidates(input)) {
+                val mirrorPage = runCatching {
+                    fetcher.fetch(mirror, referer = UrlUtils.siteRoot(mirror))
+                }.getOrNull() ?: continue
+                val mirrorEpisodes = EpisodeListParser.parse(mirrorPage.html, mirrorPage.finalUrl)
+                if (mirrorEpisodes.isNotEmpty()) {
+                    page = mirrorPage
+                    episodes = mirrorEpisodes
+                    break
+                }
+            }
+        }
         if (episodes.isEmpty()) {
             throw FetchFailureException(
                 "Tidak ada episode yang terdeteksi di halaman ini. " +

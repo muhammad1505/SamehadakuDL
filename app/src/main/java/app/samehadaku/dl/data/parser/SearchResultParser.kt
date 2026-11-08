@@ -19,6 +19,10 @@ import org.jsoup.nodes.Element
 object SearchResultParser {
 
     private val CARD_SELECTORS = listOf(
+        "main.site-main.relat article",
+        "main.relat article",
+        ".anime-grid article",
+        ".relat article",
         "main article.animpost",
         "article.animpost",
         ".listupd .bsx",
@@ -31,6 +35,8 @@ object SearchResultParser {
         "img[title]",
         "h2",
         "h3",
+        "h4",
+        ".anime-title",
         ".ttls",
         ".tt",
         ".title",

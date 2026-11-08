@@ -7,6 +7,38 @@ import org.junit.Test
 class EpisodeListParserTest {
 
     @Test
+    fun `redesigned list episode block reads numbers from episode titles`() {
+        val html = """
+            <html><body>
+              <section class="episodes">
+                <h3>List Episode Ao Ashi S2 Subtitle Indonesia</h3>
+                <div>
+                  <h4><a href="/ao-ashi-s2-episode-2/">Ao Ashi S2 Episode 2</a></h4>
+                  <span>12 October 2026</span>
+                  <h4><a href="/ao-ashi-s2-episode-1/">Ao Ashi S2 Episode 1</a></h4>
+                  <span>4 October 2026</span>
+                </div>
+              </section>
+              <a href="/anime/other-title/">Rekomendasi anime</a>
+            </body></html>
+        """.trimIndent()
+
+        val episodes = EpisodeListParser.parse(
+            html,
+            "https://v2.samehadaku.how/anime/ao-ashi-s2/",
+        )
+
+        assertEquals(listOf(1, 2), episodes.map { it.number })
+        assertEquals(
+            listOf(
+                "https://v2.samehadaku.how/ao-ashi-s2-episode-1/",
+                "https://v2.samehadaku.how/ao-ashi-s2-episode-2/",
+            ),
+            episodes.map { it.url },
+        )
+    }
+
+    @Test
     fun `inconsistent diamond no ace slugs yield exactly four sorted episodes`() {
         val html = """
             <html><body>

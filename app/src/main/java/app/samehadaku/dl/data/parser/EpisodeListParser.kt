@@ -14,6 +14,10 @@ import org.jsoup.nodes.Document
 object EpisodeListParser {
 
     private val EPISODE_REGEX = Regex("episode[-_/]?(\\d+)", RegexOption.IGNORE_CASE)
+    private val EPISODE_TEXT_REGEX = Regex(
+        "(?:episode|eps?)[\\s#:_-]*(\\d+)",
+        RegexOption.IGNORE_CASE,
+    )
 
     private val EPISODE_SELECTORS = listOf(
         ".lstepsiode a[href]",
@@ -41,7 +45,7 @@ object EpisodeListParser {
         val pageNorm = UrlUtils.normalizeUrl(pageUrl)
         val baseSlug = UrlUtils.lastPathSegment(pageUri.path.orEmpty())
 
-        fun candidate(href: String?): Candidate? {
+        fun candidate(href: String?, label: String = ""): Candidate? {
             if (href.isNullOrBlank()) return null
             val full = UrlUtils.resolve(pageUrl, href) ?: return null
             val uri = try {
@@ -60,11 +64,19 @@ object EpisodeListParser {
 
             val slug = UrlUtils.lastPathSegment(path)
             val match = EPISODE_REGEX.find(path)
+            val textMatch = EPISODE_TEXT_REGEX.find(label)
             val number: Int
             val prefix: String
             if (match != null) {
                 number = match.groupValues[1].toIntOrNull() ?: return null
                 prefix = episodePrefix(slug)
+            } else if (textMatch != null && baseSlug.isNotEmpty()) {
+                // The redesigned site puts the episode number in the visible title
+                // (for example, "Ao Ashi S2 Episode 2") while the href may be a
+                // generic permalink. The List Episode block gives us enough context
+                // to safely associate that link with the current anime.
+                number = textMatch.groupValues[1].toIntOrNull() ?: return null
+                prefix = baseSlug
             } else if (baseSlug.isNotEmpty() && slug == baseSlug) {
                 number = 1
                 prefix = baseSlug
@@ -84,10 +96,21 @@ object EpisodeListParser {
 
         val found = linkedMapOf<String, Int>()
 
+        // Since the redesign, the episode list is a semantic block headed by
+        // "List Episode" and its links are nested under h4 elements. Read this
+        // block first so recommendation/sidebar links cannot become episodes.
+        document.select("h3, h2").firstOrNull { heading ->
+            heading.text().contains("List Episode", ignoreCase = true)
+        }?.parent()?.select("h4 a[href]")?.forEach { anchor ->
+            val item = candidate(anchor.attr("href"), anchor.text()) ?: return@forEach
+            found.putIfAbsent(item.url, item.number)
+        }
+
         for (selector in EPISODE_SELECTORS) {
+            if (found.isNotEmpty()) break
             val anchors = document.select(selector)
             for (anchor in anchors) {
-                val item = candidate(anchor.attr("href")) ?: continue
+                val item = candidate(anchor.attr("href"), anchor.text()) ?: continue
                 found.putIfAbsent(item.url, item.number)
             }
             if (found.isNotEmpty()) break
@@ -96,7 +119,7 @@ object EpisodeListParser {
         if (found.isEmpty()) {
             val groups = linkedMapOf<String, LinkedHashMap<String, Int>>()
             for (anchor in document.select("a[href]")) {
-                val item = candidate(anchor.attr("href")) ?: continue
+                val item = candidate(anchor.attr("href"), anchor.text()) ?: continue
                 groups.getOrPut(item.prefix) { linkedMapOf() }
                     .putIfAbsent(item.url, item.number)
             }
