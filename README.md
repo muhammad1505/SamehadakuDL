@@ -49,6 +49,14 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Merapikan aksi kartu pencarian, antrean, dan langganan menjadi ikon compact serta menghapus
   aksi yang berulang.
 
+## Rilis 2.6.3
+
+- Menampilkan thumbnail frame video pada setiap folder di Koleksi, dengan fallback ikon folder
+  bila penyimpanan atau provider tidak menyediakan thumbnail.
+- Membuat judul file anime yang panjang berjalan otomatis agar seluruh nama dapat terbaca.
+- Menambahkan halaman Tentang dengan versi aplikasi dan changelog yang dibaca dinamis dari
+  catatan rilis README saat proses build.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
