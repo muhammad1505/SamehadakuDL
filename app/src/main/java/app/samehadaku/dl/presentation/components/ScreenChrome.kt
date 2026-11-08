@@ -321,7 +321,12 @@ private fun NavTabItem(
                         ),
                     )
                 } else {
-                    Brush.solidColor(Color.White.copy(alpha = glow))
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = glow),
+                            Color.White.copy(alpha = glow),
+                        ),
+                    )
                 },
                 RoundedCornerShape(18.dp),
             )
