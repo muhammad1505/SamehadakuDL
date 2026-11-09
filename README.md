@@ -92,6 +92,21 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   yang tidak aktif.
 - Menambahkan ekspor backup langganan dalam format JSON yang kompatibel dengan fitur impor.
 
+## Rilis 2.6.8
+
+- Merapikan kartu Unduhan agar lebih compact dan memindahkan aksi utama ke sisi kanan judul,
+  mengikuti pola kartu Koleksi; file selesai tetap bisa dibuka dengan mengetuk kartu.
+- Menyamakan teks berjalan untuk judul/caption panjang di Koleksi, Pencarian, Langganan,
+  Unduhan, dan ticker pengumuman.
+- Memperjelas hasil verifikasi Cloudflare dengan spinner polos, dialog sukses, serta pesan gagal.
+- Menampilkan changelog versi terbaru sekali setelah aplikasi diperbarui, tanpa harus membuka
+  Pengaturan terlebih dahulu.
+- Mengubah nama launcher menjadi Samehadaku Downloader.
+- Menambahkan ringkasan detail anime dari pencarian berupa deskripsi, rating, genre, dan jumlah
+  episode yang terbaca.
+- Menambahkan ikon kalender di Beranda untuk membuka jadwal rilis anime mingguan.
+- Menambahkan ticker pengumuman di Beranda untuk informasi delay/libur yang tersedia di situs.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
