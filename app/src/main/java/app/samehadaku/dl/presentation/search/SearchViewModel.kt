@@ -1,8 +1,10 @@
 package app.samehadaku.dl.presentation.search
 
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.samehadaku.dl.core.SessionStore
+import app.samehadaku.dl.data.repository.AnimeCoverRepository
 import app.samehadaku.dl.data.network.CloudflareSession
 import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.settings.SettingsRepository
@@ -27,6 +29,7 @@ data class SearchUiState(
     val loading: Boolean = false,
     val searched: Boolean = false,
     val results: List<AnimeSearchResult> = emptyList(),
+    val covers: Map<String, Bitmap?> = emptyMap(),
     val error: String? = null,
     val needsVerification: Boolean = false,
     val busyUrl: String? = null,
@@ -46,6 +49,7 @@ sealed interface SearchEvent {
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val repository: SiteRepository,
+    private val coverRepository: AnimeCoverRepository,
     private val detectEpisodes: DetectEpisodesUseCase,
     private val addSubscription: AddSubscriptionUseCase,
     private val settings: SettingsRepository,
@@ -74,12 +78,13 @@ class SearchViewModel @Inject constructor(
                 loading = false,
                 searched = false,
                 results = emptyList(),
+                covers = emptyMap(),
             )
         }
         searchJob?.cancel()
         if (value.trim().length < MIN_QUERY_LENGTH) {
             _state.update {
-                it.copy(loading = false, searched = false, results = emptyList())
+                it.copy(loading = false, searched = false, results = emptyList(), covers = emptyMap())
             }
             return
         }
@@ -116,6 +121,7 @@ class SearchViewModel @Inject constructor(
                 it.copy(
                     loading = false,
                     results = results,
+                    covers = emptyMap(),
                     error = if (results.isEmpty()) {
                         "Tidak ada anime yang cocok dengan \"$query\"."
                     } else {
@@ -123,6 +129,7 @@ class SearchViewModel @Inject constructor(
                     },
                 )
             }
+            loadCovers(results, generation)
         } catch (verification: NeedsVerificationException) {
             if (generation != queryGeneration) return
             sessionStore.pendingVerificationUrl = verification.pageUrl
@@ -130,6 +137,7 @@ class SearchViewModel @Inject constructor(
                 it.copy(
                     loading = false,
                     results = emptyList(),
+                    covers = emptyMap(),
                     needsVerification = true,
                     error = null,
                 )
@@ -140,6 +148,7 @@ class SearchViewModel @Inject constructor(
                 it.copy(
                     loading = false,
                     results = emptyList(),
+                    covers = emptyMap(),
                     error = error.message ?: "Pencarian gagal. Coba lagi.",
                 )
             }
@@ -229,7 +238,26 @@ class SearchViewModel @Inject constructor(
         queryGeneration++
         searchJob?.cancel()
         _state.update {
-            it.copy(query = "", results = emptyList(), searched = false, error = null, loading = false)
+            it.copy(
+                query = "",
+                results = emptyList(),
+                covers = emptyMap(),
+                searched = false,
+                error = null,
+                loading = false,
+            )
+        }
+    }
+
+    private fun loadCovers(results: List<AnimeSearchResult>, generation: Int) {
+        results.forEach { result ->
+            viewModelScope.launch {
+                val cover = coverRepository.load(result.slug)
+                if (generation != queryGeneration) return@launch
+                _state.update { current ->
+                    current.copy(covers = current.covers + (result.slug to cover))
+                }
+            }
         }
     }
 

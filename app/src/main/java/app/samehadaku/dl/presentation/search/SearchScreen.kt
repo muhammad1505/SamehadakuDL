@@ -1,5 +1,7 @@
 package app.samehadaku.dl.presentation.search
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -39,6 +41,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -206,6 +210,7 @@ fun SearchScreen(
                         items(state.results, key = { it.url }) { result ->
                             SearchResultCard(
                                 result = result,
+                                cover = state.covers[result.slug],
                                 busyAction = state.busyAction.takeIf {
                                     state.busyUrl == result.url
                                 },
@@ -278,6 +283,7 @@ private fun SearchLoading() {
 @Composable
 private fun SearchResultCard(
     result: AnimeSearchResult,
+    cover: Bitmap?,
     busyAction: String?,
     onDownload: () -> Unit,
     onSubscribe: () -> Unit,
@@ -290,11 +296,7 @@ private fun SearchResultCard(
         contentPadding = PaddingValues(13.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {
-            IconDot(
-                icon = Icons.Rounded.Movie,
-                size = 40.dp,
-                tint = BrandPrimary,
-            )
+            SearchCover(cover = cover, title = result.title)
             Spacer(Modifier.width(10.dp))
             Column(
                 modifier = Modifier.weight(1f),
@@ -356,6 +358,35 @@ private fun SearchResultCard(
                 size = 38.dp,
                 iconSize = 19.dp,
                 tint = BrandMint,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchCover(
+    cover: Bitmap?,
+    title: String,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (cover != null) {
+            Image(
+                bitmap = cover.asImageBitmap(),
+                contentDescription = "Cover $title",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            IconDot(
+                icon = Icons.Rounded.Movie,
+                size = 40.dp,
+                tint = BrandPrimary,
             )
         }
     }
