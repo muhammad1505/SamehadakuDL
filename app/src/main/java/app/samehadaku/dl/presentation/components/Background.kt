@@ -734,7 +734,7 @@ fun BrandMark(
     ) {
         Image(
             painter = painterResource(R.drawable.ic_brand_mark),
-            contentDescription = "Samehadaku DL",
+            contentDescription = "Samehadaku Downloader",
             modifier = Modifier.size(size * 0.9f),
         )
     }

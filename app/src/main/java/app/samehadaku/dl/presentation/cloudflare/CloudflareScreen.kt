@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +70,8 @@ fun CloudflareScreen(
         currentViewModel.manualFinish { currentOnClose() }
     }
 
+    val canFinish = state.challengeDetected || state.sessionSaved || state.verified
+
     if (showSuccess) {
         AlertDialog(
             onDismissRequest = {
@@ -104,14 +107,14 @@ fun CloudflareScreen(
                 } else {
                     "Selesaikan pemeriksaan Cloudflare"
                 },
-                onBack = { finish() },
+                onBack = { if (canFinish) finish() else currentOnClose() },
                 actions = {
                     GlassButton(
-                        text = "Selesai",
-                        onClick = { finish() },
-                        icon = Icons.Rounded.Check,
+                        text = if (canFinish) "Selesai" else "Batal",
+                        onClick = { if (canFinish) finish() else currentOnClose() },
+                        icon = if (canFinish) Icons.Rounded.Check else Icons.Rounded.Close,
                         height = 40.dp,
-                        tint = BrandPrimary,
+                        tint = if (canFinish) BrandPrimary else Danger,
                     )
                 },
             )

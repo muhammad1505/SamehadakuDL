@@ -62,7 +62,7 @@ fun AboutScreen(
         topBar = {
             ScreenTopBar(
                 title = "Tentang",
-                subtitle = "Samehadaku DL • changelog aplikasi",
+                subtitle = "Samehadaku Downloader • changelog aplikasi",
                 onBack = onBack,
             )
         },
@@ -126,7 +126,7 @@ private fun AboutHero() {
                 tint = BrandPrimary,
             )
             Text(
-                text = "Samehadaku DL",
+                text = "Samehadaku Downloader",
                 color = TextPrimary,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,

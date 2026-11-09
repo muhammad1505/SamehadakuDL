@@ -13,6 +13,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -500,9 +501,9 @@ private fun FolderGroup(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .combinedClickable(
-                    onClickLabel = "Putar file terakhir",
+                    onClickLabel = if (expanded) "Tutup folder" else "Buka folder",
                     onLongClickLabel = "Aksi folder",
-                    onClick = onOpenLatest,
+                    onClick = onToggle,
                     onLongClick = { menuOpen = true },
                 ),
             verticalAlignment = Alignment.CenterVertically,
@@ -661,6 +662,7 @@ private fun FileRow(
             .clip(RoundedCornerShape(12.dp))
             .background(TextPrimary.copy(alpha = 0.035f))
             .border(1.dp, accent.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+            .clickable(onClickLabel = "Putar ${file.name}", onClick = onOpen)
             .padding(horizontal = 9.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),

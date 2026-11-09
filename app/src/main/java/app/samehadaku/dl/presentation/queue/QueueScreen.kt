@@ -46,6 +46,7 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.AlertDialog
@@ -302,6 +303,7 @@ fun QueueScreen(
                             onCancel = { viewModel.cancel(task.id) },
                             onRetry = { viewModel.retry(task.id) },
                             onOpen = { viewModel.open(task) },
+                            onShare = { viewModel.share(task) },
                             onDeleteFile = { pendingDelete = task },
                             onRemove = { viewModel.remove(task.id) },
                         )
@@ -536,6 +538,7 @@ private fun QueueTaskCard(
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     onOpen: () -> Unit,
+    onShare: () -> Unit,
     onDeleteFile: () -> Unit,
     onRemove: () -> Unit,
 ) {
@@ -687,6 +690,22 @@ private fun QueueTaskCard(
                             )
                         }
                         task.state == DownloadState.DONE && task.fileName != null -> {
+                            GlassIconButton(
+                                icon = Icons.Rounded.PlayArrow,
+                                contentDescription = "Putar Episode ${task.episodeNumber}",
+                                onClick = onOpen,
+                                tint = BrandMint,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                            GlassIconButton(
+                                icon = Icons.Rounded.Share,
+                                contentDescription = "Bagikan Episode ${task.episodeNumber}",
+                                onClick = onShare,
+                                tint = TextSecondary,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
                             GlassIconButton(
                                 icon = Icons.Rounded.DeleteForever,
                                 contentDescription = "Hapus file Episode ${task.episodeNumber}",

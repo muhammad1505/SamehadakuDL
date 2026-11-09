@@ -122,6 +122,16 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Menampilkan status eksplisit di halaman Cloudflare ketika tantangan ditemukan, belum ditemukan,
   berhasil disimpan, atau belum dapat diverifikasi.
 
+## Rilis 2.6.10
+
+- Mengembalikan fungsi klik kartu folder Koleksi sebagai expand; klik item file di dalam folder
+  kini langsung memutar episode.
+- Menyeragamkan aksi file selesai di Unduhan menjadi Play, Bagikan, dan Hapus.
+- Memfilter hasil pencarian yang tidak relevan dan menempatkan judul yang paling cocok di urutan pertama.
+- Mengubah aksi halaman Cloudflare menjadi Selesai saat verifikasi terdeteksi dan Batal saat tidak ada.
+- Menambahkan teks berjalan pada judul jadwal panjang agar jam dan rating tetap terbaca.
+- Menyamakan caption aplikasi menjadi Samehadaku Downloader di Tentang, logo, dan notifikasi.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.

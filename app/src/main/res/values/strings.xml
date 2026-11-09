@@ -3,5 +3,5 @@
     <string name="app_name">Samehadaku Downloader</string>
     <string name="notification_channel_name">Unduhan</string>
     <string name="notification_channel_description">Progres unduhan episode</string>
-    <string name="notification_title">Samehadaku DL</string>
+    <string name="notification_title">Samehadaku Downloader</string>
 </resources>

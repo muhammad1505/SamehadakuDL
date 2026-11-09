@@ -13,6 +13,7 @@ import app.samehadaku.dl.domain.usecase.AutoRetryFailedUseCase
 import app.samehadaku.dl.domain.usecase.DeleteDownloadUseCase
 import app.samehadaku.dl.domain.usecase.DownloadControlUseCase
 import app.samehadaku.dl.domain.usecase.OpenDownloadUseCase
+import app.samehadaku.dl.domain.usecase.ShareDownloadUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
@@ -71,6 +72,7 @@ class QueueViewModel @Inject constructor(
     settings: SettingsRepository,
     private val control: DownloadControlUseCase,
     private val openDownload: OpenDownloadUseCase,
+    private val shareDownload: ShareDownloadUseCase,
     private val deleteDownload: DeleteDownloadUseCase,
     private val autoRetryFailed: AutoRetryFailedUseCase,
     private val sessionStore: SessionStore,
@@ -221,6 +223,15 @@ class QueueViewModel @Inject constructor(
         viewModelScope.launch {
             openDownload(task).onFailure { error ->
                 _messages.send(error.message ?: "Tidak bisa membuka file.")
+            }
+        }
+    }
+
+    fun share(task: DownloadTask) {
+        val fileName = task.fileName ?: return
+        viewModelScope.launch {
+            shareDownload(task.animeSlug, fileName).onFailure { error ->
+                _messages.send(error.message ?: "Tidak bisa membagikan file.")
             }
         }
     }

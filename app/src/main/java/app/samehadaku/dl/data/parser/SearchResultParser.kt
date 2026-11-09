@@ -90,7 +90,8 @@ object SearchResultParser {
         return if (query.isNullOrBlank()) {
             results.take(MAX_RESULTS)
         } else {
-            results.sortedWith(
+            val relevant = results.filter { relevance(it.title, query) >= 0 }
+            (if (relevant.isNotEmpty()) relevant else results).sortedWith(
                 compareByDescending<AnimeSearchResult> { relevance(it.title, query) }
                     .thenBy { it.title.lowercase() },
             ).take(MAX_RESULTS)

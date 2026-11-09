@@ -108,4 +108,19 @@ class SearchResultParserTest {
 
         assertTrue(SearchResultParser.parse(html, pageUrl).isEmpty())
     }
+
+    @Test
+    fun `query ranking removes unrelated cards and puts exact title first`() {
+        val html = """
+            <div class="listupd">
+              <div class="bsx"><a href="/anime/one-piece-film/" title="One Piece Film"><h2>One Piece Film</h2></a></div>
+              <div class="bsx"><a href="/anime/blue-lock/" title="Blue Lock"><h2>Blue Lock</h2></a></div>
+              <div class="bsx"><a href="/anime/one-piece/" title="One Piece"><h2>One Piece</h2></a></div>
+            </div>
+        """.trimIndent()
+
+        val results = SearchResultParser.parse(html, pageUrl, "one piece")
+
+        assertEquals(listOf("one-piece", "one-piece-film"), results.map { it.slug })
+    }
 }

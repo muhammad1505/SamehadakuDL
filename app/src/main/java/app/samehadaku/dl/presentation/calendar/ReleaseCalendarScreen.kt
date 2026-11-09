@@ -3,6 +3,7 @@ package app.samehadaku.dl.presentation.calendar
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -326,6 +327,7 @@ private fun CalendarDateCell(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ScheduleRow(item: ReleaseScheduleItem, cover: Bitmap?) {
     GlassCard(
@@ -350,7 +352,11 @@ private fun ScheduleRow(item: ReleaseScheduleItem, cover: Bitmap?) {
                     text = item.title,
                     color = TextPrimary,
                     style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
+                    maxLines = 1,
+                    modifier = Modifier.basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        velocity = 24.dp,
+                    ),
                 )
                 Text(
                     text = listOfNotNull(item.time, item.episode).joinToString(" • ")
