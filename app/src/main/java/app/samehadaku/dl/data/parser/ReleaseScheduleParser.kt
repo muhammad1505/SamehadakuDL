@@ -13,10 +13,21 @@ object ReleaseScheduleParser {
 
     fun parseSchedule(document: Document, pageUrl: String): List<ReleaseScheduleItem> {
         val found = linkedMapOf<String, ReleaseScheduleItem>()
+
+        // Current Samehadaku renders one `.result-schedule` block per weekday.
+        // The day is stored in Alpine's x-show expression, while each anime card
+        // contains its poster, score, title and release time.
+        document.select(".schedule .result-schedule .animepost, .result-schedule .animepost")
+            .forEach { card ->
+                val day = dayFromScheduleBlock(card)
+                val item = parseItem(card, pageUrl, day) ?: return@forEach
+                found.putIfAbsent(keyOf(item), item)
+            }
+
         document.select("table tr, .schedule-item, .schedule .item, .jadwal .item, .listupd .bsx")
             .forEach { row ->
                 val item = parseItem(row, pageUrl, null) ?: return@forEach
-                found.putIfAbsent("${item.day}|${item.title}|${item.episode}", item)
+                found.putIfAbsent(keyOf(item), item)
             }
 
         // Some mirrors render each weekday as a heading followed by a plain list.
@@ -28,11 +39,21 @@ object ReleaseScheduleParser {
             repeat(12) {
                 val current = sibling ?: return@repeat
                 val item = parseItem(current, pageUrl, day)
-                if (item != null) found.putIfAbsent("${item.day}|${item.title}|${item.episode}", item)
+                if (item != null) found.putIfAbsent(keyOf(item), item)
                 sibling = current.nextElementSibling()
             }
         }
         return found.values.take(100)
+    }
+
+    private fun dayFromScheduleBlock(element: Element): String? {
+        val block = element.parents().firstOrNull { parent ->
+            parent.hasAttr("x-show") && parent.hasClass("result-schedule")
+        } ?: element.parents().firstOrNull { it.hasClass("result-schedule") }
+        val expression = block?.attr("x-show").orEmpty().lowercase()
+        val token = Regex("activeDay\\s*===\\s*['\"]([^'\"]+)").find(expression)
+            ?.groupValues?.getOrNull(1)
+        return dayFromToken(token)
     }
 
     fun parseAnnouncements(document: Document): List<String> {
@@ -57,13 +78,29 @@ object ReleaseScheduleParser {
                 DAY_NAMES.firstOrNull { parent.text().contains(it, ignoreCase = true) }
             }
             ?: "Minggu ini"
-        val titleElement = element.selectFirst("a[title], h2, h3, h4, .title, .tt, a[href]")
+        val titleElement = element.selectFirst(
+            ".data .title h2, .title h2, h2, a[title], h3, h4, .title, .tt, a[href]",
+        )
         val title = titleElement?.attr("title").orEmpty().ifBlank {
             titleElement?.text().orEmpty()
         }.clean()
         if (title.isBlank() || title.length < 2) return null
         val time = TIME_REGEX.find(text)?.value
         val episode = EPISODE_REGEX.find(text)?.groupValues?.getOrNull(1)?.let { "Ep $it" }
+        val cover = element.selectFirst("img.anmsa, img[itemprop=image], img[src], img[data-src]")
+            ?.let { image ->
+                sequenceOf(
+                    image.absUrl("src"),
+                    image.absUrl("data-src"),
+                    image.attr("src"),
+                    image.attr("data-src"),
+                ).firstOrNull(String::isNotBlank)
+            }
+            ?.let { UrlUtils.resolve(pageUrl, it) }
+        val rating = element.selectFirst(".score, .rating")?.text()?.let { raw ->
+            RATING_REGEX.find(raw)?.groupValues?.getOrNull(1)
+                ?: SCORE_REGEX.find(raw)?.groupValues?.getOrNull(1)
+        }
         val status = when {
             text.contains("libur", ignoreCase = true) -> "Libur"
             text.contains("delay", ignoreCase = true) ||
@@ -72,12 +109,28 @@ object ReleaseScheduleParser {
         }
         val href = titleElement?.let { it.attr("href").takeIf(String::isNotBlank) }
             ?.let { UrlUtils.resolve(pageUrl, it) }
-        return ReleaseScheduleItem(day, title, time, episode, status, href)
+        return ReleaseScheduleItem(day, title, time, episode, status, href, cover, rating)
+    }
+
+    private fun keyOf(item: ReleaseScheduleItem): String =
+        "${item.day}|${item.title.lowercase()}|${item.time}|${item.url}"
+
+    private fun dayFromToken(token: String?): String? = when (token?.lowercase()) {
+        "monday" -> "Senin"
+        "tuesday" -> "Selasa"
+        "wednesday" -> "Rabu"
+        "thursday" -> "Kamis"
+        "friday" -> "Jumat"
+        "saturday" -> "Sabtu"
+        "sunday" -> "Minggu"
+        else -> token?.let { DAY_NAMES.firstOrNull { day -> it.contains(day, true) } }
     }
 
     private fun String.clean(): String = replace(Regex("\\s+"), " ").trim()
 
     private val TIME_REGEX = Regex("\\b(?:[01]?\\d|2[0-3])[:.]\\d{2}\\b")
     private val EPISODE_REGEX = Regex("(?:ep(?:isode)?\\.?\\s*)(\\d+(?:\\.5)?)", RegexOption.IGNORE_CASE)
+    private val RATING_REGEX = Regex("(?:score|rating|skor)?[^0-9]{0,4}([0-9]{1,2}[.,][0-9]{1,2})", RegexOption.IGNORE_CASE)
+    private val SCORE_REGEX = Regex("\\b([0-9]{1,2}(?:[.,][0-9]{1,2})?)\\b")
     private val ANNOUNCEMENT_REGEX = Regex("delay|libur|tunda|ditunda|jadwal anime", RegexOption.IGNORE_CASE)
 }

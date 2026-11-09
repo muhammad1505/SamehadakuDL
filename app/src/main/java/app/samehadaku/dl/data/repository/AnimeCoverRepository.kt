@@ -37,6 +37,28 @@ class AnimeCoverRepository @Inject constructor(
         return cover
     }
 
+    /** Loads a poster URL that was already extracted from a schedule/search card. */
+    suspend fun loadImage(imageUrl: String, referer: String? = null): Bitmap? {
+        val key = imageUrl.trim()
+        if (key.isBlank()) return null
+        cache[key]?.let { return it }
+        if (key in misses) return null
+        val image = withContext(Dispatchers.IO) {
+            runCatching {
+                val request = Request.Builder()
+                    .url(key)
+                    .apply { referer?.takeIf(String::isNotBlank)?.let { header("Referer", it) } }
+                    .build()
+                clients.siteClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    response.body?.bytes()?.let(::decodePreview)
+                }
+            }.getOrNull()
+        }
+        if (image == null) misses += key else cache[key] = image
+        return image
+    }
+
     private suspend fun loadFromMirrors(slug: String): Bitmap? {
         for (host in SiteMirrors.knownHosts().take(MAX_MIRRORS)) {
             val pageUrl = "https://$host/anime/$slug/"
@@ -44,17 +66,7 @@ class AnimeCoverRepository @Inject constructor(
                 fetcher.fetch(pageUrl, referer = "https://$host/")
             }.getOrNull() ?: continue
             val imageUrl = AnimeCoverParser.parse(page.html, page.finalUrl) ?: continue
-            val image = runCatching {
-                val request = Request.Builder()
-                    .url(imageUrl)
-                    .header("Referer", page.finalUrl)
-                    .build()
-                clients.siteClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use null
-                    val bytes = response.body?.bytes() ?: return@use null
-                    decodePreview(bytes)
-                }
-            }.getOrNull()
+            val image = loadImage(imageUrl, page.finalUrl)
             if (image != null) return image
         }
         return null

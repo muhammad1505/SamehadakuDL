@@ -500,9 +500,9 @@ private fun FolderGroup(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .combinedClickable(
-                    onClickLabel = if (expanded) "Tutup folder" else "Buka folder",
+                    onClickLabel = "Putar file terakhir",
                     onLongClickLabel = "Aksi folder",
-                    onClick = onToggle,
+                    onClick = onOpenLatest,
                     onLongClick = { menuOpen = true },
                 ),
             verticalAlignment = Alignment.CenterVertically,
@@ -566,10 +566,6 @@ private fun FolderGroup(
                     expanded = menuOpen,
                     onDismiss = { menuOpen = false },
                     canOpen = folder.files.isNotEmpty(),
-                    onOpenLatest = {
-                        menuOpen = false
-                        onOpenLatest()
-                    },
                     onShareLatest = {
                         menuOpen = false
                         onShareLatest()
@@ -580,11 +576,13 @@ private fun FolderGroup(
                     },
                 )
             }
-            Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                contentDescription = if (expanded) "Tutup folder" else "Buka folder",
+            GlassIconButton(
+                icon = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = if (expanded) "Tutup daftar episode" else "Lihat daftar episode",
+                onClick = onToggle,
+                size = 30.dp,
+                iconSize = 18.dp,
                 tint = if (expanded) accent else TextMuted,
-                modifier = Modifier.size(18.dp),
             )
         }
 
@@ -617,23 +615,10 @@ private fun FolderMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     canOpen: Boolean,
-    onOpenLatest: () -> Unit,
     onShareLatest: () -> Unit,
     onDeleteFolder: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(
-            text = { Text("Buka file terakhir") },
-            enabled = canOpen,
-            leadingIcon = {
-                Icon(
-                    Icons.Rounded.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-            },
-            onClick = onOpenLatest,
-        )
         DropdownMenuItem(
             text = { Text("Bagikan file terakhir") },
             enabled = canOpen,

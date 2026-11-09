@@ -16,6 +16,8 @@ import kotlinx.coroutines.launch
 data class CloudflareUiState(
     val url: String,
     val pageLoading: Boolean = true,
+    val challengeDetected: Boolean = false,
+    val statusMessage: String? = null,
     val verified: Boolean = false,
     val saving: Boolean = false,
     val sessionSaved: Boolean = false,
@@ -40,18 +42,35 @@ class CloudflareViewModel @Inject constructor(
     val state: StateFlow<CloudflareUiState> = _state.asStateFlow()
 
     fun onPageStarted() {
-        _state.update { it.copy(pageLoading = true, error = null) }
+        _state.update {
+            it.copy(
+                pageLoading = true,
+                challengeDetected = false,
+                statusMessage = "Mendeteksi pemeriksaan Cloudflare…",
+                error = null,
+            )
+        }
     }
 
     fun onPageFinished(url: String, title: String, cookies: String?, userAgent: String) {
         lastPage = PageSnapshot(url, title, cookies.orEmpty(), userAgent)
-        _state.update { it.copy(pageLoading = false) }
-
-        val clearedChallenge = !title.contains("just a moment", ignoreCase = true)
+        val challengeDetected = isChallenge(title, url)
         val hasClearance = cookies?.contains("cf_clearance") == true
-        if (hasClearance && !autoSaveStarted) {
+        _state.update {
+            it.copy(
+                pageLoading = false,
+                challengeDetected = challengeDetected,
+                statusMessage = when {
+                    hasClearance -> "Sesi Cloudflare ditemukan. Menyimpan verifikasi…"
+                    challengeDetected -> "Pemeriksaan Cloudflare ditemukan. Selesaikan tantangan di halaman ini."
+                    else -> "Pemeriksaan Cloudflare tidak terdeteksi di halaman ini."
+                },
+            )
+        }
+
+        if (hasClearance && !challengeDetected && !autoSaveStarted) {
             autoSaveStarted = true
-            persistSession(thenVerify = clearedChallenge)
+            persistSession(thenVerify = true)
         }
     }
 
@@ -59,6 +78,7 @@ class CloudflareViewModel @Inject constructor(
         _state.update {
             it.copy(
                 pageLoading = false,
+                statusMessage = "Halaman Cloudflare gagal dimuat.",
                 error = "Halaman gagal dimuat. Periksa koneksi lalu coba lagi.",
             )
         }
@@ -67,9 +87,10 @@ class CloudflareViewModel @Inject constructor(
     fun manualFinish(onDone: () -> Unit) {
         val page = lastPage
         viewModelScope.launch {
+            var saved = false
             if (page != null) {
                 _state.update { it.copy(saving = true) }
-                val saved = runCatching { savePage(page) }.getOrDefault(false)
+                saved = runCatching { savePage(page) }.getOrDefault(false)
                 _state.update {
                     it.copy(
                         saving = false,
@@ -77,7 +98,17 @@ class CloudflareViewModel @Inject constructor(
                     )
                 }
             }
-            onDone()
+            if (saved || _state.value.sessionSaved) {
+                onDone()
+            } else {
+                _state.update {
+                    it.copy(
+                        error = "Verifikasi belum terdeteksi. Selesaikan tantangan Cloudflare " +
+                            "atau muat ulang halaman terlebih dahulu.",
+                        statusMessage = "Belum ada sesi Cloudflare yang bisa disimpan.",
+                    )
+                }
+            }
         }
     }
 
@@ -92,6 +123,11 @@ class CloudflareViewModel @Inject constructor(
                         saving = false,
                         sessionSaved = it.sessionSaved || saved,
                         verified = thenVerify && saved,
+                        statusMessage = if (thenVerify && saved) {
+                            "Verifikasi Cloudflare berhasil dan sesi sudah tersimpan."
+                        } else {
+                            it.statusMessage
+                        },
                     )
                 }
             } catch (error: Exception) {
@@ -115,6 +151,11 @@ class CloudflareViewModel @Inject constructor(
         return true
     }
 
+    private fun isChallenge(title: String, url: String): Boolean {
+        val value = "$title $url".lowercase()
+        return CHALLENGE_MARKERS.any { marker -> value.contains(marker) }
+    }
+
     private data class PageSnapshot(
         val url: String,
         val title: String,
@@ -125,5 +166,12 @@ class CloudflareViewModel @Inject constructor(
     private companion object {
         const val DEFAULT_SITE = "https://samehadaku.how/"
         const val DEFAULT_HOST = "samehadaku.how"
+        val CHALLENGE_MARKERS = listOf(
+            "just a moment",
+            "attention required",
+            "cloudflare",
+            "challenge-platform",
+            "/cdn-cgi/challenge",
+        )
     }
 }

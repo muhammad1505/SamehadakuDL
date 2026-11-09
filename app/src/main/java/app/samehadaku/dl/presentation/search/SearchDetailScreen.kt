@@ -282,6 +282,37 @@ fun SearchDetailScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    val metadata = listOfNotNull(
+                        detail.status?.let { "Status: $it" },
+                        detail.type?.let { "Tipe: $it" },
+                        detail.source?.let { "Sumber: $it" },
+                        detail.duration?.let { "Durasi: $it" },
+                        detail.totalEpisodes?.let { "Episode: $it" },
+                        detail.season?.let { "Musim: $it" },
+                        detail.studio?.let { "Studio: $it" },
+                        detail.producers?.let { "Produser: $it" },
+                        detail.released?.let { "Rilis: $it" },
+                    )
+                    if (metadata.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            metadata.chunked(2).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    row.forEach { value ->
+                                        Text(
+                                            text = value,
+                                            color = TextMuted,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

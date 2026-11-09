@@ -25,6 +25,10 @@ object SearchResultParser {
         ".relat article",
         "main article.animpost",
         "article.animpost",
+        ".schedule .animepost",
+        ".result-schedule .animepost",
+        ".listupd .animepost",
+        ".animepost",
         ".listupd .bsx",
         ".listupd .bs",
         ".bsx",
@@ -33,6 +37,9 @@ object SearchResultParser {
 
     private val TITLE_SELECTORS = listOf(
         "img[title]",
+        ".data .title h2",
+        ".data h2",
+        ".title h2",
         "h2",
         "h3",
         "h4",
@@ -46,12 +53,16 @@ object SearchResultParser {
     private val TYPE_SELECTORS = listOf(".type", ".typez", ".types")
     private val EPISODE_SELECTORS = listOf(".epx", ".ep", ".eps", ".episode")
 
-    fun parse(html: String, pageUrl: String): List<AnimeSearchResult> {
+    fun parse(html: String, pageUrl: String, query: String? = null): List<AnimeSearchResult> {
         val document = Jsoup.parse(html, pageUrl)
-        return parse(document, pageUrl)
+        return parse(document, pageUrl, query)
     }
 
-    fun parse(document: Document, pageUrl: String): List<AnimeSearchResult> {
+    fun parse(
+        document: Document,
+        pageUrl: String,
+        query: String? = null,
+    ): List<AnimeSearchResult> {
         val pageHost = try {
             URI(pageUrl).host
         } catch (_: Exception) {
@@ -75,7 +86,15 @@ object SearchResultParser {
             }
         }
 
-        return found.values.take(MAX_RESULTS)
+        val results = found.values
+        return if (query.isNullOrBlank()) {
+            results.take(MAX_RESULTS)
+        } else {
+            results.sortedWith(
+                compareByDescending<AnimeSearchResult> { relevance(it.title, query) }
+                    .thenBy { it.title.lowercase() },
+            ).take(MAX_RESULTS)
+        }
     }
 
     private fun fromCard(
@@ -165,6 +184,22 @@ object SearchResultParser {
         .replace(Regex("^anime\\s+", RegexOption.IGNORE_CASE), "")
         .replace(Regex("\\s+sub\\s*indo$", RegexOption.IGNORE_CASE), "")
         .trim()
+
+    private fun relevance(title: String, query: String): Int {
+        val normalizedTitle = normalizeForSearch(title)
+        val normalizedQuery = normalizeForSearch(query)
+        if (normalizedTitle == normalizedQuery) return 1000
+        if (normalizedTitle.startsWith(normalizedQuery)) return 800
+        val queryTokens = normalizedQuery.split(' ').filter { it.length > 1 }
+        val matchingTokens = queryTokens.count { token -> normalizedTitle.contains(token) }
+        return matchingTokens * 100 - normalizedTitle.length.coerceAtMost(99)
+    }
+
+    private fun normalizeForSearch(value: String): String = value
+        .lowercase()
+        .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+        .trim()
+        .replace(Regex("\\s+"), " ")
 
     private const val MAX_RESULTS = 40
 }

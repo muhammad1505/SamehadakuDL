@@ -116,7 +116,7 @@ class SiteRepositoryImpl @Inject constructor(
             try {
                 val page = fetcher.fetch(url, referer = root)
                 // A readable result page is authoritative, even when it has no cards.
-                return SearchResultParser.parse(page.html, page.finalUrl)
+                return SearchResultParser.parse(page.html, page.finalUrl, term)
             } catch (challenge: NeedsVerificationException) {
                 verification = verification ?: challenge
             } catch (error: Exception) {

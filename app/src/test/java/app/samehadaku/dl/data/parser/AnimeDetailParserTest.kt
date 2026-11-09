@@ -24,4 +24,21 @@ class AnimeDetailParserTest {
         assertTrue(detail?.description?.contains("Kisah petualangan") == true)
         assertEquals(listOf("Aksi", "Petualangan"), detail?.genres)
     }
+
+    @Test
+    fun `prefers the long visible synopsis over short seo description`() {
+        val document = Jsoup.parse(
+            """
+            <head><meta property="og:description" content="Nonton One Piece terbaru di Samehadaku."></head>
+            <body>
+              <div class="desc">Gol D. Roger dikenal sebagai Raja Bajak Laut, Orang terkuat dan paling terkenal yang pernah mengarungi Grand Line. Penangkapan dan Eksekusi Roger oleh Pemerintahan Dunia telah membawa perubahan di seluruh dunia. Inilah awal dari era bajak laut dan mimpi Monkey D Luffy.</div>
+            </body>
+            """.trimIndent(),
+        )
+
+        val detail = AnimeDetailParser.parse(document)
+
+        assertTrue(detail?.description?.contains("Gol D. Roger") == true)
+        assertTrue(detail?.description?.contains("Monkey D Luffy") == true)
+    }
 }

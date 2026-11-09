@@ -39,6 +39,7 @@ import app.samehadaku.dl.presentation.components.InfoBanner
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
 import app.samehadaku.dl.presentation.theme.BrandPrimary
+import app.samehadaku.dl.presentation.theme.BrandGold
 import app.samehadaku.dl.presentation.theme.Danger
 import app.samehadaku.dl.presentation.theme.TextSecondary
 
@@ -145,6 +146,28 @@ fun CloudflareScreen(
                         )
                     }
                 }
+            }
+
+            if (!state.pageLoading && state.statusMessage != null) {
+                InfoBanner(
+                    title = if (state.challengeDetected) {
+                        "Cloudflare ditemukan"
+                    } else if (state.sessionSaved) {
+                        "Sesi Cloudflare aktif"
+                    } else {
+                        "Cloudflare tidak terdeteksi"
+                    },
+                    message = state.statusMessage.orEmpty(),
+                    icon = Icons.Rounded.Cloud,
+                    accent = if (state.challengeDetected || state.sessionSaved) {
+                        BrandPrimary
+                    } else {
+                        BrandGold
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(12.dp),
+                )
             }
 
             if (state.error != null) {

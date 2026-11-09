@@ -1,5 +1,9 @@
 package app.samehadaku.dl.presentation.calendar
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -24,8 +31,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +59,9 @@ import app.samehadaku.dl.presentation.theme.Danger
 import app.samehadaku.dl.presentation.theme.TextMuted
 import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.YearMonth
 import java.util.Locale
 
 @Composable
@@ -53,7 +71,13 @@ fun ReleaseCalendarScreen(
     viewModel: ReleaseCalendarViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val groups = state.items.groupBy { it.day }
+    var month by remember { mutableStateOf(YearMonth.now()) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val dates = remember(month) { monthDates(month) }
+    val scheduleByDate = remember(month, state.items) {
+        state.items.groupByWeekday(month)
+    }
+    val selectedItems = scheduleByDate[selectedDate].orEmpty()
 
     ScreenScaffold(
         topBar = {
@@ -142,16 +166,46 @@ fun ReleaseCalendarScreen(
                         }
                     }
                 }
-                groups.forEach { (day, entries) ->
-                    item(key = "header-$day") {
-                        Text(
-                            text = day.replaceFirstChar { it.titlecase(Locale.getDefault()) },
-                            color = TextPrimary,
-                            style = MaterialTheme.typography.titleMedium,
+                item {
+                    MonthCalendar(
+                        month = month,
+                        selectedDate = selectedDate,
+                        dates = dates,
+                        scheduleByDate = scheduleByDate,
+                        onPrevious = {
+                            month = month.minusMonths(1)
+                            selectedDate = month.atDay(1)
+                        },
+                        onNext = {
+                            month = month.plusMonths(1)
+                            selectedDate = month.atDay(1)
+                        },
+                        onSelectDate = { date ->
+                            selectedDate = date
+                        },
+                    )
+                }
+                item {
+                    Text(
+                        text = selectedDate.format(DATE_FORMATTER),
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                if (selectedItems.isEmpty()) {
+                    item {
+                        EmptyState(
+                            icon = Icons.Rounded.CalendarMonth,
+                            title = "Tidak ada jadwal",
+                            message = "Belum ada anime yang dijadwalkan pada hari ini.",
                         )
                     }
-                    items(entries, key = { "${day}-${it.title}-${it.episode}" }) { item ->
-                        ScheduleRow(item)
+                } else {
+                    items(
+                        selectedItems,
+                        key = { "${selectedDate}-${it.title}-${it.time}-${it.url}" },
+                    ) { item ->
+                        ScheduleRow(item, item.coverUrl?.let { url -> state.covers[url] })
                     }
                 }
             }
@@ -160,13 +214,137 @@ fun ReleaseCalendarScreen(
 }
 
 @Composable
-private fun ScheduleRow(item: ReleaseScheduleItem) {
+private fun MonthCalendar(
+    month: YearMonth,
+    selectedDate: LocalDate,
+    dates: List<LocalDate?>,
+    scheduleByDate: Map<LocalDate, List<ReleaseScheduleItem>>,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onSelectDate: (LocalDate) -> Unit,
+) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        contentPadding = PaddingValues(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlassIconButton(
+                icon = Icons.Rounded.ChevronLeft,
+                contentDescription = "Bulan sebelumnya",
+                onClick = onPrevious,
+                size = 30.dp,
+                iconSize = 18.dp,
+                tint = TextSecondary,
+            )
+            Text(
+                text = month.format(MONTH_FORMATTER),
+                color = TextPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            GlassIconButton(
+                icon = Icons.Rounded.ChevronRight,
+                contentDescription = "Bulan berikutnya",
+                onClick = onNext,
+                size = 30.dp,
+                iconSize = 18.dp,
+                tint = TextSecondary,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            WEEKDAY_LABELS.forEach { label ->
+                Text(
+                    text = label,
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        dates.chunked(7).forEach { week ->
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                week.forEach { date ->
+                    CalendarDateCell(
+                        date = date,
+                        month = month,
+                        selected = date == selectedDate,
+                        hasSchedule = date != null && scheduleByDate[date].orEmpty().isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                        onClick = { date?.let(onSelectDate) },
+                    )
+                }
+                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarDateCell(
+    date: LocalDate?,
+    month: YearMonth,
+    selected: Boolean,
+    hasSchedule: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) BrandPrimary.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(enabled = date != null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (date != null) {
+            val currentMonth = date.month == month.month
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = date.dayOfMonth.toString(),
+                    color = when {
+                        selected -> BrandPrimary
+                        !currentMonth -> TextMuted.copy(alpha = 0.35f)
+                        else -> TextPrimary
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (selected) FontWeight.Bold else null,
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(top = 3.dp)
+                        .size(if (hasSchedule) 5.dp else 3.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(if (hasSchedule) BrandMint else Color.Transparent),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleRow(item: ReleaseScheduleItem, cover: Bitmap?) {
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (cover != null) {
+                Image(
+                    bitmap = cover.asImageBitmap(),
+                    contentDescription = "Cover ${item.title}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(width = 42.dp, height = 56.dp)
+                        .clip(RoundedCornerShape(10.dp)),
+                )
+                Spacer(Modifier.width(10.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.title,
@@ -181,6 +359,10 @@ private fun ScheduleRow(item: ReleaseScheduleItem) {
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
+            item.rating?.let { rating ->
+                Spacer(Modifier.width(8.dp))
+                StatusPill(text = "★ $rating", color = BrandGold)
+            }
             item.status?.let { status ->
                 Spacer(Modifier.width(7.dp))
                 StatusPill(
@@ -191,3 +373,43 @@ private fun ScheduleRow(item: ReleaseScheduleItem) {
         }
     }
 }
+
+private fun List<ReleaseScheduleItem>.groupByWeekday(
+    month: YearMonth,
+): Map<LocalDate, List<ReleaseScheduleItem>> {
+    val result = linkedMapOf<LocalDate, MutableList<ReleaseScheduleItem>>()
+    (1..month.lengthOfMonth()).forEach { day ->
+        val date = month.atDay(day)
+        val weekday = date.dayOfWeek
+        filter { it.day.toDayOfWeek() == weekday }.forEach { item ->
+            result.getOrPut(date) { mutableListOf() }.add(item)
+        }
+    }
+    return result
+}
+
+private fun String.toDayOfWeek(): DayOfWeek? = when {
+    contains("senin", true) -> DayOfWeek.MONDAY
+    contains("selasa", true) -> DayOfWeek.TUESDAY
+    contains("rabu", true) -> DayOfWeek.WEDNESDAY
+    contains("kamis", true) -> DayOfWeek.THURSDAY
+    contains("jumat", true) || contains("jumaat", true) -> DayOfWeek.FRIDAY
+    contains("sabtu", true) -> DayOfWeek.SATURDAY
+    contains("minggu", true) -> DayOfWeek.SUNDAY
+    else -> null
+}
+
+private fun monthDates(month: YearMonth): List<LocalDate?> {
+    val first = month.atDay(1)
+    val leading = first.dayOfWeek.value - DayOfWeek.MONDAY.value
+    val total = leading + month.lengthOfMonth()
+    val cells = (0 until total).map { index ->
+        if (index < leading) null else month.atDay(index - leading + 1)
+    }.toMutableList()
+    while (cells.size % 7 != 0) cells += null
+    return cells
+}
+
+private val WEEKDAY_LABELS = listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min")
+private val MONTH_FORMATTER = java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", Locale("id", "ID"))
+private val DATE_FORMATTER = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID"))

@@ -14,8 +14,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Satu layar Unduhan untuk antrean berjalan sekaligus riwayat (Semua/Selesai/Gagal),
   dengan konkurensi 1–3, jeda/lanjut per episode maupun massal.
 - Progres, kecepatan, ukuran, server aktif, dan alasan kegagalan per task.
-- Koleksi per judul anime: tampilan folder ringkas, tekan lama untuk membuka episode
-  terakhir, mengulangi yang gagal, atau menghapus folder dari koleksi.
+- Koleksi per judul anime: tampilan folder ringkas, ketuk untuk memutar file terakhir,
+  tekan lama untuk aksi berbagi atau menghapus folder.
 - Pemberitahuan saat file episode yang sama sudah ada sehingga tidak diunduh ulang.
 - Aksi terpisah untuk membersihkan riwayat (file tetap ada) dan menghapus file permanen,
   masing-masing dengan konfirmasi.
@@ -106,6 +106,21 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   episode yang terbaca.
 - Menambahkan ikon kalender di Beranda untuk membuka jadwal rilis anime mingguan.
 - Menambahkan ticker pengumuman di Beranda untuk informasi delay/libur yang tersedia di situs.
+
+## Rilis 2.6.9
+
+- Menyesuaikan parser jadwal dengan halaman `/jadwal/` terbaru Samehadaku: jadwal per hari,
+  cover, jam, dan rating kini dipetakan ke kalender bulanan sesuai tanggalnya.
+- Membuat kalender rilis menampilkan penanda tanggal, detail anime terpilih, cover, jam, dan
+  navigasi bulan.
+- Ketuk folder anime di Koleksi kini langsung memutar file terbaru; tombol expand dipisahkan
+  khusus untuk melihat daftar episode.
+- Memprioritaskan sinopsis panjang dari halaman detail anime dan menampilkan metadata seperti
+  status, tipe, sumber, durasi, studio, produser, dan tanggal rilis jika tersedia.
+- Meningkatkan akurasi pencarian melalui selector kartu tema terbaru dan pemeringkatan hasil
+  berdasarkan kecocokan judul.
+- Menampilkan status eksplisit di halaman Cloudflare ketika tantangan ditemukan, belum ditemukan,
+  berhasil disimpan, atau belum dapat diverifikasi.
 
 ## Build
 
