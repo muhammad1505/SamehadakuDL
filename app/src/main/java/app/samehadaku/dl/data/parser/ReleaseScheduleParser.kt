@@ -51,7 +51,7 @@ object ReleaseScheduleParser {
             parent.hasAttr("x-show") && parent.hasClass("result-schedule")
         } ?: element.parents().firstOrNull { it.hasClass("result-schedule") }
         val expression = block?.attr("x-show").orEmpty().lowercase()
-        val token = Regex("activeDay\\s*===\\s*['\"]([^'\"]+)").find(expression)
+        val token = Regex("activeday\\s*===\\s*['\"]([^'\"]+)").find(expression)
             ?.groupValues?.getOrNull(1)
         return dayFromToken(token)
     }
