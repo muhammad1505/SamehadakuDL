@@ -57,6 +57,7 @@ class QualityViewModel @Inject constructor(
         sessionStore.selectedEpisodes.ifEmpty { detection?.episodes.orEmpty() }
 
     private var links: DownloadLinks = DownloadLinks.EMPTY
+    private var autoStartRequested = false
 
     private val _state = MutableStateFlow(
         QualityUiState(
@@ -113,6 +114,15 @@ class QualityViewModel @Inject constructor(
                         selectedHost = firstHost,
                         sampleEpisodeUrl = preview.episodeUrl,
                     )
+                }
+                // Pengaturan adalah sumber kualitas untuk semua jalur unduhan. Jika
+                // pengguna sudah memilihnya, langsung antrekan setelah tautan terbaca
+                // sehingga layar ini tidak menjadi langkah ekstra di setiap menu.
+                if (saved != null && firstFormat != null && firstResolution != null &&
+                    firstHost != null && !autoStartRequested
+                ) {
+                    autoStartRequested = true
+                    startDownload()
                 }
             } catch (verification: NeedsVerificationException) {
                 _state.update {

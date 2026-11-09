@@ -3,6 +3,7 @@ package app.samehadaku.dl.core
 import app.samehadaku.dl.domain.model.DetectionResult
 import app.samehadaku.dl.domain.model.Episode
 import app.samehadaku.dl.domain.model.Host
+import app.samehadaku.dl.domain.model.AnimeSearchResult
 import app.samehadaku.dl.domain.model.VideoFormat
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,6 +33,10 @@ class SessionStore @Inject constructor() {
     @Volatile
     var queueNotice: String? = null
 
+    /** Search result currently opened in the detail screen. */
+    @Volatile
+    var selectedSearchResult: AnimeSearchResult? = null
+
     fun saveDetection(result: DetectionResult) {
         detection = result
         selectedEpisodes = result.episodes
@@ -52,5 +57,6 @@ class SessionStore @Inject constructor() {
         selectedFormat = null
         selectedResolution = null
         selectedHost = null
+        selectedSearchResult = null
     }
 }

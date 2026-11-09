@@ -69,6 +69,7 @@ sealed interface SubscriptionsEvent {
     data object Added : SubscriptionsEvent
     data object OpenEpisodes : SubscriptionsEvent
     data object OpenQueue : SubscriptionsEvent
+    data class ExportReady(val json: String) : SubscriptionsEvent
 }
 
 /**
@@ -151,11 +152,17 @@ class SubscriptionsViewModel @Inject constructor(
             _state.update { it.copy(addError = "Tempel URL halaman anime dulu.") }
             return
         }
-        val lastEpisode = lastEpisodeText.trim().toIntOrNull() ?: 0
+        val lastEpisode = lastEpisodeText.trim().toIntOrNull()
+        if (lastEpisode == null) {
+            _state.update {
+                it.copy(addError = "Masukkan episode terakhir. Gunakan 0 jika belum ada.")
+            }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(addInProgress = true, addError = null) }
             try {
-                val subscription = addSubscriptionUseCase(trimmedUrl, lastEpisode)
+                val subscription = addSubscriptionUseCase(trimmedUrl, lastEpisode.coerceAtLeast(0))
                 _state.update {
                     it.copy(
                         addInProgress = false,
@@ -413,6 +420,18 @@ class SubscriptionsViewModel @Inject constructor(
                     it.copy(message = error.message ?: "Gagal mengimpor langganan.")
                 }
             }
+        }
+    }
+
+    fun exportSubscriptions() {
+        viewModelScope.launch {
+            runCatching { repository.exportForBackup() }
+                .onSuccess { json -> _events.send(SubscriptionsEvent.ExportReady(json)) }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(message = error.message ?: "Gagal menyiapkan backup langganan.")
+                    }
+                }
         }
     }
 

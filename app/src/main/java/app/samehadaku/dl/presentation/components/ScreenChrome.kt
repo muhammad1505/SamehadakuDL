@@ -304,43 +304,10 @@ private fun NavTabItem(
         targetValue = if (pressed) 0.92f else 1f,
         label = "nav-tab-scale",
     )
-    val glow by animateFloatAsState(
-        targetValue = if (pressed) 0.10f else 0f,
-        label = "nav-tab-glow",
-    )
     Column(
         modifier = modifier
             .fillMaxHeight()
             .padding(horizontal = 3.dp, vertical = 3.dp)
-            .background(
-                if (selected) {
-                    Brush.horizontalGradient(
-                        listOf(
-                            BrandPrimary.copy(alpha = 0.16f),
-                            BrandAccent.copy(alpha = 0.10f),
-                        ),
-                    )
-                } else {
-                    Brush.linearGradient(
-                        listOf(
-                            Color.White.copy(alpha = glow),
-                            Color.White.copy(alpha = glow),
-                        ),
-                    )
-                },
-                RoundedCornerShape(18.dp),
-            )
-            .then(
-                if (selected) {
-                    Modifier.border(
-                        1.dp,
-                        BrandPrimary.copy(alpha = 0.28f),
-                        RoundedCornerShape(18.dp),
-                    )
-                } else {
-                    Modifier
-                },
-            )
             .clickable(
                 interactionSource = interaction,
                 indication = null,

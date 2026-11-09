@@ -24,6 +24,7 @@ import app.samehadaku.dl.presentation.notifications.NotificationsScreen
 import app.samehadaku.dl.presentation.quality.QualityScreen
 import app.samehadaku.dl.presentation.queue.QueueScreen
 import app.samehadaku.dl.presentation.search.SearchScreen
+import app.samehadaku.dl.presentation.search.SearchDetailScreen
 import app.samehadaku.dl.presentation.settings.SettingsScreen
 import app.samehadaku.dl.presentation.subscriptions.SubscriptionsScreen
 
@@ -37,6 +38,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val SUBSCRIPTIONS = "subscriptions"
     const val SEARCH = "search"
+    const val SEARCH_DETAIL = "search-detail"
     const val NOTIFICATIONS = "notifications"
     const val ABOUT = "about"
 }
@@ -127,9 +129,25 @@ fun SamehadakuNavHost(
             composable(Routes.SEARCH) {
                 SearchScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenDetail = { navController.navigate(Routes.SEARCH_DETAIL) },
                     onOpenEpisodes = { navController.navigate(Routes.EPISODES) },
                     onOpenQuality = { navController.navigate(Routes.QUALITY) },
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
+                )
+            }
+
+            composable(Routes.SEARCH_DETAIL) { entry ->
+                val verified by entry.savedStateHandle
+                    .getStateFlow("verified", false)
+                    .collectAsStateWithLifecycle()
+
+                SearchDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenEpisodes = { navController.navigate(Routes.EPISODES) },
+                    onOpenQuality = { navController.navigate(Routes.QUALITY) },
+                    onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
+                    verified = verified,
+                    onVerifiedHandled = { entry.savedStateHandle["verified"] = false },
                 )
             }
 

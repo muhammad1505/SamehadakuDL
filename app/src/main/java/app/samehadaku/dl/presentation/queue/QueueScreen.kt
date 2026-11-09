@@ -431,52 +431,80 @@ private fun BulkActions(
     onRetryFailed: () -> Unit,
     onRequestClear: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (state.hasActive || state.hasPaused || state.hasFailed) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                when {
-                    state.hasActive -> GlassButton(
-                        text = "Jeda semua",
-                        onClick = onPauseAll,
-                        icon = Icons.Rounded.Pause,
-                        modifier = Modifier.weight(1f),
-                        height = 42.dp,
-                        tint = Warning,
-                    )
-                    state.hasPaused -> GlassButton(
-                        text = "Lanjutkan",
-                        onClick = onResumeAll,
-                        icon = Icons.Rounded.PlayArrow,
-                        modifier = Modifier.weight(1f),
-                        height = 42.dp,
-                        tint = BrandMint,
-                    )
-                }
-                if (state.hasFailed) {
-                    GlassButton(
-                        text = "Ulangi gagal",
-                        onClick = onRetryFailed,
-                        icon = Icons.Rounded.Refresh,
-                        modifier = Modifier.weight(1f),
-                        height = 42.dp,
-                        tint = BrandGold,
-                    )
-                }
+    val showHistoryActions = state.hasFailed || state.hasFinished
+    val showPlaybackActions = state.hasActive || state.hasPaused
+    when {
+        showHistoryActions -> Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (state.hasFailed) {
+                GlassButton(
+                    text = "Ulangi gagal",
+                    onClick = onRetryFailed,
+                    icon = Icons.Rounded.Refresh,
+                    modifier = Modifier.weight(1f),
+                    height = 42.dp,
+                    tint = BrandGold,
+                )
+            }
+            if (state.hasFinished) {
+                GlassButton(
+                    text = "Bersihkan riwayat",
+                    onClick = onRequestClear,
+                    icon = Icons.Rounded.History,
+                    modifier = Modifier.weight(1f),
+                    height = 42.dp,
+                    tint = BrandAccent,
+                )
+            } else if (showPlaybackActions) {
+                QueuePlaybackAction(
+                    state = state,
+                    onPauseAll = onPauseAll,
+                    onResumeAll = onResumeAll,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
-        if (state.hasFinished) {
-            GlassButton(
-                text = "Bersihkan riwayat",
-                onClick = onRequestClear,
-                icon = Icons.Rounded.History,
+        showPlaybackActions -> Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            QueuePlaybackAction(
+                state = state,
+                onPauseAll = onPauseAll,
+                onResumeAll = onResumeAll,
                 modifier = Modifier.fillMaxWidth(),
-                height = 40.dp,
-                tint = BrandAccent,
             )
         }
+    }
+}
+
+@Composable
+private fun QueuePlaybackAction(
+    state: QueueUiState,
+    onPauseAll: () -> Unit,
+    onResumeAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (state.hasActive) {
+        GlassButton(
+            text = "Jeda semua",
+            onClick = onPauseAll,
+            icon = Icons.Rounded.Pause,
+            modifier = modifier,
+            height = 42.dp,
+            tint = Warning,
+        )
+    } else if (state.hasPaused) {
+        GlassButton(
+            text = "Lanjutkan",
+            onClick = onResumeAll,
+            icon = Icons.Rounded.PlayArrow,
+            modifier = modifier,
+            height = 42.dp,
+            tint = BrandMint,
+        )
     }
 }
 
@@ -528,21 +556,22 @@ private fun QueueTaskCard(
 
     GlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        contentPadding = PaddingValues(14.dp),
+        shape = RoundedCornerShape(17.dp),
+        contentPadding = PaddingValues(horizontal = 11.dp, vertical = 10.dp),
         highlighted = active,
+        onClick = if (task.state == DownloadState.DONE) onOpen else null,
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(15.dp))
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(13.dp))
                     .background(
                         Brush.verticalGradient(
                             listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0.07f)),
                         ),
                     )
-                    .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(15.dp)),
+                    .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(13.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (cover != null) {
@@ -571,7 +600,7 @@ private fun QueueTaskCard(
                         .border(1.5.dp, SlateSurface, RoundedCornerShape(50)),
                 )
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(9.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Episode ${task.episodeNumber}",
@@ -613,7 +642,7 @@ private fun QueueTaskCard(
             }
         }
 
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(7.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -797,18 +826,6 @@ private fun QueueTaskCard(
                     )
                 }
                 task.state == DownloadState.DONE -> {
-                    GlassIconButton(
-                        icon = Icons.Rounded.PlayArrow,
-                        contentDescription = if (task.fileName != null) {
-                            "Buka file Episode ${task.episodeNumber}"
-                        } else {
-                            "Buka Episode ${task.episodeNumber}"
-                        },
-                        onClick = onOpen,
-                        tint = BrandMint,
-                        size = 38.dp,
-                        iconSize = 19.dp,
-                    )
                     if (task.fileName != null) {
                         GlassIconButton(
                             icon = Icons.Rounded.DeleteForever,

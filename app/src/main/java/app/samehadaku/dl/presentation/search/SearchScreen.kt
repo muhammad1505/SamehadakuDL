@@ -72,6 +72,7 @@ import app.samehadaku.dl.presentation.theme.Warning
 @Composable
 fun SearchScreen(
     onBack: () -> Unit,
+    onOpenDetail: () -> Unit,
     onOpenEpisodes: () -> Unit,
     onOpenQuality: () -> Unit,
     onOpenCloudflare: () -> Unit,
@@ -87,6 +88,7 @@ fun SearchScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
+                SearchEvent.OpenDetail -> onOpenDetail()
                 SearchEvent.OpenEpisodes -> onOpenEpisodes()
                 SearchEvent.OpenQuality -> onOpenQuality()
             }
@@ -211,16 +213,9 @@ fun SearchScreen(
                             SearchResultCard(
                                 result = result,
                                 cover = state.covers[result.slug],
-                                busyAction = state.busyAction.takeIf {
-                                    state.busyUrl == result.url
-                                },
-                                onDownload = {
+                                onClick = {
                                     keyboard?.hide()
-                                    viewModel.download(result)
-                                },
-                                onSubscribe = {
-                                    keyboard?.hide()
-                                    viewModel.subscribe(result)
+                                    viewModel.openDetail(result)
                                 },
                                 onCopyLink = {
                                     clipboard.setText(AnnotatedString(result.url))
@@ -284,16 +279,14 @@ private fun SearchLoading() {
 private fun SearchResultCard(
     result: AnimeSearchResult,
     cover: Bitmap?,
-    busyAction: String?,
-    onDownload: () -> Unit,
-    onSubscribe: () -> Unit,
+    onClick: () -> Unit,
     onCopyLink: () -> Unit,
 ) {
-    val busy = busyAction != null
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         contentPadding = PaddingValues(13.dp),
+        onClick = onClick,
     ) {
         Row(verticalAlignment = Alignment.Top) {
             SearchCover(cover = cover, title = result.title)
@@ -321,6 +314,12 @@ private fun SearchResultCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                Text(
+                    text = "Ketuk untuk melihat ringkasan dan aksi",
+                    color = BrandMint.copy(alpha = 0.82f),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
             }
         }
 
@@ -340,24 +339,11 @@ private fun SearchResultCard(
                 tint = TextSecondary,
             )
             Spacer(Modifier.width(6.dp))
-            GlassIconButton(
-                icon = Icons.Rounded.Download,
-                contentDescription = "Unduh ${result.title}",
-                onClick = onDownload,
-                enabled = !busy,
-                size = 38.dp,
-                iconSize = 19.dp,
-                tint = BrandPrimary,
-            )
-            Spacer(Modifier.width(6.dp))
-            GlassIconButton(
-                icon = Icons.Rounded.Bookmark,
-                contentDescription = "Langganan ${result.title}",
-                onClick = onSubscribe,
-                enabled = !busy,
-                size = 38.dp,
-                iconSize = 19.dp,
-                tint = BrandMint,
+            Text(
+                text = "Detail",
+                color = BrandPrimary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
             )
         }
     }

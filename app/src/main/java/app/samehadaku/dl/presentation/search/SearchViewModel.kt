@@ -38,6 +38,7 @@ data class SearchUiState(
 )
 
 sealed interface SearchEvent {
+    data object OpenDetail : SearchEvent
     data object OpenEpisodes : SearchEvent
     data object OpenQuality : SearchEvent
 }
@@ -192,6 +193,11 @@ class SearchViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun openDetail(result: AnimeSearchResult) {
+        sessionStore.selectedSearchResult = result
+        viewModelScope.launch { _events.send(SearchEvent.OpenDetail) }
     }
 
     fun subscribe(result: AnimeSearchResult) {

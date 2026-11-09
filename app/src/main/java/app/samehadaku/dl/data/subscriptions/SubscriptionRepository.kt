@@ -32,6 +32,27 @@ class SubscriptionRepository @Inject constructor(
 
     suspend fun currentSubscriptions(): List<Subscription> = subscriptions.first()
 
+    /** Portable backup compatible with the script importer. */
+    suspend fun exportForBackup(): String {
+        val items = currentSubscriptions()
+        val progress = JSONObject()
+        items.forEach { subscription ->
+            progress.put(
+                subscription.name,
+                JSONObject().apply {
+                    put("last", subscription.lastEpisode)
+                    put("url", subscription.animeUrl)
+                },
+            )
+        }
+        return JSONObject().apply {
+            put("version", 1)
+            put("exported_at", System.currentTimeMillis())
+            put("subs", JSONArray(items.map { it.name }))
+            put("progress", progress)
+        }.toString(2)
+    }
+
     /** Adds a new subscription or merges it with an existing one (by slug). */
     suspend fun addOrUpdate(subscription: Subscription): Boolean {
         var created = false

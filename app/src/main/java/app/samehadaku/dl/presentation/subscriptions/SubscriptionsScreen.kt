@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FileDownload
+import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Sync
@@ -83,6 +84,7 @@ import app.samehadaku.dl.presentation.components.NeonCheckbox
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
 import app.samehadaku.dl.presentation.theme.BrandPrimary
+import app.samehadaku.dl.presentation.theme.BrandMint
 import app.samehadaku.dl.presentation.theme.Danger
 import app.samehadaku.dl.presentation.theme.SlateSurface
 import app.samehadaku.dl.presentation.theme.TextMuted
@@ -112,6 +114,7 @@ fun SubscriptionsScreen(
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var addUrl by rememberSaveable { mutableStateOf("") }
     var addLast by rememberSaveable { mutableStateOf("") }
+    var pendingExport by remember { mutableStateOf<String?>(null) }
     var pendingLast by remember { mutableStateOf<Subscription?>(null) }
     var pendingDelete by remember { mutableStateOf<Subscription?>(null) }
 
@@ -135,6 +138,28 @@ fun SubscriptionsScreen(
         }
     }
 
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        val json = pendingExport
+        pendingExport = null
+        if (uri == null || json == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(json.toByteArray(Charsets.UTF_8))
+                    }
+                    true
+                }.getOrDefault(false)
+            }
+            snackbarHostState.showSnackbar(
+                if (saved) "Backup langganan berhasil disimpan."
+                else "Backup langganan gagal disimpan.",
+            )
+        }
+    }
+
     fun pickImportFile() {
         importLauncher.launch(arrayOf("*/*"))
     }
@@ -145,10 +170,14 @@ fun SubscriptionsScreen(
                 SubscriptionsEvent.Added -> {
                     showAddDialog = false
                     addUrl = ""
-                    addLast = ""
+                    addLast = "0"
                 }
                 SubscriptionsEvent.OpenEpisodes -> onOpenEpisodes()
                 SubscriptionsEvent.OpenQueue -> onOpenQueue()
+                is SubscriptionsEvent.ExportReady -> {
+                    pendingExport = event.json
+                    exportLauncher.launch("samehadaku-subscriptions.json")
+                }
             }
         }
     }
@@ -203,7 +232,7 @@ fun SubscriptionsScreen(
                     GlassTextField(
                         value = addLast,
                         onValueChange = { addLast = it.filter(Char::isDigit) },
-                        placeholder = "Episode terakhir (opsional, 0 = dari awal)",
+                        placeholder = "Episode terakhir (0 jika belum ada)",
                         leadingIcon = Icons.Rounded.Tag,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number,
@@ -534,9 +563,18 @@ fun SubscriptionsScreen(
                             tint = TextSecondary,
                         )
                         GlassIconButton(
+                            icon = Icons.Rounded.FileUpload,
+                            contentDescription = "Ekspor backup langganan",
+                            onClick = viewModel::exportSubscriptions,
+                            tint = BrandMint,
+                        )
+                        GlassIconButton(
                             icon = Icons.Rounded.Add,
                             contentDescription = "Tambah langganan",
-                            onClick = { showAddDialog = true },
+                        onClick = {
+                            addLast = "0"
+                            showAddDialog = true
+                        },
                         )
                     }
                 },
@@ -577,7 +615,10 @@ fun SubscriptionsScreen(
                 )
                 GradientButton(
                     text = "Tambah langganan",
-                    onClick = { showAddDialog = true },
+                    onClick = {
+                        addLast = "0"
+                        showAddDialog = true
+                    },
                     icon = Icons.Rounded.Add,
                     modifier = Modifier.fillMaxWidth(),
                 )
