@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -238,6 +239,50 @@ fun SearchDetailScreen(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+
+            state.detail?.let { detail ->
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    contentPadding = PaddingValues(14.dp),
+                ) {
+                    detail.rating?.let { rating ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.Star,
+                                contentDescription = "Rating",
+                                tint = app.samehadaku.dl.presentation.theme.BrandGold,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Rating $rating / 10",
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                    detail.description?.let { description ->
+                        if (detail.rating != null) Spacer(Modifier.height(9.dp))
+                        Text(
+                            text = description,
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (detail.genres.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = detail.genres.joinToString(" • "),
+                            color = BrandMint,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
 
             state.needsVerification.let { needs ->

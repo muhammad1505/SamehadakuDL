@@ -201,7 +201,7 @@ private fun ReleaseNoteCard(note: ReleaseNote) {
     }
 }
 
-private fun readReleaseNotes(context: android.content.Context): List<ReleaseNote> {
+fun readReleaseNotes(context: android.content.Context): List<ReleaseNote> {
     val markdown = runCatching {
         context.assets.open("changelog.md").bufferedReader().use { it.readText() }
     }.getOrElse { "## Rilis ${BuildConfig.VERSION_NAME}\n- Perbaikan dan penyempurnaan aplikasi." }

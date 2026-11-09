@@ -10,13 +10,16 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -31,7 +34,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.samehadaku.dl.presentation.components.GlassButton
-import app.samehadaku.dl.presentation.components.GlassCard
 import app.samehadaku.dl.presentation.components.InfoBanner
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
@@ -47,15 +49,48 @@ fun CloudflareScreen(
     viewModel: CloudflareViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showSuccess by remember { androidx.compose.runtime.mutableStateOf(false) }
     val currentViewModel by rememberUpdatedState(viewModel)
     val currentOnClose by rememberUpdatedState(onClose)
 
     LaunchedEffect(state.verified) {
-        if (state.verified) onVerified()
+        if (state.verified) showSuccess = true
+    }
+
+    LaunchedEffect(state.error) {
+        val error = state.error ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(error)
     }
 
     fun finish() {
         currentViewModel.manualFinish { currentOnClose() }
+    }
+
+    if (showSuccess) {
+        AlertDialog(
+            onDismissRequest = {
+                showSuccess = false
+                onVerified()
+            },
+            containerColor = app.samehadaku.dl.presentation.theme.SlateSurface,
+            titleContentColor = app.samehadaku.dl.presentation.theme.TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("Verifikasi berhasil") },
+            text = {
+                Text("Sesi Cloudflare sudah tersimpan. Kamu bisa melanjutkan proses sebelumnya.")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        showSuccess = false
+                        onVerified()
+                    },
+                ) {
+                    Text("Lanjutkan", color = BrandPrimary)
+                }
+            },
+        )
     }
 
     ScreenScaffold(
@@ -79,6 +114,7 @@ fun CloudflareScreen(
                 },
             )
         },
+        snackbarHostState = snackbarHostState,
     ) { padding ->
         Box(
             modifier = Modifier
@@ -95,9 +131,7 @@ fun CloudflareScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    GlassCard(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                    ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(
                             color = BrandPrimary,
                             strokeWidth = 3.dp,

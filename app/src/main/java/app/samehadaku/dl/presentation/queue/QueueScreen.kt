@@ -15,6 +15,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -105,6 +106,7 @@ import app.samehadaku.dl.presentation.util.prettyName
 import app.samehadaku.dl.presentation.util.stateLabel
 import kotlin.math.roundToInt
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun QueueScreen(
     onTabSelected: (AppTab) -> Unit,
@@ -523,6 +525,7 @@ private fun styleFor(state: DownloadState): TaskStyle = when (state) {
     else -> TaskStyle(TextSecondary, Icons.Rounded.Download)
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun QueueTaskCard(
     task: DownloadTask,
@@ -627,6 +630,10 @@ private fun QueueTaskCard(
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.basicMarquee(
+                            iterations = Int.MAX_VALUE,
+                            velocity = 24.dp,
+                        ).weight(1f),
                     )
                 }
             }
@@ -638,6 +645,86 @@ private fun QueueTaskCard(
                 TaskStatusBadge(text = stateLabel(task.state), color = style.color)
                 if (task.alreadyExisted) {
                     StatusPill(text = "Sudah ada", color = BrandGold)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    when {
+                        task.state == DownloadState.DOWNLOADING ||
+                            task.state == DownloadState.QUEUED ||
+                            task.state == DownloadState.RESOLVING -> {
+                            GlassIconButton(
+                                icon = Icons.Rounded.Pause,
+                                contentDescription = "Jeda Episode ${task.episodeNumber}",
+                                onClick = onPause,
+                                tint = Warning,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                            GlassIconButton(
+                                icon = Icons.Rounded.Close,
+                                contentDescription = "Batalkan Episode ${task.episodeNumber}",
+                                onClick = onCancel,
+                                tint = Danger,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                        }
+                        task.state == DownloadState.PAUSED -> {
+                            GlassIconButton(
+                                icon = Icons.Rounded.PlayArrow,
+                                contentDescription = "Lanjutkan Episode ${task.episodeNumber}",
+                                onClick = onResume,
+                                tint = BrandMint,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                            GlassIconButton(
+                                icon = Icons.Rounded.Close,
+                                contentDescription = "Batalkan Episode ${task.episodeNumber}",
+                                onClick = onCancel,
+                                tint = Danger,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                        }
+                        task.state == DownloadState.DONE && task.fileName != null -> {
+                            GlassIconButton(
+                                icon = Icons.Rounded.DeleteForever,
+                                contentDescription = "Hapus file Episode ${task.episodeNumber}",
+                                onClick = onDeleteFile,
+                                tint = Danger,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                        }
+                        task.state == DownloadState.DONE -> {
+                            GlassIconButton(
+                                icon = Icons.Rounded.History,
+                                contentDescription = "Hapus dari riwayat",
+                                onClick = onRemove,
+                                tint = TextSecondary,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                        }
+                        else -> {
+                            GlassIconButton(
+                                icon = Icons.Rounded.Refresh,
+                                contentDescription = "Ulangi Episode ${task.episodeNumber}",
+                                onClick = onRetry,
+                                tint = BrandGold,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                            GlassIconButton(
+                                icon = Icons.Rounded.History,
+                                contentDescription = "Hapus dari riwayat",
+                                onClick = onRemove,
+                                tint = TextSecondary,
+                                size = 28.dp,
+                                iconSize = 15.dp,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -739,6 +826,12 @@ private fun QueueTaskCard(
                     text = task.note.orEmpty(),
                     color = if (task.alreadyExisted) BrandGold else BrandPrimary,
                     style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        velocity = 24.dp,
+                    ).weight(1f),
                 )
             }
         }
@@ -779,93 +872,6 @@ private fun QueueTaskCard(
             }
         }
 
-        Spacer(Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            when {
-                task.state == DownloadState.DOWNLOADING ||
-                    task.state == DownloadState.QUEUED ||
-                    task.state == DownloadState.RESOLVING -> {
-                    GlassIconButton(
-                        icon = Icons.Rounded.Pause,
-                        contentDescription = "Jeda Episode ${task.episodeNumber}",
-                        onClick = onPause,
-                        tint = Warning,
-                        size = 38.dp,
-                        iconSize = 19.dp,
-                    )
-                    GlassIconButton(
-                        icon = Icons.Rounded.Close,
-                        contentDescription = "Batalkan Episode ${task.episodeNumber}",
-                        onClick = onCancel,
-                        tint = Danger,
-                        size = 38.dp,
-                        iconSize = 19.dp,
-                    )
-                }
-                task.state == DownloadState.PAUSED -> {
-                    GlassIconButton(
-                        icon = Icons.Rounded.PlayArrow,
-                        contentDescription = "Lanjutkan Episode ${task.episodeNumber}",
-                        onClick = onResume,
-                        tint = BrandMint,
-                        size = 38.dp,
-                        iconSize = 19.dp,
-                    )
-                    GlassIconButton(
-                        icon = Icons.Rounded.Close,
-                        contentDescription = "Batalkan Episode ${task.episodeNumber}",
-                        onClick = onCancel,
-                        tint = Danger,
-                        size = 38.dp,
-                        iconSize = 19.dp,
-                    )
-                }
-                task.state == DownloadState.DONE -> {
-                    if (task.fileName != null) {
-                        GlassIconButton(
-                            icon = Icons.Rounded.DeleteForever,
-                            contentDescription = "Hapus file Episode ${task.episodeNumber}",
-                            onClick = onDeleteFile,
-                            tint = Danger,
-                            size = 38.dp,
-                            iconSize = 19.dp,
-                        )
-                    } else {
-                        GlassIconButton(
-                            icon = Icons.Rounded.History,
-                            contentDescription = "Hapus dari riwayat",
-                            onClick = onRemove,
-                            tint = TextSecondary,
-                            size = 40.dp,
-                            iconSize = 18.dp,
-                        )
-                    }
-                }
-                else -> {
-                    GlassIconButton(
-                        icon = Icons.Rounded.Refresh,
-                        contentDescription = "Ulangi Episode ${task.episodeNumber}",
-                        onClick = onRetry,
-                        tint = BrandGold,
-                        size = 38.dp,
-                        iconSize = 19.dp,
-                    )
-                    GlassIconButton(
-                        icon = Icons.Rounded.History,
-                        contentDescription = "Hapus dari riwayat",
-                        onClick = onRemove,
-                        tint = TextSecondary,
-                        size = 40.dp,
-                        iconSize = 18.dp,
-                    )
-                }
-            }
-        }
     }
 }
 

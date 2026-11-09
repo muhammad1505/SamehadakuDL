@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import app.samehadaku.dl.presentation.about.AboutScreen
 import app.samehadaku.dl.presentation.cloudflare.CloudflareScreen
 import app.samehadaku.dl.presentation.collections.CollectionsScreen
+import app.samehadaku.dl.presentation.calendar.ReleaseCalendarScreen
 import app.samehadaku.dl.presentation.components.AppBackground
 import app.samehadaku.dl.presentation.components.AppTab
 import app.samehadaku.dl.presentation.episodes.EpisodesScreen
@@ -41,6 +42,7 @@ object Routes {
     const val SEARCH_DETAIL = "search-detail"
     const val NOTIFICATIONS = "notifications"
     const val ABOUT = "about"
+    const val CALENDAR = "calendar"
 }
 
 @Composable
@@ -118,6 +120,7 @@ fun SamehadakuNavHost(
                     onOpenNotifications = {
                         navController.navigate(Routes.NOTIFICATIONS) { launchSingleTop = true }
                     },
+                    onOpenCalendar = { navController.navigate(Routes.CALENDAR) { launchSingleTop = true } },
                     onTabSelected = ::navigateToTab,
                     verified = verified,
                     onVerifiedHandled = { entry.savedStateHandle["verified"] = false },
@@ -158,6 +161,13 @@ fun SamehadakuNavHost(
                         navController.popBackStack()
                         openRoute(route)
                     },
+                )
+            }
+
+            composable(Routes.CALENDAR) {
+                ReleaseCalendarScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
                 )
             }
 

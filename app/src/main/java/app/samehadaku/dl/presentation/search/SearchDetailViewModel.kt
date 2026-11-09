@@ -9,8 +9,10 @@ import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.repository.AnimeCoverRepository
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.model.AnimeSearchResult
+import app.samehadaku.dl.domain.model.AnimeDetail
 import app.samehadaku.dl.domain.usecase.AddSubscriptionUseCase
 import app.samehadaku.dl.domain.usecase.DetectEpisodesUseCase
+import app.samehadaku.dl.domain.repository.SiteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
@@ -26,6 +28,7 @@ data class SearchDetailUiState(
     val cover: Bitmap? = null,
     val inspecting: Boolean = false,
     val episodeCount: Int? = null,
+    val detail: AnimeDetail? = null,
     val busy: Boolean = false,
     val busyAction: String? = null,
     val needsVerification: Boolean = false,
@@ -42,6 +45,7 @@ sealed interface SearchDetailEvent {
 class SearchDetailViewModel @Inject constructor(
     private val sessionStore: SessionStore,
     private val coverRepository: AnimeCoverRepository,
+    private val repository: SiteRepository,
     private val detectEpisodes: DetectEpisodesUseCase,
     private val addSubscription: AddSubscriptionUseCase,
     private val settings: SettingsRepository,
@@ -74,10 +78,12 @@ class SearchDetailViewModel @Inject constructor(
             try {
                 val detection = detectEpisodes(selected.url)
                 sessionStore.saveDetection(detection)
+                val detail = runCatching { repository.loadAnimeDetail(selected.url) }.getOrNull()
                 _state.update {
                     it.copy(
                         inspecting = false,
                         episodeCount = detection.episodes.size,
+                        detail = detail,
                         error = null,
                     )
                 }

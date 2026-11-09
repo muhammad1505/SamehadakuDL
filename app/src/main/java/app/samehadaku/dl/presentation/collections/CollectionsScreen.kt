@@ -522,6 +522,10 @@ private fun FolderGroup(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        velocity = 24.dp,
+                    ),
                 )
                 Spacer(Modifier.height(3.dp))
                 Row(

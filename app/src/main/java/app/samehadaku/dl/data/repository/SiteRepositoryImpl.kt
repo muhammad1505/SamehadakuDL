@@ -6,12 +6,16 @@ import app.samehadaku.dl.data.network.FetchFailureException
 import app.samehadaku.dl.data.network.HtmlFetcher
 import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.parser.DownloadLinkParser
+import app.samehadaku.dl.data.parser.AnimeDetailParser
 import app.samehadaku.dl.data.parser.EpisodeListParser
+import app.samehadaku.dl.data.parser.ReleaseScheduleParser
 import app.samehadaku.dl.data.parser.SearchResultParser
 import app.samehadaku.dl.domain.model.AnimeSearchResult
 import app.samehadaku.dl.domain.model.DetectionResult
 import app.samehadaku.dl.domain.model.DownloadLinks
 import app.samehadaku.dl.domain.model.Episode
+import app.samehadaku.dl.domain.model.AnimeDetail
+import app.samehadaku.dl.domain.model.ReleaseScheduleItem
 import app.samehadaku.dl.domain.repository.SiteRepository
 import java.net.URI
 import java.net.URLEncoder
@@ -126,6 +130,67 @@ class SiteRepositoryImpl @Inject constructor(
         return emptyList()
     }
 
+    override suspend fun loadAnimeDetail(url: String): AnimeDetail? {
+        var lastError: Exception? = null
+        for (source in listOf(url) + SiteMirrors.candidates(url)) {
+            try {
+                val page = fetcher.fetch(source, referer = UrlUtils.siteRoot(source))
+                AnimeDetailParser.parse(org.jsoup.Jsoup.parse(page.html, page.finalUrl))?.let { return it }
+            } catch (verification: NeedsVerificationException) {
+                throw verification
+            } catch (error: Exception) {
+                lastError = lastError ?: error
+                Timber.d(error, "Anime detail unavailable at %s", source)
+            }
+        }
+        if (lastError != null) Timber.d(lastError, "Anime detail could not be parsed")
+        return null
+    }
+
+    override suspend fun loadReleaseSchedule(): List<ReleaseScheduleItem> {
+        var verification: NeedsVerificationException? = null
+        val paths = listOf("/jadwal-rilis/", "/jadwal/")
+        for (host in SiteMirrors.knownHosts().take(MAX_SCHEDULE_MIRRORS)) {
+            for (path in paths) {
+                val url = "https://$host$path"
+                try {
+                    val page = fetcher.fetch(url, referer = "https://$host/")
+                    val parsed = ReleaseScheduleParser.parseSchedule(
+                        org.jsoup.Jsoup.parse(page.html, page.finalUrl),
+                        page.finalUrl,
+                    )
+                    if (parsed.isNotEmpty()) return parsed
+                } catch (challenge: NeedsVerificationException) {
+                    verification = verification ?: challenge
+                } catch (error: Exception) {
+                    Timber.d(error, "Schedule unavailable at %s", url)
+                }
+            }
+        }
+        verification?.let { throw it }
+        return emptyList()
+    }
+
+    override suspend fun loadSiteAnnouncements(): List<String> {
+        var verification: NeedsVerificationException? = null
+        for (host in SiteMirrors.knownHosts().take(MAX_SCHEDULE_MIRRORS)) {
+            val url = "https://$host/"
+            try {
+                val page = fetcher.fetch(url, referer = url)
+                val parsed = ReleaseScheduleParser.parseAnnouncements(
+                    org.jsoup.Jsoup.parse(page.html, page.finalUrl),
+                )
+                if (parsed.isNotEmpty()) return parsed
+            } catch (challenge: NeedsVerificationException) {
+                verification = verification ?: challenge
+            } catch (error: Exception) {
+                Timber.d(error, "Site announcement unavailable at %s", url)
+            }
+        }
+        verification?.let { throw it }
+        return emptyList()
+    }
+
     /**
      * Reads the episode page from its own domain, remembering a mirror that already
      * served this episode. Mirrors are tried when the page cannot be read or carries no
@@ -211,5 +276,6 @@ class SiteRepositoryImpl @Inject constructor(
         const val CACHE_TTL_MS = 10 * 60 * 1000L
         const val MIN_SEARCH_LENGTH = 2
         const val MAX_SEARCH_MIRRORS = 3
+        const val MAX_SCHEDULE_MIRRORS = 3
     }
 }

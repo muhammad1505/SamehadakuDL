@@ -2,6 +2,8 @@ package app.samehadaku.dl.presentation.search
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -69,6 +71,7 @@ import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
 import app.samehadaku.dl.presentation.theme.Warning
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SearchScreen(
     onBack: () -> Unit,
@@ -275,6 +278,7 @@ private fun SearchLoading() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SearchResultCard(
     result: AnimeSearchResult,
@@ -300,8 +304,12 @@ private fun SearchResultCard(
                     color = TextPrimary,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        velocity = 24.dp,
+                    ),
                 )
                 val meta = listOfNotNull(
                     result.type?.takeIf { it.isNotBlank() },
@@ -314,38 +322,18 @@ private fun SearchResultCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = "Ketuk untuk melihat ringkasan dan aksi",
-                    color = BrandMint.copy(alpha = 0.82f),
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                )
             }
-        }
-
-        Spacer(Modifier.height(9.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+            Spacer(Modifier.width(6.dp))
             GlassIconButton(
                 icon = Icons.Rounded.ContentCopy,
                 contentDescription = "Salin link ${result.title}",
                 onClick = onCopyLink,
-                size = 38.dp,
-                iconSize = 18.dp,
+                size = 30.dp,
+                iconSize = 15.dp,
                 tint = TextSecondary,
             )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "Detail",
-                color = BrandPrimary,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-            )
         }
+
     }
 }
 

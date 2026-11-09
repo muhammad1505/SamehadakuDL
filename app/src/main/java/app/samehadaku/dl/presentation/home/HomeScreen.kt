@@ -2,7 +2,9 @@ package app.samehadaku.dl.presentation.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -31,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -44,6 +47,7 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.NotificationsNone
+import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -111,6 +115,7 @@ import app.samehadaku.dl.presentation.theme.Warning
 import app.samehadaku.dl.presentation.util.prettyTitleFromUrl
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     onOpenEpisodes: () -> Unit,
@@ -118,6 +123,7 @@ fun HomeScreen(
     onOpenCloudflare: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenCalendar: () -> Unit,
     onTabSelected: (AppTab) -> Unit,
     verified: Boolean,
     onVerifiedHandled: () -> Unit,
@@ -232,6 +238,7 @@ fun HomeScreen(
                 unreadNotifications = state.unreadNotifications,
                 onOpenSearch = onOpenSearch,
                 onOpenNotifications = onOpenNotifications,
+                onOpenCalendar = onOpenCalendar,
             )
         },
         bottomBar = {
@@ -251,6 +258,10 @@ fun HomeScreen(
                 .imePadding(),
             verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
+            state.announcement?.let { announcement ->
+                AnnouncementTicker(text = announcement)
+            }
+
             HeroSection(
                 modifier = Modifier.fillMaxWidth(),
                 onSearch = onOpenSearch,
@@ -309,6 +320,7 @@ private fun HomeHeader(
     unreadNotifications: Int,
     onOpenSearch: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenCalendar: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -353,11 +365,46 @@ private fun HomeHeader(
         )
         Spacer(Modifier.width(6.dp))
         HeaderAction(
+            icon = Icons.Rounded.CalendarMonth,
+            contentDescription = "Jadwal anime",
+            onClick = onOpenCalendar,
+        )
+        Spacer(Modifier.width(6.dp))
+        HeaderAction(
             icon = Icons.Rounded.NotificationsNone,
             contentDescription = "Notifikasi",
             onClick = onOpenNotifications,
             badgeCount = unreadNotifications,
         )
+    }
+}
+
+@Composable
+private fun AnnouncementTicker(text: String) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(15.dp),
+        contentPadding = PaddingValues(horizontal = 11.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.Campaign,
+                contentDescription = "Pengumuman jadwal",
+                tint = BrandGold,
+                modifier = Modifier.size(17.dp),
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(
+                text = text,
+                color = TextSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                modifier = Modifier.basicMarquee(
+                    iterations = Int.MAX_VALUE,
+                    velocity = 26.dp,
+                ).weight(1f),
+            )
+        }
     }
 }
 

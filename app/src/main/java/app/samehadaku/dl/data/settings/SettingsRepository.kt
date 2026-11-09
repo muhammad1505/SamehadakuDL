@@ -27,6 +27,10 @@ class SettingsRepository @Inject constructor(
         parseRecentUrls(preferences[KEY_RECENT_URLS])
     }
 
+    val lastSeenVersion: Flow<String?> = dataStore.data.map { preferences ->
+        preferences[KEY_LAST_SEEN_VERSION]
+    }
+
     val concurrency: Flow<Int> = dataStore.data.map { preferences ->
         (preferences[KEY_CONCURRENCY] ?: 1).coerceIn(1, 3)
     }
@@ -90,6 +94,13 @@ class SettingsRepository @Inject constructor(
 
     suspend fun clearRecentUrls() {
         dataStore.edit { it.remove(KEY_RECENT_URLS) }
+    }
+
+    suspend fun shouldShowChangelog(version: String): Boolean =
+        lastSeenVersion.first() != version
+
+    suspend fun markChangelogSeen(version: String) {
+        dataStore.edit { it[KEY_LAST_SEEN_VERSION] = version }
     }
 
     suspend fun setConcurrency(value: Int) {
@@ -194,6 +205,7 @@ class SettingsRepository @Inject constructor(
         const val MIN_AUTO_CHECK_MINUTES = 15
         const val MAX_AUTO_CHECK_MINUTES = 24 * 60
         val KEY_RECENT_URLS = stringPreferencesKey("recent_urls")
+        val KEY_LAST_SEEN_VERSION = stringPreferencesKey("last_seen_version")
         val KEY_CONCURRENCY = intPreferencesKey("concurrency")
         val KEY_QUALITY_DOWNGRADE = booleanPreferencesKey("quality_downgrade")
         val KEY_DOWNLOAD_TREE_URI = stringPreferencesKey("download_tree_uri")

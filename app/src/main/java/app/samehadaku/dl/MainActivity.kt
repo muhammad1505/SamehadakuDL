@@ -12,7 +12,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -21,18 +23,26 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
+import app.samehadaku.dl.data.settings.SettingsRepository
+import app.samehadaku.dl.presentation.about.UpdateChangelogDialog
+import app.samehadaku.dl.presentation.about.readReleaseNotes
 import app.samehadaku.dl.presentation.navigation.SamehadakuNavHost
 import app.samehadaku.dl.presentation.splash.SplashScreen
 import app.samehadaku.dl.presentation.theme.SamehadakuTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var autoCheckScheduler: AutoCheckScheduler
+
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
 
     private var sharedUrl by mutableStateOf<String?>(null)
     private var pendingRoute by mutableStateOf<String?>(null)
@@ -50,12 +60,21 @@ class MainActivity : ComponentActivity() {
                 // WorkManager runs are inexact and OEMs may freeze them; catch up when
                 // the app becomes visible so new episodes show up without a manual check.
                 val checkScope = rememberCoroutineScope()
+                val updateScope = rememberCoroutineScope()
                 LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
                     checkScope.launch {
                         runCatching { autoCheckScheduler.runNowIfDue() }
                     }
                 }
                 var showSplash by rememberSaveable { mutableStateOf(true) }
+                var showUpdateChangelog by rememberSaveable { mutableStateOf(false) }
+                var updateNotes by remember { mutableStateOf(emptyList<app.samehadaku.dl.presentation.about.ReleaseNote>()) }
+                LaunchedEffect(showSplash) {
+                    if (!showSplash && settingsRepository.shouldShowChangelog(BuildConfig.VERSION_NAME)) {
+                        updateNotes = withContext(Dispatchers.IO) { readReleaseNotes(this@MainActivity) }
+                        showUpdateChangelog = true
+                    }
+                }
                 Crossfade(
                     targetState = showSplash,
                     animationSpec = tween(durationMillis = 260),
@@ -76,6 +95,17 @@ class MainActivity : ComponentActivity() {
                             onPendingRouteConsumed = { pendingRoute = null },
                         )
                     }
+                }
+                if (showUpdateChangelog) {
+                    UpdateChangelogDialog(
+                        notes = updateNotes,
+                        onDismiss = {
+                            showUpdateChangelog = false
+                            updateScope.launch {
+                                settingsRepository.markChangelogSeen(BuildConfig.VERSION_NAME)
+                            }
+                        },
+                    )
                 }
             }
         }

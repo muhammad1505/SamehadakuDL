@@ -9,6 +9,7 @@ import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.notifications.NotificationRepository
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.usecase.DetectEpisodesUseCase
+import app.samehadaku.dl.domain.repository.SiteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
@@ -26,6 +27,7 @@ data class HomeUiState(
     val recentUrls: List<String> = emptyList(),
     val needsVerification: Boolean = false,
     val unreadNotifications: Int = 0,
+    val announcement: String? = null,
 )
 
 sealed interface HomeEvent {
@@ -40,6 +42,7 @@ class HomeViewModel @Inject constructor(
     private val sessionStore: SessionStore,
     private val cloudflareSession: CloudflareSession,
     private val notifications: NotificationRepository,
+    private val siteRepository: SiteRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
@@ -58,6 +61,17 @@ class HomeViewModel @Inject constructor(
             notifications.unreadCount.collect { count ->
                 _state.update { it.copy(unreadNotifications = count) }
             }
+        }
+        refreshAnnouncement()
+    }
+
+    fun refreshAnnouncement() {
+        viewModelScope.launch {
+            val announcement = runCatching { siteRepository.loadSiteAnnouncements() }
+                .getOrDefault(emptyList())
+                .joinToString("  •  ")
+                .ifBlank { null }
+            _state.update { it.copy(announcement = announcement) }
         }
     }
 
