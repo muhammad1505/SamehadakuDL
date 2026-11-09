@@ -71,6 +71,13 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Memoles navigasi bawah dengan state aktif glass-gradient, glow neon, indikator pilihan,
   dan animasi tekan yang lebih premium.
 
+## Rilis 2.6.6
+
+- Menambahkan cover anime pada setiap kartu hasil pencarian dengan cache yang sama seperti
+  Koleksi, Langganan, dan Unduhan.
+- Menjaga cover hasil pencarian tetap mengikuti query terbaru agar hasil lama tidak muncul
+  pada pencarian baru.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
