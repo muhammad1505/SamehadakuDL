@@ -78,6 +78,20 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Menjaga cover hasil pencarian tetap mengikuti query terbaru agar hasil lama tidak muncul
   pada pencarian baru.
 
+## Rilis 2.6.7
+
+- Menambahkan halaman detail dari setiap hasil pencarian dengan ringkasan anime, jumlah episode,
+  cover, serta aksi Unduh dan Langganan dalam satu alur.
+- Meminta episode terakhir secara langsung saat menambah langganan, termasuk dari halaman detail
+  pencarian, sehingga pengguna tidak perlu bolak-balik mengatur progres.
+- Menggunakan kualitas, resolusi, dan host dari Pengaturan secara otomatis pada alur unduhan
+  berikutnya, termasuk unduhan dari Beranda dan Pencarian.
+- Membuat kartu Unduhan lebih compact; file selesai dapat diputar dengan mengetuk kartunya tanpa
+  tombol Play tambahan.
+- Merapikan aksi massal Unduhan menjadi satu baris dan menghilangkan latar kotak pada item navigasi
+  yang tidak aktif.
+- Menambahkan ekspor backup langganan dalam format JSON yang kompatibel dengan fitur impor.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
