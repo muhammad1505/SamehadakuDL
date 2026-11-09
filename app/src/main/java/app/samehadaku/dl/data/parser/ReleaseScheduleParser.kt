@@ -85,7 +85,9 @@ object ReleaseScheduleParser {
             titleElement?.text().orEmpty()
         }.clean()
         if (title.isBlank() || title.length < 2) return null
-        val time = TIME_REGEX.find(text)?.value
+        val time = element.selectFirst(".data_tw, .ltseps")?.text()
+            ?.let { TIME_REGEX.find(it)?.value }
+            ?: TIME_REGEX.find(text)?.value
         val episode = EPISODE_REGEX.find(text)?.groupValues?.getOrNull(1)?.let { "Ep $it" }
         val cover = element.selectFirst("img.anmsa, img[itemprop=image], img[src], img[data-src]")
             ?.let { image ->
