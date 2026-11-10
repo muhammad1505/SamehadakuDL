@@ -122,7 +122,7 @@ class SearchResultParserTest {
                   </a>
                 </article>
                 <article class="animepost">
-                  <a href="https://v2.samehadaku.how/one-piece-heroines/">
+                  <a href="https://v2.samehadaku.how/anime/one-piece-heroines/">
                     <img title="One Piece: Heroines" src="/img/heroines.jpg">
                     <div class="type TV">TV</div>
                   </a>
