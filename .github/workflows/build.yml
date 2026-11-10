@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -110,3 +111,43 @@ jobs:
               --generate-notes \
               --verify-tag
           fi
+
+      - name: Prune old release assets and Actions artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP_RELEASES: "3"
+        run: |
+          set -euo pipefail
+
+          # Keep the newest releases; older release pages stay, their files go.
+          gh release list --limit 100 --exclude-drafts \
+            --json tagName,publishedAt \
+            --jq 'sort_by(.publishedAt) | reverse | .[] | [.tagName, .publishedAt] | @tsv' \
+          | awk -v keep="$KEEP_RELEASES" 'NR > keep { print $1 }' \
+          | while IFS= read -r tag; do
+              [ -n "$tag" ] || continue
+              echo "Membersihkan aset rilis lama: $tag"
+              if ! assets=$(gh release view "$tag" --json assets --jq '.assets[].name'); then
+                echo "  lewati $tag (tidak bisa dibaca)"
+                continue
+              fi
+              printf '%s\n' "$assets" | while IFS= read -r asset; do
+                [ -n "$asset" ] || continue
+                echo "  hapus $asset"
+                gh release delete-asset "$tag" "$asset" --yes \
+                  || echo "  gagal menghapus $asset"
+              done
+            done
+
+          # Actions artifacts are separate from GitHub Releases and count against
+          # the Actions storage quota. Tag releases never need them.
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[].id' \
+          | while IFS= read -r id; do
+              [ -n "$id" ] || continue
+              echo "Menghapus artifact Actions $id"
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/$id" \
+                || echo "  gagal menghapus artifact $id"
+            done
