@@ -155,6 +155,16 @@ Android mengaitkan file MediaStore dengan instalasi aplikasi. Setelah uninstall
 atau install ulang, file lama tidak lagi dianggap milik aplikasi; pilih folder
 `Download/SamehadakuDL` lewat SAF agar file lama muncul kembali.
 
+## Verifikasi APK
+
+Setiap rilis menyertakan file `SHA256SUMS`. Cocokkan hash APK yang diunduh dengan:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Signature APK juga dapat diperiksa dengan `apksigner verify --print-certs`.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.

@@ -104,10 +104,11 @@ jobs:
           set -euo pipefail
           ASSET="samehadaku-dl-${TAG}.apk"
           cp app/build/outputs/apk/release/app-release.apk "$ASSET"
+          sha256sum "$ASSET" > SHA256SUMS
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$ASSET" --clobber
+            gh release upload "$TAG" "$ASSET" SHA256SUMS --clobber
           else
-            gh release create "$TAG" "$ASSET" \
+            gh release create "$TAG" "$ASSET" SHA256SUMS \
               --title "Samehadaku DL $TAG" \
               --generate-notes \
               --verify-tag
