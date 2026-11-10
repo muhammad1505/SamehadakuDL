@@ -87,6 +87,7 @@ jobs:
 
       - name: Upload release APK (manual)
         if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: samehadaku-dl-release
