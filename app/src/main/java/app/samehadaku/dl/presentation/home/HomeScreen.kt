@@ -6,7 +6,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,12 +77,15 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -97,6 +99,7 @@ import app.samehadaku.dl.presentation.components.GlassTextField
 import app.samehadaku.dl.presentation.components.GradientButton
 import app.samehadaku.dl.presentation.components.IconDot
 import app.samehadaku.dl.presentation.components.InfoBanner
+import app.samehadaku.dl.presentation.components.pressable
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.StatusPill
 import app.samehadaku.dl.presentation.components.TinyStatusDot
@@ -264,7 +267,8 @@ fun HomeScreen(
 
             HeroSection(
                 modifier = Modifier.fillMaxWidth(),
-                onSearch = onOpenSearch,
+                onAutoDetect = { pasteAndDetect() },
+                onPickQuality = { onTabSelected(AppTab.SETTINGS) },
             )
 
             LinkComposerCard(
@@ -332,23 +336,17 @@ private fun HomeHeader(
         BrandMark(size = 38.dp)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = "Samehadaku",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.3).sp,
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "DL",
-                    color = BrandPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.3).sp,
-                )
-            }
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = TextPrimary)) { append("Samehadaku ") }
+                    withStyle(SpanStyle(color = BrandPrimary)) { append("Downloader") }
+                },
+                fontSize = 17.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.3).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 text = "Unduhan anime, rapi dan cepat",
                 color = TextSecondary,
@@ -419,11 +417,11 @@ private fun HeaderAction(
     Box {
         Box(
             modifier = Modifier
+                .pressable(role = Role.Button, pressedScale = 0.92f, onClick = onClick)
                 .size(38.dp)
                 .clip(shape)
                 .background(Color.White.copy(alpha = 0.07f))
-                .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
-                .clickable(role = Role.Button, onClick = onClick),
+                .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -458,33 +456,45 @@ private fun HeaderAction(
 @Composable
 private fun HeroSection(
     modifier: Modifier = Modifier,
-    onSearch: () -> Unit,
+    onAutoDetect: () -> Unit,
+    onPickQuality: () -> Unit,
 ) {
     Column(
         modifier = modifier.padding(top = 24.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(Ink.copy(alpha = 0.32f))
-                .border(1.dp, BrandPrimary.copy(alpha = 0.30f), RoundedCornerShape(50))
-                .padding(horizontal = 11.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_crown),
-                contentDescription = null,
-                tint = BrandGold,
-                modifier = Modifier.size(13.dp),
-            )
-            Text(
-                text = "PREMIUM DOWNLOADER",
-                color = TextPrimary.copy(alpha = 0.94f),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.1.sp,
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Ink.copy(alpha = 0.32f))
+                    .border(1.dp, BrandPrimary.copy(alpha = 0.30f), RoundedCornerShape(50))
+                    .padding(horizontal = 11.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_crown),
+                    contentDescription = null,
+                    tint = BrandGold,
+                    modifier = Modifier.size(13.dp),
+                )
+                Text(
+                    text = "PREMIUM DOWNLOADER",
+                    color = TextPrimary.copy(alpha = 0.94f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.1.sp,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            StatusPill(
+                text = "Siap",
+                color = BrandMint,
+                icon = Icons.Rounded.Check,
             )
         }
 
@@ -528,9 +538,14 @@ private fun HeroSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 HeroActionChip(
-                    icon = Icons.Rounded.Search,
-                    label = "Cari & unduh anime",
-                    onClick = onSearch,
+                    icon = Icons.Rounded.Bolt,
+                    label = "Deteksi Otomatis",
+                    onClick = onAutoDetect,
+                )
+                HeroActionChip(
+                    icon = Icons.Rounded.HighQuality,
+                    label = "Pilih Kualitas",
+                    onClick = onPickQuality,
                 )
             }
             Row(
@@ -608,6 +623,7 @@ private fun HeroActionChip(
 ) {
     Row(
         modifier = Modifier
+            .pressable(pressedScale = 0.95f, onClick = onClick)
             .clip(RoundedCornerShape(50))
             .background(
                 Brush.horizontalGradient(
@@ -615,7 +631,6 @@ private fun HeroActionChip(
                 ),
             )
             .border(1.dp, BrandPrimary.copy(alpha = 0.42f), RoundedCornerShape(50))
-            .clickable(onClick = onClick)
             .padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -707,14 +722,15 @@ private fun LinkComposerCard(
                     if (url.isNotBlank()) {
                         Box(
                             modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.08f))
-                                .clickable(
+                                .pressable(
                                     enabled = !loading,
                                     onClickLabel = "Kosongkan link",
+                                    pressedScale = 0.90f,
                                     onClick = onClear,
-                                ),
+                                )
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.08f)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -886,8 +902,8 @@ private fun RecentUrlsSection(
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
+                    .pressable(pressedScale = 0.94f, onClick = onClear)
                     .clip(RoundedCornerShape(50))
-                    .clickable(onClick = onClear)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
@@ -916,11 +932,11 @@ private fun RecentUrlChip(
 ) {
     Row(
         modifier = Modifier
+            .pressable(pressedScale = 0.97f, onClick = onUse)
             .height(36.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(alpha = 0.07f))
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-            .clickable(onClick = onUse)
             .padding(start = 9.dp, end = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -941,9 +957,13 @@ private fun RecentUrlChip(
         )
         Box(
             modifier = Modifier
+                .pressable(
+                    onClickLabel = "Hapus dari riwayat",
+                    pressedScale = 0.88f,
+                    onClick = onRemove,
+                )
                 .size(26.dp)
-                .clip(CircleShape)
-                .clickable(onClickLabel = "Hapus dari riwayat", onClick = onRemove),
+                .clip(CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -964,6 +984,7 @@ private fun PasteAction(
     val shape = RoundedCornerShape(11.dp)
     Row(
         modifier = Modifier
+            .pressable(enabled = enabled, pressedScale = 0.94f, onClick = onClick)
             .height(36.dp)
             .clip(shape)
             .background(
@@ -984,7 +1005,6 @@ private fun PasteAction(
                     Modifier
                 },
             )
-            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

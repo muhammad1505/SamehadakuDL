@@ -69,32 +69,49 @@ object SearchResultParser {
             null
         }
 
-        val found = linkedMapOf<String, AnimeSearchResult>()
+        val found = linkedMapOf<String, MergedResult>()
 
         for (selector in CARD_SELECTORS) {
             for (card in document.select(selector)) {
-                val result = fromCard(card, pageUrl, pageHost) ?: continue
-                found.putIfAbsent(result.url, result)
+                val parsed = fromCard(card, pageUrl, pageHost) ?: continue
+                val current = found[parsed.seriesSlug]
+                found[parsed.seriesSlug] = current?.merge(parsed) ?: parsed
             }
             if (found.isNotEmpty()) break
         }
 
         if (found.isEmpty()) {
             for (anchor in document.select("a[href]")) {
-                val result = fromAnchor(anchor, pageUrl, pageHost) ?: continue
-                found.putIfAbsent(result.url, result)
+                val parsed = fromAnchor(anchor, pageUrl, pageHost) ?: continue
+                val current = found[parsed.seriesSlug]
+                found[parsed.seriesSlug] = current?.merge(parsed) ?: parsed
             }
         }
 
-        val results = found.values
+        val results = found.values.map { merged ->
+            AnimeSearchResult(
+                title = merged.title,
+                url = merged.detailUrl,
+                slug = merged.seriesSlug,
+                type = merged.type,
+                episodeLabel = merged.episodeLabel,
+            )
+        }
         return if (query.isNullOrBlank()) {
             results.take(MAX_RESULTS)
         } else {
-            val relevant = results.filter { relevance(it.title, query) >= 0 }
-            (if (relevant.isNotEmpty()) relevant else results).sortedWith(
-                compareByDescending<AnimeSearchResult> { relevance(it.title, query) }
-                    .thenBy { it.title.lowercase() },
-            ).take(MAX_RESULTS)
+            // The site's search page mostly returns episode posts. Keeping only
+            // related cards avoids showing random anime when the query has no
+            // meaningful match (the old fallback returned every card).
+            results
+                .map { it to relevance(it.title, query) }
+                .filter { (_, score) -> score >= 0 }
+                .sortedWith(
+                    compareByDescending<Pair<AnimeSearchResult, Int>> { it.second }
+                        .thenBy { it.first.title.lowercase() },
+                )
+                .map { it.first }
+                .take(MAX_RESULTS)
         }
     }
 
@@ -102,21 +119,30 @@ object SearchResultParser {
         card: Element,
         pageUrl: String,
         pageHost: String?,
-    ): AnimeSearchResult? {
-        val anchor = card.select("a[href]").firstOrNull { link ->
-            animeSlug(UrlUtils.resolve(pageUrl, link.attr("href")), pageUrl, pageHost) != null
-        } ?: return null
+    ): MergedResult? {
+        var link: SeriesLink? = null
+        var anchor: Element? = null
+        for (candidate in card.select("a[href]")) {
+            val href = UrlUtils.resolve(pageUrl, candidate.attr("href")) ?: continue
+            val series = seriesLink(href, pageHost) ?: continue
+            anchor = candidate
+            link = series
+            break
+        }
+        val selectedLink = link ?: return null
+        val selectedAnchor = anchor ?: return null
 
-        val href = UrlUtils.resolve(pageUrl, anchor.attr("href")) ?: return null
-        val slug = animeSlug(href, pageUrl, pageHost) ?: return null
-
-        val title = TITLE_SELECTORS
+        val rawTitle = TITLE_SELECTORS
             .asSequence()
             .mapNotNull { selector -> card.selectFirst(selector) }
             .map { element -> element.attr("title").ifBlank { element.text() } }
-            .map(::cleanTitle)
             .firstOrNull { it.isNotBlank() }
-            ?: cleanTitle(anchor.attr("title"))
+            ?: selectedAnchor.attr("title").ifBlank { selectedAnchor.text() }
+        val title = if (selectedLink.isListPage) {
+            cleanTitle(rawTitle)
+        } else {
+            cleanSeriesTitle(rawTitle)
+        }.ifBlank { Names.fromSlug(selectedLink.seriesSlug) }
         if (title.isBlank()) return null
 
         val type = TYPE_SELECTORS
@@ -125,18 +151,26 @@ object SearchResultParser {
             .map { it.trim() }
             .firstOrNull { it.isNotBlank() }
 
-        val episode = EPISODE_SELECTORS
+        val episodeText = EPISODE_SELECTORS
             .asSequence()
             .mapNotNull { selector -> card.selectFirst(selector)?.text() }
             .map { it.trim() }
             .firstOrNull { it.isNotBlank() }
+        val episodeLabel = when {
+            episodeText != null -> episodeText
+            selectedLink.isBatch -> "Batch"
+            !selectedLink.isListPage -> episodeLabelFromTitle(rawTitle)
+            else -> null
+        }
 
-        return AnimeSearchResult(
+        return MergedResult(
+            seriesSlug = selectedLink.seriesSlug,
+            detailUrl = selectedLink.detailUrl,
             title = title,
-            url = UrlUtils.normalizeUrl(href),
-            slug = slug,
             type = type,
-            episodeLabel = episode,
+            episodeLabel = episodeLabel,
+            isListPage = selectedLink.isListPage,
+            episodeNumber = episodeNumber(episodeLabel),
         )
     }
 
@@ -144,24 +178,67 @@ object SearchResultParser {
         anchor: Element,
         pageUrl: String,
         pageHost: String?,
-    ): AnimeSearchResult? {
+    ): MergedResult? {
         val href = UrlUtils.resolve(pageUrl, anchor.attr("href")) ?: return null
-        val slug = animeSlug(href, pageUrl, pageHost) ?: return null
-        val title = cleanTitle(
-            anchor.attr("title").ifBlank {
-                anchor.selectFirst("h2, h3")?.text().orEmpty()
-            }.ifBlank { anchor.text() },
-        ).ifBlank { Names.fromSlug(slug) }
-        return AnimeSearchResult(
-            title = title,
-            url = UrlUtils.normalizeUrl(href),
-            slug = slug,
+        val series = seriesLink(href, pageHost) ?: return null
+        val rawTitle = anchor.attr("title").ifBlank {
+            anchor.selectFirst("h2, h3")?.text().orEmpty()
+        }.ifBlank { anchor.text() }
+        val title = if (series.isListPage) cleanTitle(rawTitle) else cleanSeriesTitle(rawTitle)
+        return MergedResult(
+            seriesSlug = series.seriesSlug,
+            detailUrl = series.detailUrl,
+            title = title.ifBlank { Names.fromSlug(series.seriesSlug) },
+            type = null,
+            episodeLabel = if (series.isBatch) "Batch" else episodeLabelFromTitle(rawTitle),
+            isListPage = series.isListPage,
+            episodeNumber = null,
         )
     }
 
-    /** Returns the anime slug for a same-site `/anime/<slug>/` URL, else null. */
-    private fun animeSlug(url: String?, pageUrl: String, pageHost: String?): String? {
-        if (url.isNullOrBlank()) return null
+    private data class MergedResult(
+        val seriesSlug: String,
+        val detailUrl: String,
+        val title: String,
+        val type: String?,
+        val episodeLabel: String?,
+        val isListPage: Boolean,
+        val episodeNumber: Int?,
+    ) {
+        fun merge(other: MergedResult): MergedResult {
+            val useOtherLink = other.isListPage && !isListPage
+            val keepEpisode = when {
+                episodeNumber == null -> other.episodeLabel
+                other.episodeNumber == null -> episodeLabel
+                other.episodeNumber > episodeNumber -> other.episodeLabel
+                else -> episodeLabel
+            }
+            return copy(
+                detailUrl = if (useOtherLink) other.detailUrl else detailUrl,
+                title = if (useOtherLink) other.title else title,
+                type = type ?: other.type,
+                episodeLabel = keepEpisode,
+                isListPage = isListPage || other.isListPage,
+                episodeNumber = maxOf(episodeNumber ?: -1, other.episodeNumber ?: -1)
+                    .takeIf { it >= 0 },
+            )
+        }
+    }
+
+    private data class SeriesLink(
+        val seriesSlug: String,
+        val detailUrl: String,
+        val isListPage: Boolean,
+        val isBatch: Boolean,
+    )
+
+    /**
+     * Maps an article URL to the anime list page it belongs to. Search results
+     * on Samehadaku are mostly `/slug-episode-12/` and `/batch/slug/` posts, not
+     * `/anime/slug/` cards. Keeping only the latter made queries such as
+     * "one piece" return a single unrelated title.
+     */
+    private fun seriesLink(url: String, pageHost: String?): SeriesLink? {
         val uri = try {
             URI(url)
         } catch (_: Exception) {
@@ -171,12 +248,63 @@ object SearchResultParser {
         val sameSite = UrlUtils.isSamehadakuHost(host) ||
             (pageHost != null && host.equals(pageHost, ignoreCase = true))
         if (!sameSite) return null
-        val path = uri.path.orEmpty()
-        if (!path.contains("/anime/")) return null
-        val slug = UrlUtils.lastPathSegment(path)
-        if (slug.isBlank() || slug.equals("anime", ignoreCase = true)) return null
-        if (path.removePrefix("/anime/").trim('/').isBlank()) return null
-        return slug
+
+        val segments = uri.path.orEmpty().trim('/').split('/').filter { it.isNotBlank() }
+        if (segments.isEmpty()) return null
+
+        if (segments.first().equals("anime", ignoreCase = true)) {
+            val slug = segments.getOrNull(1).orEmpty()
+            if (slug.isBlank()) return null
+            return SeriesLink(
+                seriesSlug = slug,
+                detailUrl = listUrl(uri, slug),
+                isListPage = true,
+                isBatch = false,
+            )
+        }
+
+        val raw = segments.last()
+        val isBatch = segments.first().equals("batch", ignoreCase = true) ||
+            BATCH_SLUG.containsMatchIn(raw)
+        val seriesSlug = seriesSlugFromEpisode(raw)
+            ?: if (isBatch) raw.replace(BATCH_SUFFIX, "") else null
+        if (seriesSlug.isNullOrBlank() || seriesSlug.equals("anime", ignoreCase = true)) {
+            return null
+        }
+        return SeriesLink(
+            seriesSlug = seriesSlug,
+            detailUrl = listUrl(uri, seriesSlug),
+            isListPage = false,
+            isBatch = isBatch,
+        )
+    }
+
+    private fun listUrl(uri: URI, slug: String): String {
+        val scheme = uri.scheme ?: "https"
+        val host = uri.host ?: return UrlUtils.normalizeUrl(uri.toString())
+        return UrlUtils.normalizeUrl("$scheme://$host/anime/$slug/")
+    }
+
+    private fun seriesSlugFromEpisode(raw: String): String? {
+        EPISODE_SLUG.find(raw)?.let { match ->
+            return raw.substring(0, match.range.first)
+        }
+        EPISODE_SPECIAL_SLUG.find(raw)?.let { match ->
+            return raw.substring(0, match.range.first)
+        }
+        return null
+    }
+
+    private fun episodeLabelFromTitle(raw: String): String? {
+        EPISODE_NUMBER.find(raw)?.let { match ->
+            return "Ep ${match.groupValues[1]}"
+        }
+        return if (EPISODE_SPECIAL.containsMatchIn(raw)) "Special" else null
+    }
+
+    private fun episodeNumber(label: String?): Int? {
+        val raw = label ?: return null
+        return EPISODE_NUMBER.find(raw)?.groupValues?.getOrNull(1)?.toIntOrNull()
     }
 
     private fun cleanTitle(raw: String): String = raw
@@ -184,6 +312,13 @@ object SearchResultParser {
         .replace(Regex("^(nonton|download|streaming)\\s+anime\\s+", RegexOption.IGNORE_CASE), "")
         .replace(Regex("^anime\\s+", RegexOption.IGNORE_CASE), "")
         .replace(Regex("\\s+sub\\s*indo$", RegexOption.IGNORE_CASE), "")
+        .trim()
+
+    private fun cleanSeriesTitle(raw: String): String = cleanTitle(raw)
+        .replace(EPISODE_SUFFIX, "")
+        .replace(EPISODE_SPECIAL, "")
+        .replace(BATCH_MARKER, "")
+        .replace(Regex("\\s+"), " ")
         .trim()
 
     private fun relevance(title: String, query: String): Int {
@@ -201,6 +336,34 @@ object SearchResultParser {
         .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
         .trim()
         .replace(Regex("\\s+"), " ")
+
+    private val EPISODE_NUMBER = Regex(
+        "(?:episode|ep\\.?)\\s*(\\d+(?:[.,]\\d+)?)",
+        RegexOption.IGNORE_CASE,
+    )
+    private val EPISODE_SPECIAL = Regex(
+        "\\s*(?:[-–:]\\s*)?(?:episode|ep\\.?)\\s+(?:special|final)(?:\\s*\\([^)]*\\))?.*$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val EPISODE_SUFFIX = Regex(
+        "\\s*(?:[-–:]\\s*)?(?:episode|ep\\.?)\\s*\\d+(?:[.,]\\d+)?(?:\\s*[-–]\\s*\\d+)?" +
+            "(?:\\s*\\[[^\\]]*])?(?:\\s*\\([^)]*\\))?.*$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val BATCH_MARKER = Regex(
+        "\\s*\\[(?:batch|end|hdts|bd|dvd|bluray)[^\\]]*].*$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val BATCH_SLUG = Regex("-batch(?:-|$)", RegexOption.IGNORE_CASE)
+    private val BATCH_SUFFIX = Regex("-batch(?:-.*)?$", RegexOption.IGNORE_CASE)
+    private val EPISODE_SLUG = Regex(
+        "-(?:episode|ep)-\\d+(?:[.,]\\d+)?(?:-.*)?$",
+        RegexOption.IGNORE_CASE,
+    )
+    private val EPISODE_SPECIAL_SLUG = Regex(
+        "-(?:episode|ep)-(?:special|final)(?:-.*)?$",
+        RegexOption.IGNORE_CASE,
+    )
 
     private const val MAX_RESULTS = 40
 }

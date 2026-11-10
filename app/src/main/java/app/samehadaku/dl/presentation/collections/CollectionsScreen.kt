@@ -13,8 +13,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,6 +81,8 @@ import app.samehadaku.dl.presentation.components.GlassCard
 import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.IconDot
 import app.samehadaku.dl.presentation.components.MetricTile
+import app.samehadaku.dl.presentation.components.pressable
+import app.samehadaku.dl.presentation.components.pressableCombined
 import app.samehadaku.dl.presentation.components.SearchField
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
@@ -498,14 +498,15 @@ private fun FolderGroup(
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .combinedClickable(
+                .pressableCombined(
                     onClickLabel = if (expanded) "Tutup folder" else "Buka folder",
                     onLongClickLabel = "Aksi folder",
+                    pressedScale = 0.99f,
                     onClick = onToggle,
                     onLongClick = { menuOpen = true },
-                ),
+                )
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             FolderThumbnail(
@@ -658,11 +659,15 @@ private fun FileRow(
 ) {
     Row(
         modifier = Modifier
+            .pressable(
+                onClickLabel = "Putar ${file.name}",
+                pressedScale = 0.98f,
+                onClick = onOpen,
+            )
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(TextPrimary.copy(alpha = 0.035f))
             .border(1.dp, accent.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
-            .clickable(onClickLabel = "Putar ${file.name}", onClick = onOpen)
             .padding(horizontal = 9.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),

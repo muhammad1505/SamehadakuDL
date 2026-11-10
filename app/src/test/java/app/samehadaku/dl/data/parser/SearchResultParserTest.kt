@@ -99,6 +99,64 @@ class SearchResultParserTest {
     }
 
     @Test
+    fun `maps episode and batch posts back to their anime list page`() {
+        val html = """
+            <html><body>
+              <div class="anime-grid">
+                <article class="animepost">
+                  <a href="https://v2.samehadaku.how/batch/one-piece-batch-part-2/">
+                    <img title="One Piece [BATCH] Part 2" src="/img/one.jpg">
+                    <div class="type TV">TV</div>
+                  </a>
+                </article>
+                <article class="animepost">
+                  <a href="https://v2.samehadaku.how/one-piece-episode-1180/">
+                    <img title="One Piece Episode 1180" src="/img/one-ep.jpg">
+                    <div class="type TV">TV</div>
+                  </a>
+                </article>
+                <article class="animepost">
+                  <a href="https://v2.samehadaku.how/one-piece-episode-1179/">
+                    <img title="One Piece Episode 1179" src="/img/one-ep2.jpg">
+                    <div class="type TV">TV</div>
+                  </a>
+                </article>
+                <article class="animepost">
+                  <a href="https://v2.samehadaku.how/one-piece-heroines/">
+                    <img title="One Piece: Heroines" src="/img/heroines.jpg">
+                    <div class="type TV">TV</div>
+                  </a>
+                </article>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val results = SearchResultParser.parse(html, pageUrl, "one piece")
+
+        assertEquals(2, results.size)
+        assertEquals("one-piece", results[0].slug)
+        assertEquals("One Piece", results[0].title)
+        assertEquals("https://v2.samehadaku.how/anime/one-piece/", results[0].url)
+        assertEquals("Ep 1180", results[0].episodeLabel)
+        assertEquals("one-piece-heroines", results[1].slug)
+    }
+
+    @Test
+    fun `skips release posts whose series page cannot be derived`() {
+        val html = """
+            <div class="anime-grid">
+              <article class="animepost">
+                <a href="https://v2.samehadaku.how/one-piece-film-red-hdts/">
+                  <img title="One Piece Film: Red [HDTS]" src="/img/red.jpg">
+                </a>
+              </article>
+            </div>
+        """.trimIndent()
+
+        assertTrue(SearchResultParser.parse(html, pageUrl, "one piece film").isEmpty())
+    }
+
+    @Test
     fun `not found page yields an empty list`() {
         val html = """
             <html><body>

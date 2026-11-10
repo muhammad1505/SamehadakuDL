@@ -20,7 +20,9 @@ class ReleaseScheduleParserTest {
                     <div class="score">★ 8.72</div>
                   </a>
                   <div class="data"><div class="title"><h2>One Piece</h2></div></div>
-                  <div class="data_tw"><a>00:00</a></div>
+                  <div class="data_tw">
+                    <a class="ltseps" href="/anime/one-piece/">00:00</a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -38,6 +40,7 @@ class ReleaseScheduleParserTest {
             "https://v2.samehadaku.how/wp-content/uploads/one-piece.jpg",
             item.coverUrl,
         )
+        assertEquals("https://v2.samehadaku.how/anime/one-piece/", item.url)
     }
 
     @Test

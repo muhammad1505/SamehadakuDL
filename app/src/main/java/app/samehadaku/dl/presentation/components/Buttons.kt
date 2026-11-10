@@ -2,7 +2,6 @@ package app.samehadaku.dl.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -60,6 +59,12 @@ fun GradientButton(
     val active = enabled && !loading
     Box(
         modifier = modifier
+            .pressable(
+                enabled = active,
+                role = Role.Button,
+                pressedScale = 0.975f,
+                onClick = onClick,
+            )
             .height(height)
             .then(
                 if (active) {
@@ -91,11 +96,6 @@ fun GradientButton(
                 width = 1.dp,
                 color = if (active) Color.White.copy(alpha = 0.38f) else Color.White.copy(alpha = 0.06f),
                 shape = shape,
-            )
-            .clickable(
-                enabled = active,
-                role = Role.Button,
-                onClick = onClick,
             )
             .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center,
@@ -145,15 +145,16 @@ fun GlassButton(
     val shape = RoundedCornerShape(16.dp)
     Row(
         modifier = modifier
+            .pressable(
+                enabled = enabled,
+                role = Role.Button,
+                pressedScale = 0.975f,
+                onClick = onClick,
+            )
             .height(height)
             .clip(shape)
             .background(Color.White.copy(alpha = 0.09f))
             .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
-            .clickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClick = onClick,
-            )
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -188,6 +189,7 @@ fun PillChip(
     val shape = RoundedCornerShape(50)
     Row(
         modifier = modifier
+            .pressable(role = Role.Button, onClick = onClick)
             .height(38.dp)
             .clip(shape)
             .background(
@@ -204,7 +206,6 @@ fun PillChip(
                 color = if (selected) Color.White.copy(alpha = 0.30f) else Color.White.copy(alpha = 0.11f),
                 shape = shape,
             )
-            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -254,6 +255,11 @@ fun SegmentedTabs(
             val itemShape = RoundedCornerShape(14.dp)
             Row(
                 modifier = Modifier
+                    .pressable(
+                        role = Role.Tab,
+                        pressedScale = 0.96f,
+                        onClick = { onSelect(index) },
+                    )
                     .weight(1f)
                     .clip(itemShape)
                     .background(
@@ -275,7 +281,6 @@ fun SegmentedTabs(
                             Modifier
                         },
                     )
-                    .clickable(role = Role.Tab, onClick = { onSelect(index) })
                     .padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
@@ -341,6 +346,7 @@ fun GradientFab(
 ) {
     Box(
         modifier = modifier
+            .pressable(role = Role.Button, pressedScale = 0.92f, onClick = onClick)
             .size(58.dp)
             .shadow(
                 elevation = 18.dp,
@@ -350,8 +356,7 @@ fun GradientFab(
             )
             .clip(CircleShape)
             .background(PrimaryGradient)
-            .border(1.dp, Color.White.copy(alpha = 0.28f), CircleShape)
-            .clickable(role = Role.Button, onClick = onClick),
+            .border(1.dp, Color.White.copy(alpha = 0.28f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

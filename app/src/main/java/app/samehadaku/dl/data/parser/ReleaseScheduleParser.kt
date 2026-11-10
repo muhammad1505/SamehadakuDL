@@ -100,8 +100,9 @@ object ReleaseScheduleParser {
             }
             ?.let { UrlUtils.resolve(pageUrl, it) }
         val rating = element.selectFirst(".score, .rating")?.text()?.let { raw ->
-            RATING_REGEX.find(raw)?.groupValues?.getOrNull(1)
-                ?: SCORE_REGEX.find(raw)?.groupValues?.getOrNull(1)
+            (RATING_REGEX.find(raw)?.groupValues?.getOrNull(1)
+                ?: SCORE_REGEX.find(raw)?.groupValues?.getOrNull(1))
+                ?.replace(',', '.')
         }
         val status = when {
             text.contains("libur", ignoreCase = true) -> "Libur"
@@ -109,7 +110,20 @@ object ReleaseScheduleParser {
                 text.contains("tunda", ignoreCase = true) -> "Delay"
             else -> null
         }
-        val href = titleElement?.let { it.attr("href").takeIf(String::isNotBlank) }
+        // The current theme puts the detail link on the poster anchor and on
+        // `.ltseps`; the <h2> itself has no href, so reading from it always
+        // produced an item without a clickable detail URL.
+        val detailAnchor = sequenceOf(
+            element.selectFirst(".data_tw a.ltseps[href]"),
+            element.selectFirst("a.ltseps[href]"),
+            element.selectFirst("a[href*='/anime/']"),
+            element.selectFirst(".data .title a[href]"),
+            element.selectFirst("a[href]"),
+        ).filterNotNull().firstOrNull { anchor ->
+            anchor.attr("href").isNotBlank()
+        }
+        val href = detailAnchor?.attr("href")
+            ?.takeIf(String::isNotBlank)
             ?.let { UrlUtils.resolve(pageUrl, it) }
         return ReleaseScheduleItem(day, title, time, episode, status, href, cover, rating)
     }

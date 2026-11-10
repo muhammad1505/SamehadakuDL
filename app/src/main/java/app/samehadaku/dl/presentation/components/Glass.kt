@@ -2,7 +2,6 @@ package app.samehadaku.dl.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,12 +56,17 @@ fun GlassCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val clickModifier = if (onClick != null) {
-        Modifier.clickable(role = Role.Button, onClick = onClick)
+        Modifier.pressable(
+            role = Role.Button,
+            pressedScale = 0.985f,
+            onClick = onClick,
+        )
     } else {
         Modifier
     }
     Column(
         modifier = modifier
+            .then(clickModifier)
             .shadow(
                 elevation = if (glow) 24.dp else 14.dp,
                 shape = shape,
@@ -108,7 +112,6 @@ fun GlassCard(
                 },
                 shape = shape,
             )
-            .then(clickModifier)
             .padding(contentPadding),
         content = content,
     )
@@ -127,15 +130,16 @@ fun GlassIconButton(
 ) {
     Box(
         modifier = modifier
+            .pressable(
+                enabled = enabled,
+                role = Role.Button,
+                pressedScale = 0.92f,
+                onClick = onClick,
+            )
             .size(size)
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
-            .clickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClick = onClick,
-            ),
+            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -188,8 +192,8 @@ fun SectionHeader(
                 color = BrandPrimary,
                 style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                 modifier = Modifier
+                    .pressable(pressedScale = 0.94f, onClick = onAction)
                     .clip(RoundedCornerShape(50))
-                    .clickable(onClick = onAction)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
@@ -251,8 +255,8 @@ fun InfoBanner(
                     color = accent,
                     style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
                     modifier = Modifier
+                        .pressable(pressedScale = 0.94f, onClick = onAction)
                         .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onAction)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }

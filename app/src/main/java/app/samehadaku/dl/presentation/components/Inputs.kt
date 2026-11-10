@@ -2,7 +2,6 @@ package app.samehadaku.dl.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -132,14 +131,15 @@ fun SearchField(
             {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .clickable(
+                        .pressable(
                             role = Role.Button,
                             onClickLabel = "Hapus pencarian",
+                            pressedScale = 0.90f,
                             onClick = onClear,
-                        ),
+                        )
+                        .size(28.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

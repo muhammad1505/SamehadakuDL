@@ -16,7 +16,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,6 +83,7 @@ import app.samehadaku.dl.presentation.components.GlassCard
 import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.IconDot
 import app.samehadaku.dl.presentation.components.MetricTile
+import app.samehadaku.dl.presentation.components.pressable
 import app.samehadaku.dl.presentation.components.SearchField
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
@@ -859,9 +859,9 @@ private fun QueueTaskCard(
             Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier
+                    .pressable(pressedScale = 0.99f) { expanded = !expanded }
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .clickable { expanded = !expanded }
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

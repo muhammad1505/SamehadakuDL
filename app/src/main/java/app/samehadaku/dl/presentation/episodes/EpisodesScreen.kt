@@ -2,7 +2,6 @@ package app.samehadaku.dl.presentation.episodes
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +55,7 @@ import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.GlassTextField
 import app.samehadaku.dl.presentation.components.GradientButton
 import app.samehadaku.dl.presentation.components.NeonCheckbox
+import app.samehadaku.dl.presentation.components.pressable
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
 import app.samehadaku.dl.presentation.components.SectionHeader
@@ -317,8 +317,8 @@ private fun SelectionCard(
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
+                        .pressable(pressedScale = 0.94f, onClick = onClear)
                         .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onClear)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }

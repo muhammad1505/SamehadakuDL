@@ -8,7 +8,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,8 +56,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -76,6 +78,7 @@ import app.samehadaku.dl.presentation.components.GlassCard
 import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.GradientButton
 import app.samehadaku.dl.presentation.components.MetricTile
+import app.samehadaku.dl.presentation.components.pressable
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
 import app.samehadaku.dl.presentation.components.SegmentTab
@@ -492,8 +495,10 @@ fun SettingsScreen(
                             color = BrandAccent,
                             style = MaterialTheme.typography.labelMedium,
                             modifier = Modifier
+                                .pressable(pressedScale = 0.95f) {
+                                    viewModel.clearQualityPreference()
+                                }
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { viewModel.clearQualityPreference() }
                                 .padding(4.dp),
                         )
                     }
@@ -663,34 +668,23 @@ private fun SettingsSummary(state: SettingsUiState) {
             BrandMark(size = 44.dp)
             Spacer(Modifier.width(13.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        text = "Samehadaku",
-                        color = TextPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.3).sp,
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = "DL",
-                        color = BrandPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.3).sp,
-                    )
-                }
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = TextPrimary)) { append("Samehadaku ") }
+                        withStyle(SpanStyle(color = BrandPrimary)) { append("Downloader") }
+                    },
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.3).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     text = "Pengaturan • v${BuildConfig.VERSION_NAME}",
                     color = TextSecondary,
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            Spacer(Modifier.width(8.dp))
-            StatusPill(
-                text = if (state.sessionActive) "Cloudflare aktif" else "Cloudflare nonaktif",
-                color = if (state.sessionActive) BrandMint else Warning,
-            )
         }
         Spacer(Modifier.height(14.dp))
 
@@ -736,6 +730,11 @@ private fun SettingsSummary(state: SettingsUiState) {
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            StatusPill(
+                text = if (state.sessionActive) "Cloudflare aktif" else "Cloudflare nonaktif",
+                color = if (state.sessionActive) BrandMint else Warning,
             )
         }
     }
@@ -754,6 +753,7 @@ private fun StorageOption(
     val iconTint = if (selected) BrandPrimary else TextSecondary
     Row(
         modifier = Modifier
+            .pressable(role = Role.Button, onClick = onClick)
             .fillMaxWidth()
             .clip(shape)
             .background(
@@ -774,7 +774,6 @@ private fun StorageOption(
                 },
                 shape = shape,
             )
-            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

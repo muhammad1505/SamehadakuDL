@@ -6,7 +6,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,6 +82,7 @@ import app.samehadaku.dl.presentation.components.GlassTextField
 import app.samehadaku.dl.presentation.components.GradientButton
 import app.samehadaku.dl.presentation.components.InfoBanner
 import app.samehadaku.dl.presentation.components.NeonCheckbox
+import app.samehadaku.dl.presentation.components.pressable
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
 import app.samehadaku.dl.presentation.theme.BrandPrimary
@@ -384,9 +384,11 @@ fun SubscriptionsScreen(
                     result.checks.forEach { check ->
                         Row(
                             modifier = Modifier
+                                .pressable(pressedScale = 0.985f) {
+                                    viewModel.toggleCheck(check.subscription.slug)
+                                }
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable { viewModel.toggleCheck(check.subscription.slug) }
                                 .padding(vertical = 6.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp),

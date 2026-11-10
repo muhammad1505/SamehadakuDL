@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,12 +24,17 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,16 +49,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.domain.model.ReleaseScheduleItem
 import app.samehadaku.dl.presentation.components.EmptyState
 import app.samehadaku.dl.presentation.components.GlassCard
 import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.InfoBanner
+import app.samehadaku.dl.presentation.components.pressable
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
 import app.samehadaku.dl.presentation.components.StatusPill
 import app.samehadaku.dl.presentation.theme.BrandGold
 import app.samehadaku.dl.presentation.theme.BrandMint
+import app.samehadaku.dl.presentation.theme.BrandPink
 import app.samehadaku.dl.presentation.theme.BrandPrimary
 import app.samehadaku.dl.presentation.theme.Danger
 import app.samehadaku.dl.presentation.theme.TextMuted
@@ -69,9 +76,11 @@ import java.util.Locale
 fun ReleaseCalendarScreen(
     onBack: () -> Unit,
     onOpenCloudflare: () -> Unit,
+    onOpenDetail: () -> Unit,
     viewModel: ReleaseCalendarViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     var month by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     val dates = remember(month) { monthDates(month) }
@@ -80,7 +89,22 @@ fun ReleaseCalendarScreen(
     }
     val selectedItems = scheduleByDate[selectedDate].orEmpty()
 
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                ReleaseCalendarEvent.OpenDetail -> onOpenDetail()
+            }
+        }
+    }
+
+    LaunchedEffect(state.message) {
+        val message = state.message ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.dismissMessage()
+    }
+
     ScreenScaffold(
+        snackbarHostState = snackbarHostState,
         topBar = {
             ScreenTopBar(
                 title = "Jadwal Anime",
@@ -167,6 +191,18 @@ fun ReleaseCalendarScreen(
                         }
                     }
                 }
+                if (state.actionNeedsVerification) {
+                    item {
+                        InfoBanner(
+                            title = "Verifikasi Cloudflare diperlukan",
+                            message = "Selesaikan verifikasi untuk mengubah status Langganan.",
+                            icon = Icons.Rounded.CloudOff,
+                            accent = BrandGold,
+                            actionLabel = "Buka verifikasi",
+                            onAction = onOpenCloudflare,
+                        )
+                    }
+                }
                 item {
                     MonthCalendar(
                         month = month,
@@ -204,9 +240,22 @@ fun ReleaseCalendarScreen(
                 } else {
                     items(
                         selectedItems,
-                        key = { "${selectedDate}-${it.title}-${it.time}-${it.url}" },
+                        key = { item -> "${selectedDate}-${releaseScheduleKey(item)}" },
                     ) { item ->
-                        ScheduleRow(item, item.coverUrl?.let { url -> state.covers[url] })
+                        val key = releaseScheduleKey(item)
+                        val slug = item.url?.let { UrlUtils.lastPathSegment(it) }
+                        ScheduleRow(
+                            item = item,
+                            cover = state.covers[key],
+                            rating = item.rating ?: state.ratings[key],
+                            favorite = slug != null && slug in state.subscribedSlugs,
+                            busy = state.favoriteBusyUrl != null &&
+                                state.favoriteBusyUrl == item.url,
+                            onOpen = item.url?.let { { viewModel.openDetail(item) } },
+                            onToggleFavorite = slug?.let {
+                                { viewModel.toggleFavorite(item) }
+                            },
+                        )
                     }
                 }
             }
@@ -296,10 +345,14 @@ private fun CalendarDateCell(
 ) {
     Box(
         modifier = modifier
+            .pressable(
+                enabled = date != null,
+                pressedScale = 0.92f,
+                onClick = onClick,
+            )
             .height(42.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) BrandPrimary.copy(alpha = 0.14f) else Color.Transparent)
-            .clickable(enabled = date != null, onClick = onClick),
+            .background(if (selected) BrandPrimary.copy(alpha = 0.14f) else Color.Transparent),
         contentAlignment = Alignment.Center,
     ) {
         if (date != null) {
@@ -329,24 +382,24 @@ private fun CalendarDateCell(
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ScheduleRow(item: ReleaseScheduleItem, cover: Bitmap?) {
+private fun ScheduleRow(
+    item: ReleaseScheduleItem,
+    cover: Bitmap?,
+    rating: String?,
+    favorite: Boolean,
+    busy: Boolean,
+    onOpen: (() -> Unit)?,
+    onToggleFavorite: (() -> Unit)?,
+) {
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+        onClick = onOpen,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (cover != null) {
-                Image(
-                    bitmap = cover.asImageBitmap(),
-                    contentDescription = "Cover ${item.title}",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(width = 42.dp, height = 56.dp)
-                        .clip(RoundedCornerShape(10.dp)),
-                )
-                Spacer(Modifier.width(10.dp))
-            }
+            ScheduleCover(cover = cover, title = item.title)
+            Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.title,
@@ -365,9 +418,9 @@ private fun ScheduleRow(item: ReleaseScheduleItem, cover: Bitmap?) {
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            item.rating?.let { rating ->
+            rating?.let {
                 Spacer(Modifier.width(8.dp))
-                StatusPill(text = "★ $rating", color = BrandGold)
+                StatusPill(text = "★ $it", color = BrandGold)
             }
             item.status?.let { status ->
                 Spacer(Modifier.width(7.dp))
@@ -376,7 +429,90 @@ private fun ScheduleRow(item: ReleaseScheduleItem, cover: Bitmap?) {
                     color = if (status.equals("Delay", true)) BrandGold else Danger,
                 )
             }
+            if (onToggleFavorite != null) {
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .pressable(
+                            enabled = !busy,
+                            role = androidx.compose.ui.semantics.Role.Button,
+                            onClickLabel = if (favorite) {
+                                "Hapus ${item.title} dari Langganan"
+                            } else {
+                                "Tambahkan ${item.title} ke Langganan"
+                            },
+                            pressedScale = 0.88f,
+                            onClick = onToggleFavorite,
+                        )
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            if (favorite) {
+                                BrandPink.copy(alpha = 0.16f)
+                            } else {
+                                Color.White.copy(alpha = 0.06f)
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (busy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(15.dp),
+                            color = BrandPink,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (favorite) {
+                                Icons.Rounded.Favorite
+                            } else {
+                                Icons.Rounded.FavoriteBorder
+                            },
+                            contentDescription = null,
+                            tint = if (favorite) BrandPink else TextMuted,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun ScheduleCover(cover: Bitmap?, title: String) {
+    val shape = RoundedCornerShape(10.dp)
+    if (cover != null) {
+        Image(
+            bitmap = cover.asImageBitmap(),
+            contentDescription = "Cover $title",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(width = 42.dp, height = 56.dp)
+                .clip(shape),
+        )
+        return
+    }
+    Box(
+        modifier = Modifier
+            .size(width = 42.dp, height = 56.dp)
+            .clip(shape)
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(
+                        BrandPrimary.copy(alpha = 0.22f),
+                        BrandPink.copy(alpha = 0.12f),
+                    ),
+                ),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Movie,
+            contentDescription = null,
+            tint = TextSecondary.copy(alpha = 0.75f),
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 

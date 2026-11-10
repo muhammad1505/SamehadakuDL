@@ -1,14 +1,19 @@
 package app.samehadaku.dl.presentation.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -43,6 +48,12 @@ object Routes {
     const val NOTIFICATIONS = "notifications"
     const val ABOUT = "about"
     const val CALENDAR = "calendar"
+}
+
+/** Tabs cross-fade; every other route is a pushed detail page. */
+private fun NavBackStackEntry.isDetailRoute(): Boolean {
+    val route = destination.route ?: return false
+    return AppTab.entries.none { it.route == route }
 }
 
 @Composable
@@ -102,10 +113,55 @@ fun SamehadakuNavHost(
             navController = navController,
             startDestination = Routes.HOME,
             modifier = Modifier.fillMaxSize(),
-            enterTransition = { fadeIn(tween(240)) },
-            exitTransition = { fadeOut(tween(180)) },
-            popEnterTransition = { fadeIn(tween(240)) },
-            popExitTransition = { fadeOut(tween(180)) },
+            // Full-screen detail pages slide in from the right, while tab
+            // switches cross-fade with a tiny scale so the bottom bar feels
+            // anchored instead of flashing between screens.
+            enterTransition = {
+                if (targetState.isDetailRoute()) {
+                    slideIntoContainer(
+                        AnimatedContentTransitionScope.SlideDirection.Left,
+                        animationSpec = tween(320, easing = FastOutSlowInEasing),
+                    ) + fadeIn(tween(220))
+                } else {
+                    fadeIn(tween(220)) + scaleIn(
+                        initialScale = 0.985f,
+                        animationSpec = tween(260, easing = FastOutSlowInEasing),
+                    )
+                }
+            },
+            exitTransition = {
+                if (targetState.isDetailRoute()) {
+                    fadeOut(tween(150))
+                } else {
+                    fadeOut(tween(150)) + scaleOut(
+                        targetScale = 0.99f,
+                        animationSpec = tween(200, easing = FastOutSlowInEasing),
+                    )
+                }
+            },
+            popEnterTransition = {
+                if (initialState.isDetailRoute()) {
+                    slideIntoContainer(
+                        AnimatedContentTransitionScope.SlideDirection.Right,
+                        animationSpec = tween(300, easing = FastOutSlowInEasing),
+                    ) + fadeIn(tween(200))
+                } else {
+                    fadeIn(tween(220)) + scaleIn(
+                        initialScale = 0.985f,
+                        animationSpec = tween(260, easing = FastOutSlowInEasing),
+                    )
+                }
+            },
+            popExitTransition = {
+                if (initialState.isDetailRoute()) {
+                    slideOutOfContainer(
+                        AnimatedContentTransitionScope.SlideDirection.Right,
+                        animationSpec = tween(300, easing = FastOutSlowInEasing),
+                    ) + fadeOut(tween(200))
+                } else {
+                    fadeOut(tween(150))
+                }
+            },
         ) {
             composable(Routes.HOME) { entry ->
                 val verified by entry.savedStateHandle
@@ -168,6 +224,9 @@ fun SamehadakuNavHost(
                 ReleaseCalendarScreen(
                     onBack = { navController.popBackStack() },
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
+                    onOpenDetail = {
+                        navController.navigate(Routes.SEARCH_DETAIL) { launchSingleTop = true }
+                    },
                 )
             }
 

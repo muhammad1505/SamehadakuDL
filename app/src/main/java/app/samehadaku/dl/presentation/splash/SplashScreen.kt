@@ -144,29 +144,18 @@ fun SplashScreen(onFinished: () -> Unit) {
                 BrandMark(size = 104.dp)
             }
             Spacer(Modifier.height(22.dp))
-            Row(
-                verticalAlignment = Alignment.Bottom,
+            Text(
+                text = "Samehadaku Downloader",
+                color = TextPrimary,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.5).sp,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.graphicsLayer { alpha = contentAlpha },
-            ) {
-                Text(
-                    text = "Samehadaku",
-                    color = TextPrimary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.5).sp,
-                )
-                Spacer(Modifier.size(6.dp))
-                Text(
-                    text = "DL",
-                    color = BrandPrimary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.5).sp,
-                )
-            }
+            )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Downloader Anime dari Samehadaku",
+                text = "Unduhan anime, rapi dan cepat",
                 color = TextSecondary,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
@@ -219,7 +208,7 @@ fun SplashScreen(onFinished: () -> Unit) {
 
             Spacer(Modifier.height(20.dp))
             Text(
-                text = "Downloader Anime  •  v${BuildConfig.VERSION_NAME}",
+                text = "Samehadaku Downloader  •  v${BuildConfig.VERSION_NAME}",
                 color = TextMuted,
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.graphicsLayer { alpha = contentAlpha },
