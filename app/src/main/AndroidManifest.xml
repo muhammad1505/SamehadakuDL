@@ -5,12 +5,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Lets the Koleksi tab list downloaded episodes on Android 10-12. -->
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <!-- Android 13+ replacement: read downloaded video files. -->
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!--
+        No broad storage/media permission is declared. Koleksi reads only the
+        app-owned rows in MediaStore or the folder the user picks through SAF.
+    -->
 
     <application
         android:name=".SamehadakuApp"

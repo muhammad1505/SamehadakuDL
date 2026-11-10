@@ -132,6 +132,29 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Menambahkan teks berjalan pada judul jadwal panjang agar jam dan rating tetap terbaca.
 - Menyamakan caption aplikasi menjadi Samehadaku Downloader di Tentang, logo, dan notifikasi.
 
+## Rilis 2.6.12
+
+- Koleksi tidak lagi meminta izin baca seluruh video/galeri.
+- Koleksi hanya membaca file yang ditulis aplikasi ke `Download/SamehadakuDL`
+  atau folder yang dipilih lewat SAF di Pengaturan.
+- Subfolder per judul anime tetap terbaca, termasuk arsip `.rar`/`.zip`.
+- Setelah install ulang, file lama bisa dibuka dengan memilih folder
+  `Download/SamehadakuDL` di Pengaturan › Penyimpanan.
+
+## Penyimpanan dan izin
+
+Aplikasi tidak meminta `READ_MEDIA_VIDEO` maupun `READ_EXTERNAL_STORAGE`.
+Koleksi memakai dua sumber:
+
+- File yang ditulis aplikasi sendiri ke `Download/SamehadakuDL/<judul anime>/`
+  lewat MediaStore. Android mengizinkan aplikasi membaca file miliknya tanpa izin media.
+- Folder yang dipilih pengguna lewat SAF di Pengaturan › Penyimpanan. Akses SAF
+  bersifat rekursif, jadi semua subfolder anime ikut terbaca, termasuk `.rar`/`.zip`.
+
+Android mengaitkan file MediaStore dengan instalasi aplikasi. Setelah uninstall
+atau install ulang, file lama tidak lagi dianggap milik aplikasi; pilih folder
+`Download/SamehadakuDL` lewat SAF agar file lama muncul kembali.
+
 ## Build
 
 Prasyarat: JDK 17 dan Android SDK 35.
