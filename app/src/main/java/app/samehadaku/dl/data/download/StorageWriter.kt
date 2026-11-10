@@ -296,13 +296,12 @@ class StorageWriter @Inject constructor(
         MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
 
     /**
-     * Lists finished MediaStore files that were written by this app.
+     * Lists finished MediaStore files inside the app download folder.
      *
-     * Scoped storage already limits `MediaStore.Files` to rows owned by the caller
-     * when no media permission is held. The explicit `OWNER_PACKAGE_NAME` filter
-     * keeps the query scoped even if a media permission is granted later, so Koleksi
-     * never turns into a gallery browser. Files created by an earlier install are
-     * no longer attributed to this app; the SAF folder is the fallback for those.
+     * The relative path is the stable link between the app and its files. Matching
+     * only `OWNER_PACKAGE_NAME` made Koleksi empty on providers that leave that
+     * column empty or redact it. Scoped storage still limits this query to files
+     * the app can access, so the path filter cannot expose other apps' media.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun scanMediaStoreCollections(): List<StoredFolder> {
@@ -316,12 +315,12 @@ class StorageWriter @Inject constructor(
         )
         val folders = LinkedHashMap<String, MutableList<StoredFile>>()
         val selection = "${MediaStore.MediaColumns.IS_PENDING}=0 AND " +
-            "${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=?"
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
         val cursor = context.contentResolver.query(
             mediaFileCollection(),
             projection,
             selection,
-            arrayOf(context.packageName),
+            arrayOf("%/$APP_FOLDER/%"),
             null,
         )
         if (cursor == null) {
@@ -406,8 +405,8 @@ class StorageWriter @Inject constructor(
     /**
      * Deletes every file stored in one MediaStore collection folder. Files live in
      * `.../SamehadakuDL/<folder>/`, so the folder name must be compared with the
-     * file's parent segment instead of its full relative path. The owner filter
-     * makes sure only rows written by this app can be touched.
+     * file's parent segment instead of its full relative path. The path filter also
+     * works when an OEM leaves `OWNER_PACKAGE_NAME` empty.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun deleteFolderInMediaStore(folderName: String): Int {
@@ -420,9 +419,8 @@ class StorageWriter @Inject constructor(
         context.contentResolver.query(
             collection,
             projection,
-            "${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=? AND " +
-                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
-            arrayOf(context.packageName, "%/$APP_FOLDER%"),
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
+            arrayOf("%/$APP_FOLDER%"),
             null,
         )?.use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
@@ -567,13 +565,12 @@ class StorageWriter @Inject constructor(
         val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/SamehadakuDL/$animeSlug/"
         val projection = arrayOf(MediaStore.MediaColumns._ID)
         val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND " +
-            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?) AND " +
-            "${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=?"
+            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?)"
         return context.contentResolver.query(
             mediaFileCollection(),
             projection,
             selection,
-            arrayOf(fileName, relativePath, relativePath.trimEnd('/'), context.packageName),
+            arrayOf(fileName, relativePath, relativePath.trimEnd('/')),
             null,
         )?.use { cursor ->
             if (cursor.moveToFirst()) {
@@ -629,13 +626,12 @@ class StorageWriter @Inject constructor(
         val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/SamehadakuDL/$animeSlug/"
         val projection = arrayOf(MediaStore.MediaColumns.SIZE)
         val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND " +
-            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?) AND " +
-            "${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=?"
+            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?)"
         return context.contentResolver.query(
             mediaFileCollection(),
             projection,
             selection,
-            arrayOf(fileName, relativePath, relativePath.trimEnd('/'), context.packageName),
+            arrayOf(fileName, relativePath, relativePath.trimEnd('/')),
             null,
         )?.use { cursor ->
             cursor.moveToFirst() && cursor.getLong(0) == size
@@ -647,14 +643,13 @@ class StorageWriter @Inject constructor(
         val collection = mediaFileCollection()
         val projection = arrayOf(MediaStore.MediaColumns._ID)
         val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND " +
-            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?) AND " +
-            "${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=?"
+            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?)"
         val ids = mutableListOf<Long>()
         context.contentResolver.query(
             collection,
             projection,
             selection,
-            arrayOf(fileName, relativePath, relativePath.trimEnd('/'), context.packageName),
+            arrayOf(fileName, relativePath, relativePath.trimEnd('/')),
             null,
         )?.use { cursor ->
             while (cursor.moveToNext()) ids.add(cursor.getLong(0))

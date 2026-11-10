@@ -141,6 +141,14 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Setelah install ulang, file lama bisa dibuka dengan memilih folder
   `Download/SamehadakuDL` di Pengaturan › Penyimpanan.
 
+## Rilis 2.6.13
+
+- Memperbaiki Koleksi yang kosong setelah izin media dihapus: file di
+  `Download/SamehadakuDL` sekarang dikenali lewat path folder, bukan hanya
+  metadata pemilik file.
+- Izin media tetap tidak diminta; file lama yang tidak lagi dikaitkan dengan
+  aplikasi tetap bisa dibuka dengan memilih folder lewat SAF.
+
 ## Penyimpanan dan izin
 
 Aplikasi tidak meminta `READ_MEDIA_VIDEO` maupun `READ_EXTERNAL_STORAGE`.
