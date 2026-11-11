@@ -6,9 +6,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--
-        No broad storage/media permission is declared. Koleksi reads only the
-        app-owned rows in MediaStore or the folder the user picks through SAF.
+        Koleksi needs read access to show episodes written by an earlier install.
+        Android ties MediaStore rows to the installation that created them, so
+        without these permissions old downloads in Download/SamehadakuDL only
+        reappear after the user picks the folder through SAF.
     -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
 
     <application
         android:name=".SamehadakuApp"

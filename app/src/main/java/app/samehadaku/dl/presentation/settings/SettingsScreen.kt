@@ -191,7 +191,8 @@ fun SettingsScreen(
                     Spacer(Modifier.height(10.dp))
                     Caption(
                         "File episode disimpan ke folder yang dipilih setelah unduhan selesai. " +
-                            "Folder pilihan juga dipakai untuk membaca file lama tanpa izin media.",
+                            "Folder pilihan juga menjadi cadangan untuk membaca file lama bila " +
+                            "izin akses file tidak diberikan.",
                     )
                 }
             }

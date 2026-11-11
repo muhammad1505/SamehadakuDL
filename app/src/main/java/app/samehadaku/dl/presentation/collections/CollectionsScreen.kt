@@ -1,6 +1,11 @@
 package app.samehadaku.dl.presentation.collections
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -60,9 +65,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.samehadaku.dl.data.download.StoredFile
@@ -104,6 +111,32 @@ fun CollectionsScreen(
     var expandedFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<StoredFolder?>(null) }
     var pendingDeleteFile by remember { mutableStateOf<PendingFileDelete?>(null) }
+
+    val context = LocalContext.current
+    // Android only lets an app read another installation's MediaStore rows with a
+    // media permission. Ask for it when Koleksi opens so old episodes reappear
+    // without the user picking the download folder through SAF.
+    val readPermission = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+            Manifest.permission.READ_MEDIA_VIDEO
+        else -> Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+    var storageDenied by rememberSaveable { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        storageDenied = !granted
+        viewModel.refresh()
+    }
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(context, readPermission) ==
+            PackageManager.PERMISSION_GRANTED
+        storageDenied = !granted
+        if (!granted) {
+            permissionLauncher.launch(readPermission)
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.refresh()
@@ -225,26 +258,42 @@ fun CollectionsScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
-                EmptyState(
-                    icon = Icons.Rounded.FolderOpen,
-                    title = "Koleksi masih kosong",
-                    message = buildString {
-                        append("File episode yang selesai diunduh otomatis muncul di sini ")
-                        append("sebagai folder per judul anime. Tekan lama folder untuk aksi cepat.")
-                        if (state.location.isNotBlank()) {
-                            append("\n\nLokasi dipindai: ")
-                            append(state.location)
-                        }
-                        append("\n\nFile lama atau hasil install ulang tidak terlihat? ")
-                        append("Pilih folder Download/SamehadakuDL di Pengaturan › Penyimpanan.")
-                        if (state.location.startsWith("Folder kustom")) {
-                            append("\nFolder kustom tidak terbaca? Pilih ulang folder di ")
-                            append("Pengaturan › Penyimpanan agar izinnya segar.")
-                        }
-                    },
-                    actionLabel = "Mulai unduh",
-                    onAction = onBrowse,
-                )
+                if (storageDenied) {
+                    EmptyState(
+                        icon = Icons.Rounded.FolderOpen,
+                        title = "Izin akses file diperlukan",
+                        message = "Koleksi perlu izin baca video/penyimpanan untuk menampilkan " +
+                            "episode lama di Download/SamehadakuDL. Tanpa izin, hanya file " +
+                            "baru milik aplikasi ini yang terlihat.\n\nJika dialog izin tidak " +
+                            "muncul, buka Pengaturan › Aplikasi › Samehadaku Downloader › Izin.",
+                        actionLabel = "Beri izin",
+                        onAction = {
+                            permissionLauncher.launch(readPermission)
+                        },
+                    )
+                } else {
+                    EmptyState(
+                        icon = Icons.Rounded.FolderOpen,
+                        title = "Koleksi masih kosong",
+                        message = buildString {
+                            append("File episode yang selesai diunduh otomatis muncul di sini ")
+                            append("sebagai folder per judul anime. Tekan lama folder untuk aksi cepat.")
+                            if (state.location.isNotBlank()) {
+                                append("\n\nLokasi dipindai: ")
+                                append(state.location)
+                            }
+                            append("\n\nFile lama atau hasil install ulang tidak terlihat? ")
+                            append("Pastikan izin akses file masih aktif di Pengaturan aplikasi. ")
+                            append("Folder pilihan lewat SAF tetap bisa dipakai sebagai cadangan.")
+                            if (state.location.startsWith("Folder kustom")) {
+                                append("\nFolder kustom tidak terbaca? Pilih ulang folder di ")
+                                append("Pengaturan › Penyimpanan agar izinnya segar.")
+                            }
+                        },
+                        actionLabel = "Mulai unduh",
+                        onAction = onBrowse,
+                    )
+                }
             }
 
             else -> LazyColumn(

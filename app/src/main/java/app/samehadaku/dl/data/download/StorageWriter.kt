@@ -300,8 +300,10 @@ class StorageWriter @Inject constructor(
      *
      * The relative path is the stable link between the app and its files. Matching
      * only `OWNER_PACKAGE_NAME` made Koleksi empty on providers that leave that
-     * column empty or redact it. Scoped storage still limits this query to files
-     * the app can access, so the path filter cannot expose other apps' media.
+     * column empty or redact it. With READ_MEDIA_VIDEO/READ_EXTERNAL_STORAGE this
+     * query also returns episodes written by an earlier installation, so old
+     * downloads reappear without SAF. The path filter keeps Koleksi scoped to our
+     * own folder instead of turning it into a gallery browser.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun scanMediaStoreCollections(): List<StoredFolder> {

@@ -149,19 +149,36 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Izin media tetap tidak diminta; file lama yang tidak lagi dikaitkan dengan
   aplikasi tetap bisa dibuka dengan memilih folder lewat SAF.
 
+## Rilis 2.6.14
+
+- Koleksi kembali meminta izin baca video/penyimpanan agar episode lama di
+  `Download/SamehadakuDL` otomatis terbaca, termasuk setelah uninstall lalu
+  install ulang.
+- Izin hanya dipakai untuk memindai folder unduhan aplikasi, bukan seluruh
+  galeri. File baru milik instalasi ini tetap terbaca walau izin ditolak.
+- Folder pilihan lewat SAF tetap tersedia sebagai cadangan, terutama untuk
+  arsip `.rar`/`.zip` lama yang bukan file media.
+- Konsekuensi: APK kembali memuat `READ_MEDIA_VIDEO` dan
+  `READ_EXTERNAL_STORAGE`, sehingga peringatan izin di Play Protect/VirusTotal
+  bisa muncul lagi. Verifikasi hash dan appeal Play Protect tetap dilakukan.
+
 ## Penyimpanan dan izin
 
-Aplikasi tidak meminta `READ_MEDIA_VIDEO` maupun `READ_EXTERNAL_STORAGE`.
-Koleksi memakai dua sumber:
+Koleksi memakai tiga sumber:
 
-- File yang ditulis aplikasi sendiri ke `Download/SamehadakuDL/<judul anime>/`
-  lewat MediaStore. Android mengizinkan aplikasi membaca file miliknya tanpa izin media.
+- File di `Download/SamehadakuDL/<judul anime>/` lewat MediaStore. Pada
+  Android 13+ aplikasi meminta `READ_MEDIA_VIDEO`; Android 10–12 memakai
+  `READ_EXTERNAL_STORAGE` (dibatasi sampai SDK 32). Izin ini membuat file dari
+  instalasi sebelumnya ikut terbaca tanpa SAF.
+- File milik instalasi yang sedang berjalan. Android selalu mengizinkan
+  aplikasi membaca file yang ia tulis sendiri, bahkan tanpa izin media.
 - Folder yang dipilih pengguna lewat SAF di Pengaturan › Penyimpanan. Akses SAF
-  bersifat rekursif, jadi semua subfolder anime ikut terbaca, termasuk `.rar`/`.zip`.
+  bersifat rekursif, jadi semua subfolder anime ikut terbaca.
 
-Android mengaitkan file MediaStore dengan instalasi aplikasi. Setelah uninstall
-atau install ulang, file lama tidak lagi dianggap milik aplikasi; pilih folder
-`Download/SamehadakuDL` lewat SAF agar file lama muncul kembali.
+Izin media hanya dipakai untuk memindai folder `SamehadakuDL`; aplikasi tidak
+menampilkan galeri atau file di luar folder tersebut. Jika izin ditolak, unduhan
+baru tetap muncul, sedangkan file dari instalasi lama dan arsip non-video perlu
+dibuka lewat SAF.
 
 ## Verifikasi APK
 
