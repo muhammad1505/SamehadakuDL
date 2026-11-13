@@ -1,7 +1,9 @@
 package app.samehadaku.dl.presentation.queue
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,6 +48,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
@@ -63,11 +66,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -110,6 +115,7 @@ import app.samehadaku.dl.presentation.util.formatSpeed
 import app.samehadaku.dl.presentation.util.prettyName
 import app.samehadaku.dl.presentation.util.stateLabel
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -120,6 +126,8 @@ fun QueueScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var confirmClearHistory by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<DownloadTask?>(null) }
 
@@ -326,6 +334,20 @@ fun QueueScreen(
                             onShare = { viewModel.share(task) },
                             onDeleteFile = { pendingDelete = task },
                             onRemove = { viewModel.remove(task.id) },
+                            onOpenEpisode = {
+                                val opened = runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(task.episodeUrl)),
+                                    )
+                                }.isSuccess
+                                if (!opened) {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            "Tidak ada browser untuk membuka halaman episode",
+                                        )
+                                    }
+                                }
+                            },
                         )
                     }
                 }
@@ -561,6 +583,7 @@ private fun QueueTaskCard(
     onShare: () -> Unit,
     onDeleteFile: () -> Unit,
     onRemove: () -> Unit,
+    onOpenEpisode: () -> Unit,
 ) {
     var expanded by remember(task.id) { mutableStateOf(false) }
     val style = styleFor(task.state)
@@ -909,6 +932,18 @@ private fun QueueTaskCard(
                     }
                 }
             }
+        }
+
+        if (task.state == DownloadState.FAILED || task.state == DownloadState.SKIPPED) {
+            Spacer(Modifier.height(6.dp))
+            GlassButton(
+                text = "Buka halaman episode di browser",
+                onClick = onOpenEpisode,
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.Rounded.OpenInBrowser,
+                height = 40.dp,
+                tint = BrandAccent,
+            )
         }
 
     }

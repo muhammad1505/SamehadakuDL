@@ -45,8 +45,8 @@ android {
         applicationId = "app.samehadaku.dl"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "2.6.16"
+        versionCode = 29
+        versionName = "2.6.17"
 
         vectorDrawables {
             useSupportLibrary = true

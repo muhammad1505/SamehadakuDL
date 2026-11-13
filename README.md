@@ -175,6 +175,15 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
+## Rilis 2.6.17
+
+- Pilihan server di Pengaturan memakai chip yang membungkus sehingga semua host,
+  termasuk Filedon, tetap terlihat dan bisa dipilih di layar sempit.
+- Parser menyatukan link server di dalam dan di luar daftar `<li>`, jadi tidak ada
+  host yang terlewat saat halaman memakai dua bentuk markup.
+- Unduhan yang gagal di semua server kini punya tombol "Buka halaman episode di
+  browser" sebagai jalan terakhir, termasuk untuk host yang meminta captcha.
+
 ## Rilis 2.6.16
 
 - Menambahkan Filedon sebagai server unduhan: halaman `filedon.co/view/...` dibaca
