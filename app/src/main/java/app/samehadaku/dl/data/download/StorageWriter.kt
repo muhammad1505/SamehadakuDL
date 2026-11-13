@@ -1,8 +1,10 @@
 package app.samehadaku.dl.data.download
 
+import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -22,6 +24,32 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+/** The outcome of a single-location delete attempt. */
+enum class DeleteOutcome {
+    /** The entry was removed from this location. */
+    DELETED,
+
+    /** Nothing lived here, so there was nothing to remove. */
+    ABSENT,
+
+    /**
+     * The provider refused the write. On Android 10+ this usually means the row
+     * belongs to another installation and needs a user confirmation intent.
+     */
+    DENIED,
+}
+
+/**
+ * What a whole-folder or whole-file deletion ended up doing, plus the system
+ * confirmation request the UI has to launch when [confirmation] is set.
+ */
+data class DeletionResult(
+    val deleted: Int = 0,
+    val absent: Int = 0,
+    val denied: Int = 0,
+    val confirmation: IntentSender? = null,
+)
 
 /** A single video file discovered inside a collection folder. */
 data class StoredFile(
@@ -107,33 +135,15 @@ class StorageWriter @Inject constructor(
             }
         }
 
-    suspend fun deleteDownload(animeSlug: String, fileName: String): Boolean =
-        withContext(Dispatchers.IO) {
-            val safeSlug = UrlUtils.fileNameSafe(animeSlug).ifBlank { "SamehadakuDL" }
-            val treeUri = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
-            try {
-                when {
-                    !treeUri.isNullOrBlank() -> {
-                        val tree = DocumentFile.fromTreeUri(context, Uri.parse(treeUri))
-                            ?: return@withContext false
-                        val directory = tree.findFile(safeSlug)?.takeIf { it.isDirectory }
-                            ?: return@withContext true
-                        val file = directory.findFile(fileName) ?: return@withContext true
-                        file.delete()
-                    }
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
-                        val uri = findInMediaStore(safeSlug, fileName) ?: return@withContext true
-                        context.contentResolver.delete(uri, null, null) > 0
-                    }
-                    else -> {
-                        val file = legacyFile(safeSlug, fileName)
-                        !file.exists() || file.delete()
-                    }
-                }
-            } catch (_: Exception) {
-                false
-            }
-        }
+    /**
+     * Deletes one episode from wherever it is stored. It shares the collection path so
+     * a file written by an earlier installation can be removed after the system
+     * confirmation instead of failing with "izin penyimpanan dicabut".
+     */
+    suspend fun deleteDownload(animeSlug: String, fileName: String): DeletionResult {
+        val safeSlug = UrlUtils.fileNameSafe(animeSlug).ifBlank { "SamehadakuDL" }
+        return deleteStoredFile(safeSlug, fileName)
+    }
 
     /**
      * Scans every known download location and merges the results, so the collection
@@ -196,53 +206,110 @@ class StorageWriter @Inject constructor(
             }
         }
 
-    /** Deletes a collection folder and every file inside it, across all locations. */
-    suspend fun deleteFolder(folderName: String): Int =
+    /**
+     * Deletes a collection folder and every file inside it, across all locations.
+     *
+     * MediaStore refuses silent deletes for rows this installation did not create, so
+     * the result can carry a [DeletionResult.confirmation] the caller must launch
+     * before retrying; that is what previously looked like "permission revoked".
+     */
+    suspend fun deleteFolder(folderName: String): DeletionResult =
         withContext(Dispatchers.IO) {
-            if (!isSafeName(folderName)) return@withContext 0
+            if (!isSafeName(folderName)) return@withContext DeletionResult(denied = 1)
             var deleted = 0
+            var absent = 0
+            var denied = 0
+            var confirmation: IntentSender? = null
+
             val treeUri = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
             if (!treeUri.isNullOrBlank()) {
-                deleted += runCatching { deleteFolderInTree(Uri.parse(treeUri), folderName) }
-                    .getOrDefault(0)
+                val tree = runCatching { deleteFolderInTree(Uri.parse(treeUri), folderName) }
+                    .getOrElse {
+                        Log.w(TAG, "tree folder delete failed", it)
+                        DeletionResult(denied = 1)
+                    }
+                deleted += tree.deleted
+                absent += tree.absent
+                denied += tree.denied
+                confirmation = confirmation ?: tree.confirmation
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                deleted += runCatching { deleteFolderInMediaStore(folderName) }
-                    .getOrDefault(0)
+                val media = runCatching { deleteFolderInMediaStore(folderName) }
+                    .getOrElse {
+                        Log.w(TAG, "media folder delete failed", it)
+                        DeletionResult(denied = 1)
+                    }
+                deleted += media.deleted
+                absent += media.absent
+                denied += media.denied
+                confirmation = confirmation ?: media.confirmation
             }
-            deleted += runCatching { deleteFolderInLegacy(folderName) }.getOrDefault(0)
-            deleted
+            when (deleteFolderInLegacy(folderName)) {
+                DeleteOutcome.DELETED -> deleted++
+                DeleteOutcome.ABSENT -> Unit
+                DeleteOutcome.DENIED -> denied++
+            }
+
+            DeletionResult(deleted, absent, denied, confirmation)
         }
 
     /** Deletes one stored file from every location that holds it. */
-    suspend fun deleteStoredFile(folderName: String, fileName: String): Boolean =
+    suspend fun deleteStoredFile(folderName: String, fileName: String): DeletionResult =
         withContext(Dispatchers.IO) {
-            if (!isSafeName(folderName) || !isSafeName(fileName)) return@withContext false
-            var failure = false
+            if (!isSafeName(folderName) || !isSafeName(fileName)) {
+                return@withContext DeletionResult(denied = 1)
+            }
+            var deleted = 0
+            var absent = 0
+            var denied = 0
+            var confirmation: IntentSender? = null
 
-            fun record(outcome: Boolean?) {
-                if (outcome != null && !outcome) failure = true
+            fun record(outcome: DeleteOutcome) {
+                when (outcome) {
+                    DeleteOutcome.DELETED -> deleted++
+                    DeleteOutcome.ABSENT -> absent++
+                    DeleteOutcome.DENIED -> denied++
+                }
             }
 
             val treeUri = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
             if (!treeUri.isNullOrBlank()) {
                 record(
                     runCatching { deleteFileInTree(Uri.parse(treeUri), folderName, fileName) }
-                        .fold(onSuccess = { it }, onFailure = { false }),
+                        .getOrElse {
+                            Log.w(TAG, "tree file delete failed", it)
+                            DeleteOutcome.DENIED
+                        },
                 )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                record(
-                    runCatching { deleteFileInMediaStore(folderName, fileName) }
-                        .fold(onSuccess = { it }, onFailure = { false }),
-                )
+                val media = runCatching { deleteFileInMediaStore(folderName, fileName) }
+                    .getOrElse { error ->
+                        val sender = recoverableIntent(error)
+                        if (sender != null) {
+                            confirmation = sender
+                            Pair(DeleteOutcome.ABSENT, null as IntentSender?)
+                        } else {
+                            Log.w(TAG, "media file delete failed", error)
+                            Pair(DeleteOutcome.DENIED, null as IntentSender?)
+                        }
+                    }
+                deleted += if (media.first == DeleteOutcome.DELETED) 1 else 0
+                absent += if (media.first == DeleteOutcome.ABSENT) 1 else 0
+                denied += if (media.first == DeleteOutcome.DENIED) 1 else 0
+                confirmation = confirmation ?: media.second
             }
-            record(
-                runCatching { deleteFileInLegacy(folderName, fileName) }
-                    .fold(onSuccess = { it }, onFailure = { false }),
-            )
+            when (val outcome = runCatching { deleteFileInLegacy(folderName, fileName) }
+                    .getOrElse {
+                        Log.w(TAG, "legacy file delete failed", it)
+                        DeleteOutcome.DENIED
+                    }) {
+                DeleteOutcome.DELETED -> deleted++
+                DeleteOutcome.ABSENT -> absent++
+                DeleteOutcome.DENIED -> denied++
+            }
 
-            !failure
+            DeletionResult(deleted, absent, denied, confirmation)
         }
 
     /**
@@ -391,17 +458,22 @@ class StorageWriter @Inject constructor(
             .orEmpty()
     }
 
-    private fun deleteFolderInTree(treeUri: Uri, folderName: String): Int {
-        val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return 0
-        val directory = tree.findFile(folderName)?.takeIf { it.isDirectory } ?: return 0
+    /**
+     * Deletes every entry inside one SAF folder, then the folder itself. Anything the
+     * provider refuses is reported as denied so the caller never claims success while
+     * files are still sitting on disk.
+     */
+    private fun deleteFolderInTree(treeUri: Uri, folderName: String): DeletionResult {
+        val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return DeletionResult()
+        val directory = tree.findFile(folderName)?.takeIf { it.isDirectory }
+            ?: return DeletionResult()
         var deleted = 0
-        directory.listFiles().filter { it.isFile }.forEach { file ->
-            if (file.delete()) deleted++
+        var denied = 0
+        directory.listFiles().forEach { entry ->
+            if (entry.delete()) deleted++ else denied++
         }
-        if (directory.listFiles().isEmpty()) {
-            runCatching { directory.delete() }
-        }
-        return deleted
+        if (denied == 0) runCatching { directory.delete() }
+        return DeletionResult(deleted = deleted, denied = denied)
     }
 
     /**
@@ -411,15 +483,114 @@ class StorageWriter @Inject constructor(
      * works when an OEM leaves `OWNER_PACKAGE_NAME` empty.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun deleteFolderInMediaStore(folderName: String): Int {
-        val collection = mediaFileCollection()
+    private fun deleteFolderInMediaStore(folderName: String): DeletionResult {
+        val ids = mediaIdsInFolder(folderName)
+        if (ids.isEmpty()) return DeletionResult(absent = 1)
+        val result = deleteMediaRows(ids)
+        // The anime directory itself is not indexed by MediaStore; drop it when the
+        // provider no longer reports any file inside it.
+        if (result.denied == 0 && result.confirmation == null) pruneEmptyMediaFolder(folderName)
+        return result
+    }
+
+    /**
+     * Deletes MediaStore rows in one batch through the `Downloads` collection.
+     *
+     * A batch delete can return zero rows without throwing anything: providers ignore
+     * rows this installation does not own instead of raising
+     * [RecoverableSecurityException]. Treating that zero as "already gone" is what made
+     * the UI claim "sudah tidak ada" while the file was still on disk, so anything the
+     * batch leaves behind is retried row by row and reported as denied when it survives.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun deleteMediaRows(ids: List<Long>): DeletionResult {
+        if (ids.isEmpty()) return DeletionResult(absent = 1)
+        val selection = "${MediaStore.MediaColumns._ID} IN (${ids.joinToString(",")})"
+        val removed = try {
+            context.contentResolver.delete(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                selection,
+                null,
+            )
+        } catch (error: Exception) {
+            val sender = recoverableIntent(error)
+            if (sender != null) {
+                Log.i(TAG, "media delete needs user confirmation for ${ids.size} rows")
+                return DeletionResult(denied = ids.size, confirmation = sender)
+            }
+            Log.w(TAG, "media bulk delete failed", error)
+            0
+        }
+        Log.d(TAG, "media bulk delete requested=${ids.size} removed=$removed")
+
+        val remaining = ids.filter { mediaRowExists(it) }
+        val gone = ids.size - remaining.size
+        if (remaining.isEmpty()) return DeletionResult(deleted = gone)
+
+        // Retry what the batch did not touch: some providers raise the confirmation
+        // exception only for single-item deletes.
+        val single = fallbackDeleteOneByOne(remaining)
+        Log.d(
+            TAG,
+            "media delete retry requested=${remaining.size} deleted=${single.deleted} " +
+                "absent=${single.absent} denied=${single.denied}",
+        )
+        return DeletionResult(
+            deleted = gone + single.deleted,
+            absent = single.absent,
+            denied = single.denied,
+            confirmation = single.confirmation,
+        )
+    }
+
+    /** Retries each row separately, collecting the first confirmation request found. */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun fallbackDeleteOneByOne(ids: List<Long>): DeletionResult {
+        var deleted = 0
+        var absent = 0
+        var denied = 0
+        var confirmation: IntentSender? = null
+        for (id in ids) {
+            val uri = ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+            val removed = try {
+                context.contentResolver.delete(uri, null, null)
+            } catch (error: Exception) {
+                val sender = recoverableIntent(error)
+                if (sender != null && confirmation == null) confirmation = sender
+                denied++
+                continue
+            }
+            when {
+                removed > 0 -> deleted++
+                // Zero deletes with the row still there means the provider refused,
+                // not that the file was already gone.
+                mediaRowExists(id) -> denied++
+                else -> absent++
+            }
+        }
+        return DeletionResult(deleted, absent, denied, confirmation)
+    }
+
+    /** True when MediaStore still lists the row, used to tell denial apart from absence. */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaRowExists(id: Long): Boolean =
+        context.contentResolver.query(
+            ContentUris.withAppendedId(mediaFileCollection(), id),
+            arrayOf(MediaStore.MediaColumns._ID),
+            null,
+            null,
+            null,
+        )?.use { cursor -> cursor.moveToFirst() } ?: false
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaIdsInFolder(folderName: String): List<Long> {
         val projection = arrayOf(
             MediaStore.MediaColumns._ID,
             MediaStore.MediaColumns.RELATIVE_PATH,
         )
         val ids = mutableListOf<Long>()
         context.contentResolver.query(
-            collection,
+            mediaFileCollection(),
             projection,
             "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
             arrayOf("%/$APP_FOLDER%"),
@@ -434,53 +605,100 @@ class StorageWriter @Inject constructor(
                 if (parent.equals(folderName, ignoreCase = true)) ids.add(cursor.getLong(idIndex))
             }
         }
-        var deleted = 0
-        for (id in ids) {
-            runCatching {
-                if (context.contentResolver.delete(
-                        ContentUris.withAppendedId(collection, id),
-                        null,
-                        null,
-                    ) > 0
-                ) {
-                    deleted++
-                }
+        return ids
+    }
+
+    /** Removes the leftover directory on disk once MediaStore has no rows for it. */
+    private fun pruneEmptyMediaFolder(folderName: String) {
+        val directory = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            "$APP_FOLDER/$folderName",
+        )
+        if (directory.isDirectory && directory.listFiles().isNullOrEmpty()) {
+            runCatching { directory.delete() }
+        }
+    }
+
+    /** Unwraps the system confirmation intent carried by a recoverable security error. */
+    private fun recoverableIntent(error: Throwable): IntentSender? {
+        var current: Throwable? = error
+        while (current != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                current is RecoverableSecurityException
+            ) {
+                @Suppress("DEPRECATION")
+                return current.userAction?.actionIntent?.intentSender
             }
+            current = current.cause
         }
-        return deleted
+        return null
     }
 
-    private fun deleteFolderInLegacy(folderName: String): Int {
+    private fun deleteFolderInLegacy(folderName: String): DeleteOutcome {
         val directory = File(legacyBase(), "$APP_FOLDER/$folderName")
-        if (!directory.isDirectory) return 0
-        var deleted = 0
+        if (!directory.isDirectory) return DeleteOutcome.ABSENT
+        var removed = 0
+        var blocked = false
         directory.listFiles()?.filter { it.isFile }?.forEach { file ->
-            if (file.delete()) deleted++
+            if (file.delete()) removed++ else blocked = true
         }
-        if (directory.listFiles()?.isNotEmpty() != true) {
-            directory.delete()
+        if (!blocked && directory.listFiles()?.isEmpty() == true) {
+            if (!directory.delete()) blocked = true
         }
-        return deleted
+        return when {
+            blocked -> DeleteOutcome.DENIED
+            removed > 0 || directoryAbsentOrGone(directory) -> DeleteOutcome.DELETED
+            else -> DeleteOutcome.ABSENT
+        }
     }
 
-    /** Returns null when the file is not present in that location. */
-    private fun deleteFileInTree(treeUri: Uri, folderName: String, fileName: String): Boolean? {
-        val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return null
-        val directory = tree.findFile(folderName)?.takeIf { it.isDirectory } ?: return null
-        val file = directory.findFile(fileName) ?: return null
-        return file.delete()
+    private fun directoryAbsentOrGone(directory: File): Boolean = !directory.exists()
+
+    /** Returns [DeleteOutcome.ABSENT] when the file simply is not in that location. */
+    private fun deleteFileInTree(treeUri: Uri, folderName: String, fileName: String): DeleteOutcome {
+        val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return DeleteOutcome.ABSENT
+        val directory = tree.findFile(folderName)?.takeIf { it.isDirectory }
+            ?: return DeleteOutcome.ABSENT
+        val file = directory.findFile(fileName) ?: return DeleteOutcome.ABSENT
+        return if (file.delete()) DeleteOutcome.DELETED else DeleteOutcome.DENIED
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun deleteFileInMediaStore(folderName: String, fileName: String): Boolean? {
-        val uri = findInMediaStore(folderName, fileName) ?: return null
-        return context.contentResolver.delete(uri, null, null) > 0
+    private fun deleteFileInMediaStore(
+        folderName: String,
+        fileName: String,
+    ): Pair<DeleteOutcome, IntentSender?> {
+        val ids = mediaIdsInFolder(folderName).filter { id ->
+            mediaRowHasName(id, fileName)
+        }
+        if (ids.isEmpty()) return Pair(DeleteOutcome.ABSENT, null)
+        val result = deleteMediaRows(ids)
+        val outcome = when {
+            result.deleted > 0 -> DeleteOutcome.DELETED
+            result.denied > 0 || result.confirmation != null -> DeleteOutcome.DENIED
+            else -> DeleteOutcome.ABSENT
+        }
+        return Pair(outcome, result.confirmation)
     }
 
-    private fun deleteFileInLegacy(folderName: String, fileName: String): Boolean? {
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaRowHasName(id: Long, fileName: String): Boolean {
+        val uri = ContentUris.withAppendedId(mediaFileCollection(), id)
+        return context.contentResolver.query(
+            uri,
+            arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            cursor.moveToFirst() && cursor.getString(0).equals(fileName, ignoreCase = true)
+        } ?: false
+    }
+
+    private fun deleteFileInLegacy(folderName: String, fileName: String): DeleteOutcome {
         val file = File(legacyBase(), "$APP_FOLDER/$folderName/$fileName")
-        if (!file.exists()) return null
-        return file.delete()
+        if (!file.exists()) return DeleteOutcome.ABSENT
+        return if (file.delete()) DeleteOutcome.DELETED else DeleteOutcome.DENIED
     }
 
     private fun prettyTreePath(treeUri: Uri): String {

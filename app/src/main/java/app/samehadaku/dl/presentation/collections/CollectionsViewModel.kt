@@ -1,12 +1,15 @@
 package app.samehadaku.dl.presentation.collections
 
+import android.content.IntentSender
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.samehadaku.dl.data.download.DeletionResult
 import app.samehadaku.dl.data.download.StorageWriter
 import app.samehadaku.dl.data.download.StoredFile
 import app.samehadaku.dl.data.download.StoredFolder
 import app.samehadaku.dl.data.repository.AnimeCoverRepository
+import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.usecase.OpenDownloadUseCase
 import app.samehadaku.dl.domain.usecase.ShareDownloadUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -51,6 +54,7 @@ class CollectionsViewModel @Inject constructor(
     private val coverRepository: AnimeCoverRepository,
     private val openDownload: OpenDownloadUseCase,
     private val shareDownload: ShareDownloadUseCase,
+    private val settings: SettingsRepository,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -60,6 +64,17 @@ class CollectionsViewModel @Inject constructor(
 
     private val _messages = Channel<String>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
+
+    /** System confirmation requests raised by MediaStore while deleting. */
+    private val _confirmationRequests = Channel<IntentSender>(Channel.BUFFERED)
+    val confirmationRequests = _confirmationRequests.receiveAsFlow()
+
+    /** Raised when the delete failed only because the folder access was never picked. */
+    private val _folderAccessRequests = Channel<Unit>(Channel.BUFFERED)
+    val folderAccessRequests = _folderAccessRequests.receiveAsFlow()
+
+    /** Last deletion the user asked for; kept so it can be retried after approval. */
+    private var pendingDelete: PendingDelete? = null
 
     init {
         refresh()
@@ -143,33 +158,104 @@ class CollectionsViewModel @Inject constructor(
     }
 
     fun deleteFile(folder: StoredFolder, file: StoredFile) {
-        viewModelScope.launch {
-            val removed = runCatching { storage.deleteStoredFile(folder.name, file.name) }
-                .getOrDefault(false)
-            if (removed) {
-                _messages.send("File ${file.name} dihapus.")
-            } else {
-                _messages.send(
-                    "File tidak bisa dihapus. Mungkin sudah dipindahkan atau izin penyimpanan dicabut.",
-                )
-            }
-            refresh()
-        }
+        val pending = PendingDelete.File(folder.name, file.name)
+        pendingDelete = pending
+        viewModelScope.launch { performDelete(pending) }
     }
 
     fun deleteFolder(folder: StoredFolder) {
+        val pending = PendingDelete.Folder(folder.name)
+        pendingDelete = pending
+        viewModelScope.launch { performDelete(pending) }
+    }
+
+    /** Re-runs the last deletion after the user approves the system dialog. */
+    fun retryPendingDelete() {
+        val pending = pendingDelete ?: return
+        viewModelScope.launch { performDelete(pending) }
+    }
+
+    /** Saves the folder picked from the delete prompt, then retries the deletion. */
+    fun onFolderPicked(uri: String) {
         viewModelScope.launch {
-            val deleted = runCatching { storage.deleteFolder(folder.name) }.getOrDefault(0)
-            if (deleted > 0) {
-                _messages.send(
-                    "Folder ${folder.name} dihapus ($deleted file).",
-                )
-            } else {
-                _messages.send(
-                    "Folder tidak bisa dihapus. Periksa izin penyimpanan lalu coba lagi.",
-                )
-            }
-            refresh()
+            runCatching { settings.setDownloadTreeUri(uri) }
+            _messages.send("Izin folder disimpan. Mencoba menghapus lagi…")
+            retryPendingDelete()
         }
+    }
+
+    private suspend fun performDelete(pending: PendingDelete) {
+        val result = when (pending) {
+            is PendingDelete.File ->
+                runCatching { storage.deleteStoredFile(pending.folderName, pending.fileName) }
+                    .getOrDefault(DeletionResult(denied = 1))
+
+            is PendingDelete.Folder ->
+                runCatching { storage.deleteFolder(pending.folderName) }
+                    .getOrDefault(DeletionResult(denied = 1))
+        }
+        when {
+            result.confirmation != null -> {
+                requestConfirmation(result.confirmation)
+                _messages.send("Butuh konfirmasi sistem untuk menghapus ${pending.label}.")
+            }
+            result.denied > 0 -> {
+                // Android 10 refuses media rows owned by an earlier installation and has
+                // no confirmation intent for them, so a picked folder is the only way to
+                // finish the delete. Keep the request pending until the user answers.
+                val canPickFolder = runCatching { settings.currentDownloadTreeUri() }
+                    .getOrNull().isNullOrBlank()
+                pendingDelete = if (canPickFolder) pending else null
+                if (canPickFolder) {
+                    _folderAccessRequests.trySend(Unit)
+                } else {
+                    _messages.send(
+                        if (result.deleted > 0) {
+                            "${pending.label} terhapus sebagian, ${result.denied} bagian masih " + "ditahan penyimpanan."
+                        } else {
+                            "${pending.label} tidak bisa dihapus. Penyimpanan menolak izin tulis."
+                        },
+                    )
+                }
+            }
+            result.deleted > 0 -> {
+                pendingDelete = null
+                when (pending) {
+                    is PendingDelete.File ->
+                        _messages.send("File ${pending.fileName} dihapus.")
+
+                    is PendingDelete.Folder ->
+                        _messages.send(
+                            "Folder ${prettyTitle(pending.folderName)} dihapus " +
+                                "(${result.deleted} file).",
+                        )
+                }
+            }
+            else -> {
+                pendingDelete = null
+                _messages.send("${pending.label} sudah tidak ada di penyimpanan.")
+            }
+        }
+        refresh()
+    }
+
+    private fun prettyTitle(name: String): String = name.replace('-', ' ')
+
+    /** Launches the system confirmation dialog and retries once the user approves. */
+    fun requestConfirmation(sender: IntentSender) {
+        _confirmationRequests.trySend(sender)
+    }
+}
+
+/** What the user asked to remove, kept so it can be retried after a system prompt. */
+private sealed class PendingDelete {
+    abstract val label: String
+
+    data class File(val folderName: String, val fileName: String) : PendingDelete() {
+        override val label: String get() = "File $fileName"
+    }
+
+    data class Folder(val folderName: String) : PendingDelete() {
+        override val label: String get() = "Folder ${folderName.replace('-', ' ')}"
     }
 }

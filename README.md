@@ -162,6 +162,19 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   `READ_EXTERNAL_STORAGE`, sehingga peringatan izin di Play Protect/VirusTotal
   bisa muncul lagi. Verifikasi hash dan appeal Play Protect tetap dilakukan.
 
+## Rilis 2.6.15
+
+- Menghapus folder atau file di Koleksi tidak lagi dilaporkan "sudah tidak ada" ketika
+  penyimpanan sebenarnya menolak menghapus. Hasil MediaStore diverifikasi ulang per baris
+  dan sisa yang gagal dihapus dicoba satu per satu.
+- Menampilkan konfirmasi sistem saat Android mengizinkan penghapusan lewat dialog izin,
+  dan menandai penghapusan yang ditolak penyimpanan sebagai gagal, bukan sebagai berhasil.
+- Android 10 tidak menyediakan dialog konfirmasi untuk file milik instalasi sebelumnya,
+  jadi Koleksi kini menawarkan pemilihan folder `Download/SamehadakuDL` sekali, lalu
+  melanjutkan penghapusan secara otomatis.
+- Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
+  percobaan ulang setelah izin diberikan.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:

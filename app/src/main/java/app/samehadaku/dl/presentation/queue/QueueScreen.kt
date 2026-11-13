@@ -1,6 +1,10 @@
 package app.samehadaku.dl.presentation.queue
 
+import android.app.Activity
 import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -122,6 +126,22 @@ fun QueueScreen(
     LaunchedEffect(Unit) {
         viewModel.messages.collect { message ->
             snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    // A file written by an earlier installation cannot be deleted silently; the
+    // provider sends a confirmation intent that has to run before the retry.
+    val startConfirmation = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) viewModel.retryPendingDelete()
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.confirmationRequests.collect { sender ->
+            runCatching {
+                startConfirmation.launch(IntentSenderRequest.Builder(sender).build())
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package app.samehadaku.dl.presentation.queue
 
+import android.content.IntentSender
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -83,6 +84,13 @@ class QueueViewModel @Inject constructor(
 
     private val _messages = Channel<String>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
+
+    /** System confirmation requests raised by MediaStore while deleting. */
+    private val _confirmationRequests = Channel<IntentSender>(Channel.BUFFERED)
+    val confirmationRequests = _confirmationRequests.receiveAsFlow()
+
+    /** Last file the user asked to remove; kept so it can be retried after approval. */
+    private var pendingDelete: DownloadTask? = null
 
     private val duplicateNotified = mutableSetOf<String>()
     private val covers = MutableStateFlow<Map<String, Bitmap?>>(emptyMap())
@@ -207,15 +215,37 @@ class QueueViewModel @Inject constructor(
     fun remove(id: String) = control.remove(id)
 
     fun deleteFile(task: DownloadTask) {
-        viewModelScope.launch {
-            deleteDownload(task)
-                .onSuccess {
-                    control.remove(task.id)
-                    _messages.send("File episode ${task.episodeNumber} dihapus.")
-                }
-                .onFailure { error ->
-                    _messages.send(error.message ?: "File gagal dihapus.")
-                }
+        pendingDelete = task
+        viewModelScope.launch { performDelete(task) }
+    }
+
+    /** Re-runs the last deletion after the user approves the system dialog. */
+    fun retryPendingDelete() {
+        val task = pendingDelete ?: return
+        viewModelScope.launch { performDelete(task) }
+    }
+
+    private suspend fun performDelete(task: DownloadTask) {
+        val result = deleteDownload(task).getOrElse { error ->
+            _messages.send(error.message ?: "File gagal dihapus.")
+            return
+        }
+        when {
+            result.confirmation != null -> {
+                _confirmationRequests.trySend(result.confirmation)
+                _messages.send(
+                    "Butuh konfirmasi sistem untuk menghapus file episode ${task.episodeNumber}.",
+                )
+            }
+            result.denied > 0 -> _messages.send(
+                "File episode ${task.episodeNumber} tidak bisa dihapus. " +
+                    "Penyimpanan menolak izin tulis.",
+            )
+            else -> {
+                pendingDelete = null
+                control.remove(task.id)
+                _messages.send("File episode ${task.episodeNumber} dihapus.")
+            }
         }
     }
 

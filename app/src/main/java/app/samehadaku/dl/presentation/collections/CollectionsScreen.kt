@@ -1,10 +1,14 @@
 package app.samehadaku.dl.presentation.collections
 
+import android.app.Activity
 import android.Manifest
+import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -145,9 +149,84 @@ fun CollectionsScreen(
         }
     }
 
+    // MediaStore can refuse a silent delete for files written by an earlier install;
+    // the provider hands us a confirmation intent that has to run as an activity
+    // result before the same delete is allowed.
+    val startConfirmation = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) viewModel.retryPendingDelete()
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.confirmationRequests.collect { sender ->
+            runCatching {
+                startConfirmation.launch(
+                    IntentSenderRequest.Builder(sender).build(),
+                )
+            }
+        }
+    }
+
+    // Older releases cannot delete files from an earlier installation through
+    // MediaStore at all; letting the user pick the download folder once is the only
+    // way to finish the delete there.
+    var folderPrompt by remember { mutableStateOf(false) }
+    val folderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        } catch (_: SecurityException) {
+            // Some providers grant temporary access only; the retry still works now.
+        }
+        viewModel.onFolderPicked(uri.toString())
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.folderAccessRequests.collect { folderPrompt = true }
+    }
+
     LaunchedEffect(state.error) {
         val message = state.error ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
+    }
+
+    if (folderPrompt) {
+        AlertDialog(
+            onDismissRequest = { folderPrompt = false },
+            containerColor = SlateSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = { Text("Izin folder diperlukan") },
+            text = {
+                Text(
+                    "Android ${Build.VERSION.RELEASE} tidak mengizinkan aplikasi menghapus " +
+                        "file dari instalasi sebelumnya tanpa izin folder. Pilih folder " +
+                        "Download/SamehadakuDL satu kali, lalu penghapusan dilanjutkan otomatis.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        folderPrompt = false
+                        folderPicker.launch(null)
+                    },
+                ) {
+                    Text("Pilih folder", color = BrandPrimary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { folderPrompt = false }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            },
+        )
     }
 
     pendingDelete?.let { folder ->
