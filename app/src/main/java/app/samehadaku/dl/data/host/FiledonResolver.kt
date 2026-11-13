@@ -134,38 +134,56 @@ class FiledonResolver @Inject constructor(
             .build()
     }
 
+    /**
+     * The queue preflights a link and then resolves it again for the download.
+     * Filedon needs a page GET plus a CSRF POST for every resolution, so remember
+     * the signed URL briefly instead of replaying the whole browser flow twice.
+     */
+    private val cacheLock = Any()
+    private val resolutions = LinkedHashMap<String, CachedResolution>()
+
     override suspend fun resolve(url: String): HostResolveResult = withContext(Dispatchers.IO) {
         val shareId = FiledonUrlParser.shareId(url)
             ?: return@withContext permanent("Link Filedon tidak valid")
+        cachedResolution(shareId)?.let { return@withContext it }
+
+        val result = resolveShare(shareId)
+        if (result is HostResolveResult.Success) {
+            cacheResolution(shareId, result)
+        }
+        result
+    }
+
+    private fun resolveShare(shareId: String): HostResolveResult {
         val pageUrl = FiledonUrlParser.pageUrl(shareId)
 
         val page = perform(pageRequest(pageUrl))
-            ?: return@withContext retryable(NETWORK_ERROR)
-        failureFor(page.code)?.let { return@withContext it }
+            ?: return retryable(NETWORK_ERROR)
+        failureFor(page.code)?.let { return it }
         if (page.code != HTTP_OK) {
-            return@withContext retryable("Filedon mengembalikan HTTP ${page.code}")
+            return retryable("Filedon mengembalikan HTTP ${page.code}")
         }
 
         val props = FiledonPage.parse(page.body)
-            ?: return@withContext retryable("Halaman Filedon tidak dapat dibaca")
-        FiledonPage.unavailableReason(props)?.let { return@withContext permanent(it) }
+            ?: return retryable("Halaman Filedon tidak dapat dibaca")
+        FiledonPage.unavailableReason(props)?.let { return permanent(it) }
 
         val xsrf = xsrfToken(pageUrl)
         val csrf = FiledonPage.csrfToken(props)
         if (xsrf == null && csrf == null) {
-            return@withContext retryable("Sesi Filedon tidak ditemukan")
+            return retryable("Sesi Filedon tidak ditemukan")
         }
 
         val download = perform(downloadRequest(shareId, pageUrl, xsrf, csrf))
-            ?: return@withContext retryable(NETWORK_ERROR)
+            ?: return retryable(NETWORK_ERROR)
         when (download.code) {
-            HTTP_FORBIDDEN, HTTP_SESSION_EXPIRED -> return@withContext retryable(
+            HTTP_FORBIDDEN, HTTP_SESSION_EXPIRED -> return retryable(
                 "Sesi unduhan Filedon ditolak; coba lagi nanti",
             )
         }
-        failureFor(download.code)?.let { return@withContext it }
+        failureFor(download.code)?.let { return it }
         if (download.code !in 200..399) {
-            return@withContext retryable("Filedon mengembalikan HTTP ${download.code}")
+            return retryable("Filedon mengembalikan HTTP ${download.code}")
         }
 
         // Check the URL first: a successful download can also push the share to
@@ -173,10 +191,10 @@ class FiledonResolver @Inject constructor(
         val downloadProps = FiledonPage.parseBody(download.body)
         if (downloadProps != null) {
             FiledonPage.downloadUrl(downloadProps)?.let { direct ->
-                return@withContext HostResolveResult.Success(direct)
+                return HostResolveResult.Success(direct)
             }
             FiledonPage.unavailableReason(downloadProps)?.let { reason ->
-                return@withContext permanent(reason)
+                return permanent(reason)
             }
         }
 
@@ -186,14 +204,38 @@ class FiledonResolver @Inject constructor(
         val retryProps = FiledonPage.parseBody(retryPage?.body.orEmpty())
         if (retryProps != null) {
             FiledonPage.downloadUrl(retryProps)?.let { direct ->
-                return@withContext HostResolveResult.Success(direct)
+                return HostResolveResult.Success(direct)
             }
             FiledonPage.unavailableReason(retryProps)?.let { reason ->
-                return@withContext permanent(reason)
+                return permanent(reason)
             }
         }
 
-        retryable("Filedon belum memberikan link unduhan; coba lagi nanti")
+        return retryable("Filedon belum memberikan link unduhan; coba lagi nanti")
+    }
+
+    private fun cachedResolution(shareId: String): HostResolveResult.Success? {
+        synchronized(cacheLock) {
+            val cached = resolutions[shareId] ?: return null
+            if (cached.expiresAt > System.currentTimeMillis()) return cached.result
+            resolutions.remove(shareId)
+        }
+        return null
+    }
+
+    private fun cacheResolution(shareId: String, result: HostResolveResult.Success) {
+        synchronized(cacheLock) {
+            val now = System.currentTimeMillis()
+            resolutions.entries.removeAll { it.value.expiresAt <= now }
+            while (resolutions.size >= CACHE_SIZE) {
+                val oldest = resolutions.keys.firstOrNull() ?: break
+                resolutions.remove(oldest)
+            }
+            resolutions[shareId] = CachedResolution(
+                result = result,
+                expiresAt = now + CACHE_TTL_MS,
+            )
+        }
     }
 
     private fun pageRequest(url: String): Request = Request.Builder()
@@ -269,6 +311,11 @@ class FiledonResolver @Inject constructor(
         val body: String,
     )
 
+    private data class CachedResolution(
+        val result: HostResolveResult.Success,
+        val expiresAt: Long,
+    )
+
     /** Minimal browser-like cookie jar for the Filedon session and XSRF cookies. */
     private class FiledonCookieJar : CookieJar {
 
@@ -301,6 +348,8 @@ class FiledonResolver @Inject constructor(
         const val XSRF_COOKIE = "XSRF-TOKEN"
         const val NETWORK_ERROR = "Gagal menghubungi Filedon: kesalahan jaringan"
         const val HTML_ACCEPT = "text/html,application/xhtml+xml"
+        const val CACHE_SIZE = 32
+        const val CACHE_TTL_MS = 5 * 60 * 1000L
 
         val JSON_MEDIA_TYPE = "application/json".toMediaType()
     }

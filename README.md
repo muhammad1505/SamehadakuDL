@@ -175,6 +175,11 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
+## Rilis 2.6.20
+
+- Resolusi Filedon disimpan sebentar, jadi preflight dan unduhan tidak mengulang
+  GET halaman plus POST download untuk link yang sama.
+
 ## Rilis 2.6.19
 
 - Resolver Filedon memakai cookie jar sehingga cookie sesi dan XSRF dari respons
