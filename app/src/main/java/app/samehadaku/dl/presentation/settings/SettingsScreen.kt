@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -78,6 +80,7 @@ import app.samehadaku.dl.presentation.components.GlassCard
 import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.GradientButton
 import app.samehadaku.dl.presentation.components.MetricTile
+import app.samehadaku.dl.presentation.components.PillChip
 import app.samehadaku.dl.presentation.components.pressable
 import app.samehadaku.dl.presentation.components.ScreenScaffold
 import app.samehadaku.dl.presentation.components.ScreenTopBar
@@ -96,6 +99,7 @@ import app.samehadaku.dl.presentation.theme.TextSecondary
 import app.samehadaku.dl.presentation.theme.Warning
 import app.samehadaku.dl.presentation.util.shortDateTime
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onTabSelected: (AppTab) -> Unit,
@@ -486,12 +490,18 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelMedium,
                     )
                     Spacer(Modifier.height(6.dp))
-                    SegmentedTabs(
-                        tabs = Host.entries.map { host -> SegmentTab(label = host.label) },
-                        selectedIndex = quality?.host
-                            ?.let { Host.entries.indexOf(it) } ?: -1,
-                        onSelect = { index -> viewModel.setQualityHost(Host.entries[index]) },
-                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Host.entries.forEach { host ->
+                            PillChip(
+                                label = host.label,
+                                selected = quality?.host == host,
+                                onClick = { viewModel.setQualityHost(host) },
+                            )
+                        }
+                    }
                     if (quality != null) {
                         Spacer(Modifier.height(8.dp))
                         Text(

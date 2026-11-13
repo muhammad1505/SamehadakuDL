@@ -61,20 +61,25 @@ object DownloadLinkParser {
         }
 
         // The current movie/episode layout does not always wrap download
-        // anchors in <li>. Walk supported host links directly so the parser
-        // remains compatible with both the legacy list and the redesigned
-        // format/resolution sections.
-        if (linkData.isEmpty()) {
-            for (anchor in document.select("a[href]")) {
-                val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
-                val host = Host.fromLink(href, anchor.text()) ?: continue
-                val resolution = findResolution(anchor)
-                val format = resolveFormat(anchor, allNodes)
-                val hosts = linkData
-                    .getOrPut(format) { linkedMapOf() }
-                    .getOrPut(resolution) { linkedMapOf() }
-                hosts[host] = href
+        // anchors in <li>, and a page can mix both shapes. Walk supported host
+        // links outside the legacy list as well so no server is dropped just
+        // because another server was already found in a list.
+        val skipListed = linkData.isNotEmpty()
+        for (anchor in document.select("a[href]")) {
+            if (skipListed && anchor.parents().any { parent ->
+                    parent.tagName().equals("li", ignoreCase = true)
+                }
+            ) {
+                continue
             }
+            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
+            val host = Host.fromLink(href, anchor.text()) ?: continue
+            val resolution = findResolution(anchor)
+            val format = resolveFormat(anchor, allNodes)
+            val hosts = linkData
+                .getOrPut(format) { linkedMapOf() }
+                .getOrPut(resolution) { linkedMapOf() }
+            if (host !in hosts) hosts[host] = href
         }
 
         val cleaned = linkData

@@ -20,6 +20,7 @@ class DownloadLinkParserTest {
               <li>1080p <a href="https://www.mediafire.com/file/xyz789/file.mkv">Mediafire</a></li>
               <li>1080p <a href="https://gofile.io/d/gofile123">Gofile</a></li>
               <li>1080p <a href="https://acefile.co/f/987654/file.mkv">Acefile</a></li>
+              <li>1080p <a href="https://filedon.co/view/f3kUTC3QTM">Filedon</a></li>
             </ul>
           </div>
           <div class="links">
@@ -92,6 +93,10 @@ class DownloadLinkParserTest {
             links.url(VideoFormat.MKV, "1080p", Host.ACEFILE),
         )
         assertEquals(
+            "https://filedon.co/view/f3kUTC3QTM",
+            links.url(VideoFormat.MKV, "1080p", Host.FILEDON),
+        )
+        assertEquals(
             "https://pixeldrain.com/u/mp4file",
             links.url(VideoFormat.MP4, "720p", Host.PIXELDRAIN),
         )
@@ -129,6 +134,33 @@ class DownloadLinkParserTest {
         assertEquals(
             "https://pixeldrain.com/u/hd",
             links.url(VideoFormat.MP4, "720p", Host.PIXELDRAIN),
+        )
+    }
+
+    @Test
+    fun `keeps filedon links outside the legacy list`() {
+        val html = """
+            <html><body>
+              <h3>MKV 720p</h3>
+              <ul>
+                <li>720p <a href="https://gofile.io/d/abc">Gofile</a></li>
+              </ul>
+              <div class="mirror-extra">
+                <h4>720p</h4>
+                <a href="https://filedon.co/view/extraSh4re">Filedon</a>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val links = DownloadLinkParser.parse(html, pageUrl)
+        assertNotNull(links)
+        assertEquals(
+            "https://gofile.io/d/abc",
+            links!!.url(VideoFormat.MKV, "720p", Host.GOFILE),
+        )
+        assertEquals(
+            "https://filedon.co/view/extraSh4re",
+            links.url(VideoFormat.MKV, "720p", Host.FILEDON),
         )
     }
 

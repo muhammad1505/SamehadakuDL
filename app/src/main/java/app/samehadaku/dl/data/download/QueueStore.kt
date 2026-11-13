@@ -75,7 +75,7 @@ class QueueStore @Inject constructor(
         val episodeUrl = item.optString("episodeUrl")
         if (id.isBlank() || episodeUrl.isBlank()) return null
         val format = VideoFormat.fromLabel(item.optString("format")) ?: return null
-        val host = Host.fromLink(item.optString("preferredHost")) ?: Host.PIXELDRAIN
+        val host = parseHost(item.optString("preferredHost")) ?: Host.PIXELDRAIN
         val state = runCatching {
             DownloadState.valueOf(item.optString("state"))
         }.getOrDefault(DownloadState.PAUSED)
@@ -104,7 +104,7 @@ class QueueStore @Inject constructor(
             state = state,
             bytesDone = item.optLong("bytesDone", 0L),
             totalBytes = item.optLong("totalBytes", 0L),
-            currentHost = Host.fromLink(item.optString("currentHost")),
+            currentHost = parseHost(item.optString("currentHost")),
             failureReasons = reasons,
             note = if (item.isNull("note")) null else item.optString("note").ifBlank { null },
             fileName = if (item.isNull("fileName")) null else item.optString("fileName").ifBlank { null },
@@ -114,6 +114,10 @@ class QueueStore @Inject constructor(
             finishedAt = finishedAt,
         )
     }
+
+    /** Saved tasks use the enum name; fall back to URL/label matching for old rows. */
+    private fun parseHost(raw: String): Host? =
+        Host.entries.firstOrNull { it.name == raw } ?: Host.fromLink(raw)
 
     private companion object {
         val KEY_QUEUE = stringPreferencesKey("download_queue")
