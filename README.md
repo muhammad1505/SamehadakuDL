@@ -175,6 +175,15 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
+## Rilis 2.6.19
+
+- Resolver Filedon memakai cookie jar sehingga cookie sesi dan XSRF dari respons
+  redirect tetap terkirim ke halaman unduhan.
+- Link Filedon yang kedaluwarsa atau sudah mencapai batas unduhan dikenali sebagai
+  kegagalan permanen, bukan dicoba ulang tanpa akhir.
+- Parsing link Filedon diperketat ke domain resmi, dan pembacaan props halaman
+  dipisahkan dari alur jaringan agar lebih mudah dirawat.
+
 ## Rilis 2.6.18
 
 - Server yang dicoret situs (mis. `Filedon` pada episode lama) kini tetap muncul di

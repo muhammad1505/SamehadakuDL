@@ -25,6 +25,7 @@ class FiledonUrlParserTest {
     @Test
     fun `rejects unsupported links`() {
         assertNull(FiledonUrlParser.shareId("https://example.com/view/f3kUTC3QTM"))
+        assertNull(FiledonUrlParser.shareId("https://example.com/filedon.co/view/f3kUTC3QTM"))
     }
 
     @Test
