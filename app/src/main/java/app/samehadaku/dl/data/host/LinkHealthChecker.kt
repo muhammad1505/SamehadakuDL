@@ -67,10 +67,10 @@ class LinkHealthChecker @Inject constructor(
                     response.isSuccessful -> {
                         val contentType = response.header("Content-Type").orEmpty().lowercase()
                         if ("text/html" in contentType) {
-                            // Gofile/Acefile can answer with a landing or login page when
-                            // their session headers are stale; let the download try instead
-                            // of skipping the episode as dead.
-                            if (host == Host.GOFILE || host == Host.ACEFILE) {
+                            // Gofile/Acefile/Filedon can answer with a landing or login page
+                            // when their session headers are stale; let the download try
+                            // instead of skipping the episode as dead.
+                            if (host == Host.GOFILE || host == Host.ACEFILE || host == Host.FILEDON) {
                                 LinkHealth.Unknown
                             } else {
                                 LinkHealth.Dead("${host.label}: server mengirim halaman, bukan file")

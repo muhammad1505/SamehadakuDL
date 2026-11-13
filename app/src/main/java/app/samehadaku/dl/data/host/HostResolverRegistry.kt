@@ -11,6 +11,7 @@ class HostResolverRegistry @Inject constructor(
     private val mediafireResolver: MediafireResolver,
     private val gofileResolver: GofileResolver,
     private val acefileResolver: AcefileResolver,
+    private val filedonResolver: FiledonResolver,
 ) {
 
     suspend fun resolve(host: Host, url: String): HostResolveResult = when (host) {
@@ -18,5 +19,6 @@ class HostResolverRegistry @Inject constructor(
         Host.MEDIAFIRE -> mediafireResolver.resolve(url)
         Host.GOFILE -> gofileResolver.resolve(url)
         Host.ACEFILE -> acefileResolver.resolve(url)
+        Host.FILEDON -> filedonResolver.resolve(url)
     }
 }

@@ -9,7 +9,7 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Deteksi episode dari URL daftar anime maupun episode tunggal.
 - Terima link yang dibagikan dari browser/aplikasi lain lewat share sheet Android.
 - Pemilihan episode cepat lewat daftar, pilih semua, atau rentang (`1-12, 15`).
-- Pemilihan format (MKV/MP4/X265), resolusi, dan server (Pixeldrain/Mediafire/Gofile/Acefile)
+- Pemilihan format (MKV/MP4/X265), resolusi, dan server (Pixeldrain/Mediafire/Gofile/Acefile/Filedon)
   dengan fallback.
 - Satu layar Unduhan untuk antrean berjalan sekaligus riwayat (Semua/Selesai/Gagal),
   dengan konkurensi 1–3, jeda/lanjut per episode maupun massal.
@@ -174,6 +174,13 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   melanjutkan penghapusan secara otomatis.
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
+
+## Rilis 2.6.16
+
+- Menambahkan Filedon sebagai server unduhan: halaman `filedon.co/view/...` dibaca
+  otomatis, termasuk sesi dan token berbaginya, lalu link unduhan langsung dipakai.
+- Menampilkan daftar server yang didukung di Pengaturan agar pilihan host lebih jelas;
+  server pilihan tetap dipakai lebih dulu dengan fallback otomatis ke server lain.
 
 ## Penyimpanan dan izin
 

@@ -511,6 +511,39 @@ fun SettingsScreen(
 
             item {
                 SettingSection(
+                    title = "Host didukung",
+                    subtitle = "Server unduhan yang dikenali",
+                    icon = Icons.Rounded.CloudDone,
+                    tint = BrandMint,
+                    badge = "${Host.entries.size} host",
+                ) {
+                    Host.entries.chunked(3).forEach { hosts ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            hosts.forEach { host ->
+                                StatusPill(
+                                    text = host.label,
+                                    color = if (host == state.quality?.host) {
+                                        BrandMint
+                                    } else {
+                                        TextSecondary
+                                    },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    Caption(
+                        "Server pilihan dipakai lebih dulu. Bila link mati, aplikasi " +
+                            "berpindah otomatis ke server lain pada format dan resolusi yang sama.",
+                    )
+                }
+            }
+
+            item {
+                SettingSection(
                     title = "Sesuaikan kualitas otomatis",
                     subtitle = "Bila format atau resolusi pilihan tidak tersedia",
                     icon = Icons.Rounded.Tune,

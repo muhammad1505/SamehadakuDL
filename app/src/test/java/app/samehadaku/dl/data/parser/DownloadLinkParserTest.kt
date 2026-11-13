@@ -161,6 +161,10 @@ class DownloadLinkParserTest {
             Host.MEDIAFIRE,
             Host.fromLink("https://www.mediafire.com/file/abc", "Mediafire"),
         )
+        assertEquals(
+            Host.FILEDON,
+            Host.fromLink("https://filedon.co/view/f3kUTC3QTM", "Filedon"),
+        )
         assertNull(Host.fromLink("https://example.com/file", "Other"))
     }
 

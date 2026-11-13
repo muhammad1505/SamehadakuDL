@@ -23,6 +23,7 @@ enum class Host(val label: String) {
     MEDIAFIRE("Mediafire"),
     GOFILE("Gofile"),
     ACEFILE("Acefile"),
+    FILEDON("Filedon"),
     ;
 
     companion object {
@@ -33,6 +34,7 @@ enum class Host(val label: String) {
                 "mediafire" in haystack -> MEDIAFIRE
                 "gofile" in haystack -> GOFILE
                 "acefile" in haystack -> ACEFILE
+                "filedon" in haystack -> FILEDON
                 else -> null
             }
         }
