@@ -165,6 +165,66 @@ class DownloadLinkParserTest {
     }
 
     @Test
+    fun `parses the live episode layout with span wrapped hosts`() {
+        val html = """
+            <html><body>
+              <div class="download-eps" id="downloadb">
+                <p><b>MKV</b></p>
+                <ul>
+                  <li>
+                    <strong>1080p</strong>
+                    <div class="download-eps-links">
+                      <span><a href="https://gofile.io/d/a">Gofile</a></span>
+                      <span><a href="https://filedon.co/view/f3kUTC3QTM">Filedon</a></span>
+                      <span><a href="https://acefile.co/f/1/t.mkv">Acefile</a></span>
+                      <span><a href="https://pixeldrain.com/u/p">Pixeldrain</a></span>
+                      <span><a href="https://www.mediafire.com/file/m/t.mkv">Mediafire (RAR)</a></span>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val links = DownloadLinkParser.parse(html, pageUrl)
+        assertNotNull(links)
+        assertEquals(5, links!!.hosts(VideoFormat.MKV, "1080p").size)
+        assertEquals(
+            "https://filedon.co/view/f3kUTC3QTM",
+            links.url(VideoFormat.MKV, "1080p", Host.FILEDON),
+        )
+    }
+
+    @Test
+    fun `keeps struck hosts visible as unavailable`() {
+        val html = """
+            <html><body>
+              <div class="download-eps" id="downloadb">
+                <p><b>MKV</b></p>
+                <ul>
+                  <li>
+                    <strong>360p</strong>
+                    <div class="download-eps-links">
+                      <span><a href="https://gofile.io/d/abc">Gofile</a></span>
+                      <span><strike>Filedon</strike></span>
+                      <span><a href="https://acefile.co/f/1/file.mkv">Acefile</a></span>
+                      <span><a href="https://pixeldrain.com/u/xyz">Pixeldrain</a></span>
+                      <span><a href="https://www.mediafire.com/file/a/b.mkv">Mediafire (RAR)</a></span>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val links = DownloadLinkParser.parse(html, pageUrl)
+        assertNotNull(links)
+        assertEquals(4, links!!.hosts(VideoFormat.MKV, "360p").size)
+        assertEquals(listOf(Host.FILEDON), links.unavailableHosts(VideoFormat.MKV, "360p"))
+        assertNull(links.url(VideoFormat.MKV, "360p", Host.FILEDON))
+    }
+
+    @Test
     fun `returns null when no supported host is present`() {
         val html = """
             <html><body>

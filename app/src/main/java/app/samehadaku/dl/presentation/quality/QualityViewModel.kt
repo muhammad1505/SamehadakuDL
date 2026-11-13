@@ -34,6 +34,8 @@ data class QualityUiState(
     val formats: List<VideoFormat> = emptyList(),
     val resolutions: List<String> = emptyList(),
     val hosts: List<Host> = emptyList(),
+    /** Hosts the site lists but strikes out for the chosen quality. */
+    val unavailableHosts: List<Host> = emptyList(),
     val selectedFormat: VideoFormat? = null,
     val selectedResolution: String? = null,
     val selectedHost: Host? = null,
@@ -101,6 +103,13 @@ class QualityViewModel @Inject constructor(
                 } else {
                     emptyList()
                 }
+                val unavailableHosts =
+                    if (firstFormat != null && firstResolution != null) {
+                        preview.links.unavailableHosts(firstFormat, firstResolution)
+                            .filterNot { it in hosts }
+                    } else {
+                        emptyList()
+                    }
                 val firstHost = saved?.host?.takeIf { it in hosts } ?: hosts.firstOrNull()
                 _state.update {
                     it.copy(
@@ -109,6 +118,7 @@ class QualityViewModel @Inject constructor(
                         formats = formats,
                         resolutions = resolutions,
                         hosts = hosts,
+                        unavailableHosts = unavailableHosts,
                         selectedFormat = firstFormat,
                         selectedResolution = firstResolution,
                         selectedHost = firstHost,
@@ -154,6 +164,8 @@ class QualityViewModel @Inject constructor(
                 selectedResolution = resolution,
                 resolutions = resolutions,
                 hosts = links.hosts(format, resolution),
+                unavailableHosts = links.unavailableHosts(format, resolution)
+                    .filterNot { it in links.hosts(format, resolution) },
                 selectedHost = links.hosts(format, resolution).firstOrNull(),
             )
         }
@@ -167,6 +179,8 @@ class QualityViewModel @Inject constructor(
             it.copy(
                 selectedResolution = resolution,
                 hosts = hosts,
+                unavailableHosts = links.unavailableHosts(format, resolution)
+                    .filterNot { it in hosts },
                 selectedHost = hosts.firstOrNull(),
             )
         }

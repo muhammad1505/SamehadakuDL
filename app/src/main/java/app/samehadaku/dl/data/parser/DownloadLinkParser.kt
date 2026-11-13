@@ -27,6 +27,8 @@ object DownloadLinkParser {
         collectNodes(document, allNodes)
 
         val linkData = linkedMapOf<VideoFormat, LinkedHashMap<String, LinkedHashMap<Host, String>>>()
+        val unavailableData =
+            linkedMapOf<VideoFormat, LinkedHashMap<String, LinkedHashSet<Host>>>()
 
         for (li in document.select("li")) {
             val anchors = li.select("a")
@@ -58,6 +60,17 @@ object DownloadLinkParser {
                 val host = Host.fromLink(href, anchor.text()) ?: continue
                 hosts[host] = href
             }
+
+            // The site keeps a host visible but struck through when its upload is
+            // gone (e.g. <strike>Filedon</strike>). Remember it so the picker can
+            // show the server as unavailable instead of silently dropping it.
+            for (strike in li.select("strike, s, del")) {
+                val host = Host.fromLink("", strike.text()) ?: continue
+                unavailableData
+                    .getOrPut(format) { linkedMapOf() }
+                    .getOrPut(resolution) { linkedSetOf() }
+                    .add(host)
+            }
         }
 
         // The current movie/episode layout does not always wrap download
@@ -87,8 +100,17 @@ object DownloadLinkParser {
                 resolutions.filterValues { it.isNotEmpty() }
             }
             .filterValues { it.isNotEmpty() }
+        val cleanedUnavailable = unavailableData
+            .mapValues { (_, resolutions) ->
+                resolutions.filterValues { it.isNotEmpty() }
+            }
+            .filterValues { it.isNotEmpty() }
 
-        return if (cleaned.isEmpty()) null else DownloadLinks(cleaned)
+        return if (cleaned.isEmpty()) {
+            null
+        } else {
+            DownloadLinks(cleaned, cleanedUnavailable)
+        }
     }
 
     fun findMetaRefreshUrl(html: String, pageUrl: String): String? =

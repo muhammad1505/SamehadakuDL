@@ -175,6 +175,12 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
+## Rilis 2.6.18
+
+- Server yang dicoret situs (mis. `Filedon` pada episode lama) kini tetap muncul di
+  daftar server sebagai chip nonaktif "tidak tersedia", jadi jelas kenapa tidak bisa
+  dipilih alih-alih menghilang dari daftar.
+
 ## Rilis 2.6.17
 
 - Pilihan server di Pengaturan memakai chip yang membungkus sehingga semua host,

@@ -290,6 +290,23 @@ private fun LazyQualityContent(
                             icon = Icons.Rounded.Dns,
                         )
                     }
+                    state.unavailableHosts.forEach { host ->
+                        PillChip(
+                            label = "${host.label} · tidak tersedia",
+                            selected = false,
+                            onClick = {},
+                            icon = Icons.Rounded.Dns,
+                            enabled = false,
+                        )
+                    }
+                }
+                if (state.unavailableHosts.isNotEmpty()) {
+                    Text(
+                        text = "Server bergaris coret dari situs belum punya link untuk " +
+                            "kualitas ini, jadi belum bisa dipakai.",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
 

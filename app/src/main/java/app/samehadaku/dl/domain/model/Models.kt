@@ -61,6 +61,8 @@ enum class DownloadState {
 
 data class DownloadLinks(
     val data: Map<VideoFormat, Map<String, Map<Host, String>>> = emptyMap(),
+    /** Hosts the site lists but strikes out because the upload is gone. */
+    val unavailable: Map<VideoFormat, Map<String, Set<Host>>> = emptyMap(),
 ) {
     val isEmpty: Boolean
         get() = data.isEmpty()
@@ -72,6 +74,9 @@ data class DownloadLinks(
 
     fun hosts(format: VideoFormat, resolution: String): List<Host> =
         data[format]?.get(resolution)?.keys?.toList().orEmpty()
+
+    fun unavailableHosts(format: VideoFormat, resolution: String): List<Host> =
+        unavailable[format]?.get(resolution)?.toList().orEmpty()
 
     fun url(format: VideoFormat, resolution: String, host: Host): String? =
         data[format]?.get(resolution)?.get(host)

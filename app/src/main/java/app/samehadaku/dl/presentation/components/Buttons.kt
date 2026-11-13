@@ -185,11 +185,12 @@ fun PillChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
+    enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(50)
     Row(
         modifier = modifier
-            .pressable(role = Role.Button, onClick = onClick)
+            .pressable(enabled = enabled, role = Role.Button, onClick = onClick)
             .height(38.dp)
             .clip(shape)
             .background(
@@ -203,7 +204,11 @@ fun PillChip(
             )
             .border(
                 width = 1.dp,
-                color = if (selected) Color.White.copy(alpha = 0.30f) else Color.White.copy(alpha = 0.11f),
+                color = when {
+                    !enabled -> Color.White.copy(alpha = 0.06f)
+                    selected -> Color.White.copy(alpha = 0.30f)
+                    else -> Color.White.copy(alpha = 0.11f)
+                },
                 shape = shape,
             )
             .padding(horizontal = 16.dp),
@@ -220,7 +225,11 @@ fun PillChip(
         }
         Text(
             text = label,
-            color = if (selected) Ink else TextPrimary,
+            color = when {
+                selected -> Ink
+                !enabled -> TextMuted
+                else -> TextPrimary
+            },
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
