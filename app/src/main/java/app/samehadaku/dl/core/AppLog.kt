@@ -83,7 +83,7 @@ object AppLog {
 
     /** Timber tree that keeps every log line available inside the app. */
     class Tree : Timber.Tree() {
-        override fun log(priority: Int, tag: String?, message: String?, t: Throwable?) {
+        override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
             record(priority, tag, message, t)
         }
     }
