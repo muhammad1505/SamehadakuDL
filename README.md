@@ -175,6 +175,14 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
+## Rilis 2.6.22
+
+- Menambahkan panel collapsible “Link diambil dari mirror” pada kartu unduhan. Panel
+  menjelaskan bahwa link di domain utama mati, menyebut situs mirror yang dipakai, host
+  penyedia (mis. Gofile), serta tipe dan kualitas/resolusi yang tetap sama.
+- Menyimpan asal mirror bersama task unduhan, sehingga keterangan tetap tampil setelah
+  aplikasi ditutup dan antrean dibuka kembali.
+
 ## Rilis 2.6.21
 
 - Menyamakan integrasi server di semua menu dan notifikasi: riwayat Unduhan kini
