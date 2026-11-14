@@ -296,7 +296,10 @@ class SiteRepositoryImpl @Inject constructor(
             }
         }
 
-        best?.let { return remember(key, episodeUrl, bestSource ?: episodeUrl, it) }
+        best?.let { links ->
+            val served = bestSource ?: episodeUrl
+            return remember(key, episodeUrl, served, links.copy(sourceUrl = served))
+        }
         verification?.let { throw it }
         failure?.let { throw it }
         return null
@@ -328,7 +331,9 @@ class SiteRepositoryImpl @Inject constructor(
                 UrlUtils.hostOf(url)?.let { coveredHosts += it }
                 if (results.any { it.data == links.data }) continue
                 Timber.d("Mirror %s served links for %s", url, episodeUrl)
-                results += links
+                // Keep the page that actually served the links so the queue can
+                // report which mirror was used instead of a generic message.
+                results += links.copy(sourceUrl = page.finalUrl)
             }
         }
 

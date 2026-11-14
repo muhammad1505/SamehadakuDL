@@ -38,6 +38,7 @@ class QueueStore @Inject constructor(
                         put("currentHost", task.currentHost?.label)
                         put("fileName", task.fileName)
                         put("note", task.note)
+                        put("mirrorSource", task.mirrorSource)
                         put("alreadyExisted", task.alreadyExisted)
                         put("retryCount", task.retryCount)
                         put("createdAt", task.createdAt)
@@ -107,6 +108,11 @@ class QueueStore @Inject constructor(
             currentHost = parseHost(item.optString("currentHost")),
             failureReasons = reasons,
             note = if (item.isNull("note")) null else item.optString("note").ifBlank { null },
+            mirrorSource = if (item.isNull("mirrorSource")) {
+                null
+            } else {
+                item.optString("mirrorSource").ifBlank { null }
+            },
             fileName = if (item.isNull("fileName")) null else item.optString("fileName").ifBlank { null },
             alreadyExisted = item.optBoolean("alreadyExisted", false),
             retryCount = item.optInt("retryCount", 0),

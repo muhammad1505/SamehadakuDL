@@ -63,6 +63,11 @@ data class DownloadLinks(
     val data: Map<VideoFormat, Map<String, Map<Host, String>>> = emptyMap(),
     /** Hosts the site lists but strikes out because the upload is gone. */
     val unavailable: Map<VideoFormat, Map<String, Set<Host>>> = emptyMap(),
+    /**
+     * Page that actually served these links. Set when the links came from a mirror
+     * page instead of the episode URL itself, so the UI can name that mirror.
+     */
+    val sourceUrl: String? = null,
 ) {
     val isEmpty: Boolean
         get() = data.isEmpty()
@@ -113,6 +118,8 @@ data class DownloadTask(
     val currentHost: Host? = null,
     val failureReasons: List<String> = emptyList(),
     val note: String? = null,
+    /** Mirror site host whose links rescued a download whose main-domain links died. */
+    val mirrorSource: String? = null,
     val fileName: String? = null,
     val alreadyExisted: Boolean = false,
     /** How many automatic retries were already spent on this task. */

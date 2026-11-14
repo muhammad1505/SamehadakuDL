@@ -54,6 +54,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -898,6 +899,11 @@ private fun QueueTaskCard(
             }
         }
 
+        if (task.mirrorSource != null) {
+            Spacer(Modifier.height(8.dp))
+            MirrorInfoSection(task = task)
+        }
+
         if (task.failureReasons.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
             Row(
@@ -946,6 +952,114 @@ private fun QueueTaskCard(
             )
         }
 
+    }
+}
+
+/**
+ * Collapsible explanation shown when the main Samehadaku domain had no live links and
+ * the file was fetched through a mirror. Kept collapsed by default so the queue stays
+ * compact, but names the mirror site, the download host, and the quality that was used.
+ */
+@Composable
+private fun MirrorInfoSection(task: DownloadTask) {
+    val source = task.mirrorSource ?: return
+    var expanded by remember(task.id) { mutableStateOf(false) }
+    val shape = RoundedCornerShape(11.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(BrandAccent.copy(alpha = 0.07f))
+            .border(1.dp, BrandAccent.copy(alpha = 0.20f), shape),
+    ) {
+        Row(
+            modifier = Modifier
+                .pressable(pressedScale = 0.99f) { expanded = !expanded }
+                .fillMaxWidth()
+                .padding(horizontal = 9.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.SwapHoriz,
+                contentDescription = null,
+                tint = BrandAccent,
+                modifier = Modifier.size(15.dp),
+            )
+            Spacer(Modifier.width(7.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Link diambil dari mirror",
+                    color = BrandAccent,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "$source \u2022 ${task.currentHost?.label ?: "host unduhan"}",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                text = if (expanded) "Tutup" else "Detail",
+                color = BrandAccent,
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = if (expanded) "Sembunyikan detail mirror" else "Tampilkan detail mirror",
+                tint = BrandAccent,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier.padding(start = 9.dp, end = 9.dp, bottom = 9.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "Link di domain utama mati semua, jadi sistem mengambil link " +
+                        "dari situs mirror dengan kualitas, tipe, dan resolusi yang sama.",
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(2.dp))
+                MirrorDetailRow(label = "Situs mirror", value = source)
+                MirrorDetailRow(
+                    label = "Penyedia (host)",
+                    value = task.currentHost?.label ?: "Tidak diketahui",
+                )
+                MirrorDetailRow(label = "Tipe", value = task.format.label)
+                MirrorDetailRow(
+                    label = "Kualitas / resolusi",
+                    value = task.resolution.uppercase(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MirrorDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            color = TextMuted,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value,
+            color = TextSecondary,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

@@ -1,5 +1,7 @@
 package app.samehadaku.dl.data.download
 
+import app.samehadaku.dl.core.SiteMirrors
+import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.data.subscriptions.SubscriptionRepository
@@ -123,6 +125,7 @@ class DownloadQueue @Inject constructor(
                             state = DownloadState.QUEUED,
                             failureReasons = emptyList(),
                             note = null,
+                            mirrorSource = null,
                             finishedAt = null,
                         )
                     } else {
@@ -212,6 +215,7 @@ class DownloadQueue @Inject constructor(
                             state = DownloadState.QUEUED,
                             failureReasons = emptyList(),
                             note = null,
+                            mirrorSource = null,
                             finishedAt = null,
                         )
                     } else {
@@ -248,6 +252,7 @@ class DownloadQueue @Inject constructor(
                             currentHost = null,
                             failureReasons = emptyList(),
                             note = null,
+                            mirrorSource = null,
                             finishedAt = null,
                             retryCount = 0,
                         )
@@ -275,6 +280,7 @@ class DownloadQueue @Inject constructor(
                             currentHost = null,
                             failureReasons = emptyList(),
                             note = null,
+                            mirrorSource = null,
                             finishedAt = null,
                             retryCount = 0,
                         )
@@ -316,6 +322,7 @@ class DownloadQueue @Inject constructor(
                         currentHost = null,
                         failureReasons = emptyList(),
                         note = null,
+                        mirrorSource = null,
                         finishedAt = null,
                         retryCount = task.retryCount + 1,
                     )
@@ -364,6 +371,7 @@ class DownloadQueue @Inject constructor(
                         currentHost = null,
                         failureReasons = emptyList(),
                         note = null,
+                        mirrorSource = null,
                     )
                 } else {
                     it
@@ -397,10 +405,16 @@ class DownloadQueue @Inject constructor(
                 return
             }
 
+            // loadDownloadLinks already falls back to a mirror when the requested
+            // primary page is unreachable; keep that source for the queue report.
+            val requestedHost = UrlUtils.hostOf(initial.episodeUrl)
+            var mirrorSource = links.sourceUrl
+                ?.let(UrlUtils::hostOf)
+                ?.takeIf { SiteMirrors.isPrimaryHost(requestedHost) && !SiteMirrors.isPrimaryHost(it) }
+
             var outcome = downloader.download(initial, links) { progress ->
                 updateProgress(taskId, progress)
             }
-            var mirrorNote: String? = null
 
             if (outcome !is DownloadOutcome.Done) {
                 // The upload links may be refreshed on another Samehadaku mirror. Try
@@ -428,8 +442,13 @@ class DownloadQueue @Inject constructor(
                         when (mirrorOutcome) {
                             is DownloadOutcome.Done -> {
                                 mirrorDone = mirrorOutcome
-                                mirrorNote = "Diunduh dari mirror Samehadaku karena link " +
-                                    "domain utama mati."
+                                val servedHost = mirrorLinks.sourceUrl?.let(UrlUtils::hostOf)
+                                mirrorSource = when {
+                                    servedHost == null -> "Samehadaku"
+                                    // A refreshed read from the very same host is not a mirror.
+                                    servedHost.equals(requestedHost, ignoreCase = true) -> null
+                                    else -> servedHost
+                                }
                                 break
                             }
                             is DownloadOutcome.Failed -> attemptedReasons += mirrorOutcome.reasons
@@ -449,7 +468,6 @@ class DownloadQueue @Inject constructor(
                     taskId = taskId,
                     state = DownloadState.DONE,
                     note = buildList {
-                        mirrorNote?.let { add(it) }
                         if (outcome.adjusted) {
                             add(
                                 "Kualitas disesuaikan otomatis ke " +
@@ -466,6 +484,7 @@ class DownloadQueue @Inject constructor(
                     format = outcome.format,
                     resolution = outcome.resolution,
                     host = outcome.host,
+                    mirrorSource = mirrorSource,
                 )
                 is DownloadOutcome.Failed -> finish(
                     taskId = taskId,
@@ -528,6 +547,7 @@ class DownloadQueue @Inject constructor(
         format: VideoFormat? = null,
         resolution: String? = null,
         host: Host? = null,
+        mirrorSource: String? = null,
     ) {
         var finishedTask: DownloadTask? = null
         _tasks.update { tasks ->
@@ -544,6 +564,7 @@ class DownloadQueue @Inject constructor(
                         currentHost = host ?: task.currentHost,
                         failureReasons = reasons,
                         note = note,
+                        mirrorSource = mirrorSource,
                         fileName = fileName ?: task.fileName,
                         alreadyExisted = alreadyExisted,
                         finishedAt = System.currentTimeMillis(),
