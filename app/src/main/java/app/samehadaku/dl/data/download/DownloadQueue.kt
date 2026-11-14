@@ -435,12 +435,24 @@ class DownloadQueue @Inject constructor(
             fun candidatesFor(
                 linkSet: DownloadLinks,
                 fallbackFormat: Boolean,
+                preferredOnly: Boolean = false,
+                excludePreferred: Boolean = false,
             ): List<HostSelector.Selection> = HostSelector.findCandidates(
                 links = linkSet,
                 format = initial.format,
                 resolution = initial.resolution,
                 preferredHost = initial.preferredHost,
             ).filter { candidate -> candidate.adjusted == fallbackFormat }
+                .mapNotNull { candidate ->
+                    val targets = candidate.targets.filter { target ->
+                        when {
+                            preferredOnly -> target.host == initial.preferredHost
+                            excludePreferred -> target.host != initial.preferredHost
+                            else -> true
+                        }
+                    }
+                    if (targets.isEmpty()) null else candidate.copy(targets = targets)
+                }
 
             suspend fun attempt(
                 linkSet: DownloadLinks,
@@ -461,10 +473,14 @@ class DownloadQueue @Inject constructor(
                 }
             }
 
-            var outcome = attempt(links, candidatesFor(links, fallbackFormat = false))
+            // Exact quality, preferred host: main page first, then every mirror.
+            var outcome = attempt(
+                links,
+                candidatesFor(links, fallbackFormat = false, preferredOnly = true),
+            )
             remember(outcome)
             Timber.i(
-                "Episode %d exact quality attempt: %s",
+                "Episode %d exact preferred-host attempt: %s",
                 initial.episodeNumber,
                 outcome.logLabel(),
             )
@@ -477,27 +493,18 @@ class DownloadQueue @Inject constructor(
             }
             Timber.i("Episode %d mirrors to try: %d", initial.episodeNumber, mirrorSets.size)
 
-            // Mirrors are checked for the exact requested quality before any format
-            // fallback. A mirror may still have X265 480p even when the main domain
-            // only has MKV/MP4, and changing format too early was the reported bug.
             for (mirrorLinks in mirrorSets) {
                 if (outcome is DownloadOutcome.Done) break
                 if (mirrorLinks.data == links.data) continue
-                Timber.i(
-                    "Episode %d try exact quality on mirror %s",
-                    initial.episodeNumber,
-                    mirrorLinks.sourceUrl ?: "unknown",
-                )
                 val mirrorOutcome = attempt(
                     mirrorLinks,
-                    candidatesFor(mirrorLinks, fallbackFormat = false),
+                    candidatesFor(
+                        mirrorLinks,
+                        fallbackFormat = false,
+                        preferredOnly = true,
+                    ),
                 )
                 remember(mirrorOutcome)
-                Timber.i(
-                    "Episode %d exact mirror result: %s",
-                    initial.episodeNumber,
-                    mirrorOutcome.logLabel(),
-                )
                 if (mirrorOutcome is DownloadOutcome.Done) {
                     outcome = mirrorOutcome
                     val servedHost = mirrorLinks.sourceUrl?.let(UrlUtils::hostOf)
@@ -505,6 +512,41 @@ class DownloadQueue @Inject constructor(
                         servedHost == null -> "Samehadaku"
                         servedHost.equals(requestedHost, ignoreCase = true) -> null
                         else -> servedHost
+                    }
+                }
+            }
+
+            // The preferred host is unavailable for this quality. Only now try the
+            // other hosts, still for the exact requested format and resolution.
+            if (outcome !is DownloadOutcome.Done) {
+                val otherHosts = attempt(
+                    links,
+                    candidatesFor(links, fallbackFormat = false, excludePreferred = true),
+                )
+                remember(otherHosts)
+                if (otherHosts is DownloadOutcome.Done) {
+                    outcome = otherHosts
+                }
+                for (mirrorLinks in mirrorSets) {
+                    if (outcome is DownloadOutcome.Done) break
+                    if (mirrorLinks.data == links.data) continue
+                    val mirrorOtherHosts = attempt(
+                        mirrorLinks,
+                        candidatesFor(
+                            mirrorLinks,
+                            fallbackFormat = false,
+                            excludePreferred = true,
+                        ),
+                    )
+                    remember(mirrorOtherHosts)
+                    if (mirrorOtherHosts is DownloadOutcome.Done) {
+                        outcome = mirrorOtherHosts
+                        val servedHost = mirrorLinks.sourceUrl?.let(UrlUtils::hostOf)
+                        mirrorSource = when {
+                            servedHost == null -> "Samehadaku"
+                            servedHost.equals(requestedHost, ignoreCase = true) -> null
+                            else -> servedHost
+                        }
                     }
                 }
             }
