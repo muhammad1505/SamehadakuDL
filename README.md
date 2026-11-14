@@ -175,6 +175,21 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
+## Rilis 2.6.23
+
+- Memperbaiki pemilihan episode dari mirror yang bisa mengambil episode anime lain.
+  Hasil pencarian sekarang harus cocok dengan judul/slug anime yang diminta sebelum
+  dipakai, termasuk saat slug berbeda antar mirror.
+- Mengurutkan percobaan unduhan: format dan resolusi dari Pengaturan di domain utama,
+  lalu kualitas yang sama di semua mirror. Format lain baru dicoba setelah itu, tetap
+  pada resolusi yang sama (X265 → MKV → MP4 untuk pilihan X265 480p). Resolusi tidak
+  lagi berubah diam-diam ke 720p/HD.
+- Host pilihan di Pengaturan tetap dicek lebih dulu; host lain hanya dipakai bila link
+  mati. Antrean mencatat host dan situs mirror yang benar-benar dipakai.
+- Menambahkan menu “Log aplikasi” di Pengaturan untuk memantau proses pencarian,
+  mirror, pemilihan kualitas/host, dan unduhan. Log bisa disalin, dibagikan, atau
+  dihapus langsung dari aplikasi.
+
 ## Rilis 2.6.22
 
 - Menambahkan panel collapsible “Link diambil dari mirror” pada kartu unduhan. Panel
