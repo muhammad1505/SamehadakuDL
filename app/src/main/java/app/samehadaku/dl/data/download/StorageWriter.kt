@@ -207,6 +207,35 @@ class StorageWriter @Inject constructor(
         }
 
     /**
+     * Whether the saved download folder still works: the URI must carry a persisted
+     * read+write grant and the tree must still be writable.
+     *
+     * The saved URI is only a string; uninstalling, clearing app data, deleting the
+     * folder by hand, or a provider revoking the grant leaves it behind without any
+     * access. Callers use this to decide whether a delete really needs a fresh folder
+     * pick, instead of trusting the URI and dead-ending on "izin tulis ditolak".
+     */
+    suspend fun hasFolderAccess(): Boolean =
+        withContext(Dispatchers.IO) {
+            val stored = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
+            if (stored.isNullOrBlank()) return@withContext false
+            val uri = runCatching { Uri.parse(stored) }.getOrNull()
+                ?: return@withContext false
+            val granted = runCatching { context.contentResolver.persistedUriPermissions }
+                .getOrDefault(emptyList())
+                .any { permission ->
+                    permission.uri == uri &&
+                        permission.isReadPermission &&
+                        permission.isWritePermission
+                }
+            val writable = granted && runCatching {
+                DocumentFile.fromTreeUri(context, uri)?.canWrite() == true
+            }.getOrDefault(false)
+            Log.d(TAG, "folder access granted=$granted writable=$writable tree=$uri")
+            writable
+        }
+
+    /**
      * Deletes a collection folder and every file inside it, across all locations.
      *
      * MediaStore refuses silent deletes for rows this installation did not create, so

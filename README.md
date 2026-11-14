@@ -175,6 +175,21 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
+## Rilis 2.6.21
+
+- Menyamakan integrasi server di semua menu dan notifikasi: riwayat Unduhan kini
+  menyimpan server yang benar-benar dipakai, sedangkan notifikasi progres, ringkasan,
+  dan episode baru menampilkan format, resolusi, serta server termasuk Filedon.
+- Membersihkan daftar mirror dari domain mati/placeholder dan menerjemahkan permalink
+  episode `.li` (`-subtitle-indonesia`) ke bentuk kanonik, sehingga link lama tetap bisa
+  diunduh.
+- Mencari anime lewat pencarian mirror ketika slug berbeda (`ao-ashi-s2` vs
+  `ao-ashi-season-2`) dan memakai halaman kanonik yang lebih lengkap saat URL berasal
+  dari `.li`.
+- Fallback mirror tidak lagi berhenti di halaman pertama yang bisa diparse: semua set
+  link dikumpulkan dan dicoba sampai ada server yang benar-benar hidup. Pencarian juga
+  tidak lagi berhenti di mirror yang mengembalikan halaman kosong.
+
 ## Rilis 2.6.20
 
 - Resolusi Filedon disimpan sebentar, jadi preflight dan unduhan tidak mengulang

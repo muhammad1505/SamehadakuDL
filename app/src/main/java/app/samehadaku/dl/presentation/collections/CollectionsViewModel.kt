@@ -203,8 +203,11 @@ class CollectionsViewModel @Inject constructor(
                 // Android 10 refuses media rows owned by an earlier installation and has
                 // no confirmation intent for them, so a picked folder is the only way to
                 // finish the delete. Keep the request pending until the user answers.
-                val canPickFolder = runCatching { settings.currentDownloadTreeUri() }
-                    .getOrNull().isNullOrBlank()
+                // The stored URI alone does not prove the grant survived: uninstall,
+                // cleared data or a deleted folder leaves a dead URI behind. Only a
+                // folder pick can fix that, so ask again when access is gone.
+                val canPickFolder = !runCatching { storage.hasFolderAccess() }
+                    .getOrDefault(false)
                 pendingDelete = if (canPickFolder) pending else null
                 if (canPickFolder) {
                     _folderAccessRequests.trySend(Unit)
