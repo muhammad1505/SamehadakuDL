@@ -175,28 +175,41 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tab Unduhan memakai alur hapus yang sama: konfirmasi, status hasil yang jujur, dan
   percobaan ulang setelah izin diberikan.
 
-## Rilis 2.6.23
+## Rilis 2.6.16
 
-- Memperbaiki pemilihan episode dari mirror yang bisa mengambil episode anime lain.
-  Hasil pencarian sekarang harus cocok dengan judul/slug anime yang diminta sebelum
-  dipakai, termasuk saat slug berbeda antar mirror.
-- Mengurutkan percobaan unduhan: format dan resolusi dari Pengaturan di domain utama,
-  lalu kualitas yang sama di semua mirror. Format lain baru dicoba setelah itu, tetap
-  pada resolusi yang sama (X265 → MKV → MP4 untuk pilihan X265 480p). Resolusi tidak
-  lagi berubah diam-diam ke 720p/HD.
-- Host pilihan di Pengaturan tetap dicek lebih dulu; host lain hanya dipakai bila link
-  mati. Antrean mencatat host dan situs mirror yang benar-benar dipakai.
-- Menambahkan menu “Log aplikasi” di Pengaturan untuk memantau proses pencarian,
-  mirror, pemilihan kualitas/host, dan unduhan. Log bisa disalin, dibagikan, atau
-  dihapus langsung dari aplikasi.
+- Menambahkan Filedon sebagai server unduhan: halaman `filedon.co/view/...` dibaca
+  otomatis, termasuk sesi dan token berbaginya, lalu link unduhan langsung dipakai.
+- Menampilkan daftar server yang didukung di Pengaturan agar pilihan host lebih jelas;
+  server pilihan tetap dipakai lebih dulu dengan fallback otomatis ke server lain.
 
-## Rilis 2.6.22
+## Rilis 2.6.17
 
-- Menambahkan panel collapsible “Link diambil dari mirror” pada kartu unduhan. Panel
-  menjelaskan bahwa link di domain utama mati, menyebut situs mirror yang dipakai, host
-  penyedia (mis. Gofile), serta tipe dan kualitas/resolusi yang tetap sama.
-- Menyimpan asal mirror bersama task unduhan, sehingga keterangan tetap tampil setelah
-  aplikasi ditutup dan antrean dibuka kembali.
+- Pilihan server di Pengaturan memakai chip yang membungkus sehingga semua host,
+  termasuk Filedon, tetap terlihat dan bisa dipilih di layar sempit.
+- Parser menyatukan link server di dalam dan di luar daftar `<li>`, jadi tidak ada
+  host yang terlewat saat halaman memakai dua bentuk markup.
+- Unduhan yang gagal di semua server kini punya tombol "Buka halaman episode di
+  browser" sebagai jalan terakhir, termasuk untuk host yang meminta captcha.
+
+## Rilis 2.6.18
+
+- Server yang dicoret situs (mis. `Filedon` pada episode lama) kini tetap muncul di
+  daftar server sebagai chip nonaktif "tidak tersedia", jadi jelas kenapa tidak bisa
+  dipilih alih-alih menghilang dari daftar.
+
+## Rilis 2.6.19
+
+- Resolver Filedon memakai cookie jar sehingga cookie sesi dan XSRF dari respons
+  redirect tetap terkirim ke halaman unduhan.
+- Link Filedon yang kedaluwarsa atau sudah mencapai batas unduhan dikenali sebagai
+  kegagalan permanen, bukan dicoba ulang tanpa akhir.
+- Parsing link Filedon diperketat ke domain resmi, dan pembacaan props halaman
+  dipisahkan dari alur jaringan agar lebih mudah dirawat.
+
+## Rilis 2.6.20
+
+- Resolusi Filedon disimpan sebentar, jadi preflight dan unduhan tidak mengulang
+  GET halaman plus POST download untuk link yang sama.
 
 ## Rilis 2.6.21
 
@@ -213,41 +226,40 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   link dikumpulkan dan dicoba sampai ada server yang benar-benar hidup. Pencarian juga
   tidak lagi berhenti di mirror yang mengembalikan halaman kosong.
 
-## Rilis 2.6.20
+## Rilis 2.6.22
 
-- Resolusi Filedon disimpan sebentar, jadi preflight dan unduhan tidak mengulang
-  GET halaman plus POST download untuk link yang sama.
+- Menambahkan panel collapsible “Link diambil dari mirror” pada kartu unduhan. Panel
+  menjelaskan bahwa link di domain utama mati, menyebut situs mirror yang dipakai, host
+  penyedia (mis. Gofile), serta tipe dan kualitas/resolusi yang tetap sama.
+- Menyimpan asal mirror bersama task unduhan, sehingga keterangan tetap tampil setelah
+  aplikasi ditutup dan antrean dibuka kembali.
 
-## Rilis 2.6.19
+## Rilis 2.6.23
 
-- Resolver Filedon memakai cookie jar sehingga cookie sesi dan XSRF dari respons
-  redirect tetap terkirim ke halaman unduhan.
-- Link Filedon yang kedaluwarsa atau sudah mencapai batas unduhan dikenali sebagai
-  kegagalan permanen, bukan dicoba ulang tanpa akhir.
-- Parsing link Filedon diperketat ke domain resmi, dan pembacaan props halaman
-  dipisahkan dari alur jaringan agar lebih mudah dirawat.
+- Memperbaiki pemilihan episode dari mirror yang bisa mengambil episode anime lain.
+  Hasil pencarian sekarang harus cocok dengan judul/slug anime yang diminta sebelum
+  dipakai, termasuk saat slug berbeda antar mirror.
+- Mengurutkan percobaan unduhan: format dan resolusi dari Pengaturan di domain utama,
+  lalu kualitas yang sama di semua mirror. Format lain baru dicoba setelah itu, tetap
+  pada resolusi yang sama (X265 → MKV → MP4 untuk pilihan X265 480p). Resolusi tidak
+  lagi berubah diam-diam ke 720p/HD.
+- Host pilihan di Pengaturan tetap dicek lebih dulu; host lain hanya dipakai bila link
+  mati. Antrean mencatat host dan situs mirror yang benar-benar dipakai.
+- Menambahkan menu “Log aplikasi” di Pengaturan untuk memantau proses pencarian,
+  mirror, pemilihan kualitas/host, dan unduhan. Log bisa disalin, dibagikan, atau
+  dihapus langsung dari aplikasi.
 
-## Rilis 2.6.18
+## Rilis 2.6.24
 
-- Server yang dicoret situs (mis. `Filedon` pada episode lama) kini tetap muncul di
-  daftar server sebagai chip nonaktif "tidak tersedia", jadi jelas kenapa tidak bisa
-  dipilih alih-alih menghilang dari daftar.
-
-## Rilis 2.6.17
-
-- Pilihan server di Pengaturan memakai chip yang membungkus sehingga semua host,
-  termasuk Filedon, tetap terlihat dan bisa dipilih di layar sempit.
-- Parser menyatukan link server di dalam dan di luar daftar `<li>`, jadi tidak ada
-  host yang terlewat saat halaman memakai dua bentuk markup.
-- Unduhan yang gagal di semua server kini punya tombol "Buka halaman episode di
-  browser" sebagai jalan terakhir, termasuk untuk host yang meminta captcha.
-
-## Rilis 2.6.16
-
-- Menambahkan Filedon sebagai server unduhan: halaman `filedon.co/view/...` dibaca
-  otomatis, termasuk sesi dan token berbaginya, lalu link unduhan langsung dipakai.
-- Menampilkan daftar server yang didukung di Pengaturan agar pilihan host lebih jelas;
-  server pilihan tetap dipakai lebih dulu dengan fallback otomatis ke server lain.
+- Pembatalan cek otomatis (misalnya saat batas waktu WorkManager habis) tidak lagi
+  dilaporkan sebagai “Auto check failed”; proses berhenti bersih tanpa melanjutkan sisa
+  langganan yang hasilnya sudah tidak bisa dipakai.
+- Kegagalan DNS kini berhenti cepat dengan pesan koneksi yang jelas, tanpa mengulang
+  permintaan tiga kali sampai menghabiskan waktu cek otomatis.
+- Deteksi episode mencoba mirror yang dikenal ketika host utama tidak dapat dihubungi,
+  bukan hanya ketika halaman utama berhasil dibuka tetapi gagal diparse.
+- Cek otomatis berhenti lebih awal jika semua host tidak dapat dihubungi, dan waktu cek
+  terakhir tidak diperbarui agar percobaan berikutnya tidak menunggu jadwal penuh.
 
 ## Penyimpanan dan izin
 
