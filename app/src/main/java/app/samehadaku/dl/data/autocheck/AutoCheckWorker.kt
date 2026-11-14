@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import app.samehadaku.dl.data.download.DownloadQueue
 import app.samehadaku.dl.data.network.CloudflareSession
 import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.network.NetworkUnavailableException
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.domain.model.QualityPreference
 import app.samehadaku.dl.domain.usecase.CheckSubscriptionsUseCase
@@ -16,6 +17,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
 import timber.log.Timber
 
 @EntryPoint
@@ -65,10 +67,20 @@ class AutoCheckWorker(
             }
             enqueueNewEpisodes(entry, result, quality)
             Result.success()
+        } catch (cancellation: CancellationException) {
+            // WorkManager stops the worker when its execution window ends or when
+            // the request is replaced. This is not a failure and must not be
+            // swallowed, otherwise the app logs a misleading "Auto check failed".
+            throw cancellation
         } catch (verification: NeedsVerificationException) {
             Timber.d(verification, "Auto check needs Cloudflare verification")
             settings.setLastAutoCheckAt(System.currentTimeMillis())
             entry.notifier().notifyVerificationNeeded()
+            Result.success()
+        } catch (offline: NetworkUnavailableException) {
+            // The check aborted because no known host could be resolved. Leave the
+            // last-check timestamp alone so the next run/app open retries sooner.
+            Timber.w("Auto check skipped: %s", offline.message)
             Result.success()
         } catch (error: Exception) {
             // Per-anime failures are already collected by the use case; this only
@@ -94,6 +106,8 @@ class AutoCheckWorker(
             val preference = QualityPreference(format, resolution, host)
             settings.saveQualityPreference(format, resolution, host)
             preference
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (verification: NeedsVerificationException) {
             throw verification
         } catch (error: Exception) {
@@ -127,6 +141,8 @@ class AutoCheckWorker(
                     preferredHost = quality.host,
                 ).queued
                 alreadyQueued += fresh.map { episode -> episode.url }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (verification: NeedsVerificationException) {
                 // The preflight hit Cloudflare; the caller turns this into a notification.
                 throw verification

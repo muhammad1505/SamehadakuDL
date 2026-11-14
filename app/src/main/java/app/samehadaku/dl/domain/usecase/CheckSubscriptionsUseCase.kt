@@ -3,10 +3,12 @@ package app.samehadaku.dl.domain.usecase
 import app.samehadaku.dl.core.Names
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.network.NetworkUnavailableException
 import app.samehadaku.dl.data.subscriptions.SubscriptionRepository
 import app.samehadaku.dl.domain.model.Episode
 import app.samehadaku.dl.domain.model.Subscription
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 
 data class SubscriptionCheck(
     val subscription: Subscription,
@@ -57,6 +59,15 @@ class CheckSubscriptionsUseCase @Inject constructor(
                 } else {
                     checks.add(SubscriptionCheck(subscription, newEpisodes))
                 }
+            } catch (cancellation: CancellationException) {
+                // WorkManager stops a worker after its execution window. Swallowing
+                // that cancellation keeps checking every remaining anime even though
+                // the result can no longer be used.
+                throw cancellation
+            } catch (network: NetworkUnavailableException) {
+                // Every mirror failed because the host cannot be resolved. Stop the
+                // whole run instead of spending minutes retrying each subscription.
+                throw network
             } catch (verification: NeedsVerificationException) {
                 throw verification
             } catch (error: Exception) {

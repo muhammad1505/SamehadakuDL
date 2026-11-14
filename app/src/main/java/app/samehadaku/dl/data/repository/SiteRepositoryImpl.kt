@@ -7,6 +7,7 @@ import app.samehadaku.dl.data.network.FetchFailureException
 import app.samehadaku.dl.data.network.FetchedPage
 import app.samehadaku.dl.data.network.HtmlFetcher
 import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.network.NetworkUnavailableException
 import app.samehadaku.dl.data.parser.DownloadLinkParser
 import app.samehadaku.dl.data.parser.AnimeDetailParser
 import app.samehadaku.dl.data.parser.EpisodeListParser
@@ -24,6 +25,7 @@ import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import timber.log.Timber
 
 @Singleton
@@ -59,31 +61,43 @@ class SiteRepositoryImpl @Inject constructor(
             )
         }
 
-        var page = fetcher.fetch(input, referer = UrlUtils.siteRoot(input))
-        var episodes = EpisodeListParser.parse(page.html, page.finalUrl)
-        if (episodes.isEmpty() && page.finalUrl != input) {
-            // A WebView/redirect can return HTML whose final URL is a challenge or
-            // tracking URL. Parse once against the URL the user actually selected so
-            // relative episode links still resolve against the anime page.
-            episodes = EpisodeListParser.parse(page.html, input)
-        }
+        var page: FetchedPage? = null
+        var episodes: List<Episode> = emptyList()
+        var lastError: Exception? = null
+        var anyPageLoaded = false
 
-        // Search results can point to a mirror whose anime page is readable but stale
-        // or rendered differently. Only try mirrors after parsing the selected URL
-        // fails, and keep the original source URL for the saved subscription.
-        if (episodes.isEmpty()) {
-            for (mirror in SiteMirrors.candidates(input)) {
-                val mirrorPage = runCatching {
-                    fetcher.fetch(mirror, referer = UrlUtils.siteRoot(mirror))
-                }.getOrNull() ?: continue
-                val mirrorEpisodes = EpisodeListParser.parse(mirrorPage.html, mirrorPage.finalUrl)
-                if (mirrorEpisodes.isNotEmpty()) {
-                    page = mirrorPage
-                    episodes = mirrorEpisodes
-                    break
-                }
+        // Read the selected page, then the known mirrors. A mirror is useful not only
+        // when the selected page parses to nothing, but also when that host itself is
+        // unreachable (DNS failure, HTTP 5xx, ...).
+        for (source in listOf(input) + SiteMirrors.candidates(input)) {
+            val fetched = try {
+                fetcher.fetch(source, referer = UrlUtils.siteRoot(source))
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (verification: NeedsVerificationException) {
+                // Only the URL the user gave us should send them to the verify screen.
+                if (source == input) throw verification
+                continue
+            } catch (error: Exception) {
+                if (lastError == null) lastError = error
+                continue
+            }
+            anyPageLoaded = true
+
+            var parsed = EpisodeListParser.parse(fetched.html, fetched.finalUrl)
+            if (parsed.isEmpty() && fetched.finalUrl != source) {
+                // A WebView/redirect can return HTML whose final URL is a challenge or
+                // tracking URL. Parse once against the URL the user actually selected so
+                // relative episode links still resolve against the anime page.
+                parsed = EpisodeListParser.parse(fetched.html, source)
+            }
+            if (parsed.isNotEmpty()) {
+                page = fetched
+                episodes = parsed
+                break
             }
         }
+
         if (episodes.isEmpty()) {
             // Mirrors often use a different anime slug, which host swapping cannot
             // guess. Search each mirror by the humanized slug so a moved series is
@@ -105,14 +119,20 @@ class SiteRepositoryImpl @Inject constructor(
             }
         }
         if (episodes.isEmpty()) {
+            val networkError = lastError as? NetworkUnavailableException
+            if (!anyPageLoaded && networkError != null) throw networkError
             throw FetchFailureException(
                 "Tidak ada episode yang terdeteksi di halaman ini. " +
                     "Pastikan URL halaman anime benar.",
             )
         }
 
+        val resolvedPage = page ?: throw FetchFailureException(
+            "Tidak ada episode yang terdeteksi di halaman ini. " +
+                "Pastikan URL halaman anime benar.",
+        )
         val animeSlug = try {
-            UrlUtils.lastPathSegment(URI(page.finalUrl).path.orEmpty())
+            UrlUtils.lastPathSegment(URI(resolvedPage.finalUrl).path.orEmpty())
         } catch (_: Exception) {
             UrlUtils.lastPathSegment(input)
         }
@@ -121,11 +141,11 @@ class SiteRepositoryImpl @Inject constructor(
             "Detected %d episode(s) for %s via %s",
             episodes.size,
             animeSlug,
-            page.finalUrl,
+            resolvedPage.finalUrl,
         )
         return DetectionResult(
             sourceUrl = input,
-            finalUrl = page.finalUrl,
+            finalUrl = resolvedPage.finalUrl,
             animeSlug = animeSlug,
             episodes = episodes,
             isListPage = true,
@@ -272,6 +292,8 @@ class SiteRepositoryImpl @Inject constructor(
         suspend fun trySource(source: String) {
             val page = try {
                 fetcher.fetchDownloadLinksPage(source)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (challenge: NeedsVerificationException) {
                 // Only the URL the user gave us should send them to the verify screen.
                 if (source == episodeUrl) verification = challenge
@@ -345,6 +367,8 @@ class SiteRepositoryImpl @Inject constructor(
                 if (!tried.add(UrlUtils.normalizeUrl(url))) continue
                 val page = try {
                     fetcher.fetchDownloadLinksPage(url)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (challenge: NeedsVerificationException) {
                     continue
                 } catch (error: Exception) {
@@ -464,9 +488,13 @@ class SiteRepositoryImpl @Inject constructor(
             }
         } ?: return null
 
-        val page = runCatching {
+        val page = try {
             fetcher.fetch(best.url, referer = "https://$host/")
-        }.getOrNull() ?: return null
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            return null
+        }
         val finalSlug = UrlUtils.lastPathSegment(page.finalUrl)
         val finalMatches = Names.sameAnime(finalSlug, animeSlug) ||
             Names.sameAnime(best.slug, animeSlug) ||
@@ -501,6 +529,8 @@ class SiteRepositoryImpl @Inject constructor(
         val url = "$root?s=" + URLEncoder.encode(term, "UTF-8")
         val page = try {
             fetcher.fetch(url, referer = root)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (error: Exception) {
             Timber.d(error, "Search failed on %s", host)
             return emptyList()

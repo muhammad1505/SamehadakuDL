@@ -1,8 +1,11 @@
 package app.samehadaku.dl.data.network
 
+import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.parser.DownloadLinkParser
+import java.net.UnknownHostException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -59,6 +62,17 @@ class HtmlFetcher @Inject constructor(
 
                         lastError = FetchFailureException("Server mengembalikan HTTP ${response.code}")
                     }
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (error: UnknownHostException) {
+                    // Retrying a DNS failure usually just burns the WorkManager
+                    // execution window (each lookup can take tens of seconds).
+                    Timber.w(error, "DNS lookup failed for %s", url)
+                    val host = UrlUtils.hostOf(url) ?: url
+                    throw NetworkUnavailableException(
+                        message = "Tidak dapat terhubung ke $host. Periksa koneksi internet.",
+                        cause = error,
+                    )
                 } catch (error: NeedsVerificationException) {
                     throw error
                 } catch (error: Exception) {
@@ -88,6 +102,8 @@ class HtmlFetcher @Inject constructor(
         if (!cloudflareSession.hasSession()) return null
         val html = try {
             webViewFetcher.fetch(url)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (_: Exception) {
             null
         } ?: return null
