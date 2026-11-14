@@ -5,12 +5,12 @@ import app.samehadaku.dl.data.host.LinkHealthChecker
 import app.samehadaku.dl.data.parser.HostSelector
 import app.samehadaku.dl.domain.model.DownloadLinks
 import app.samehadaku.dl.domain.model.DownloadTask
-import app.samehadaku.dl.domain.model.TargetLink
 import app.samehadaku.dl.domain.repository.SiteRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import timber.log.Timber
 
 /** Outcome of checking every candidate link of one episode before it is queued. */
 sealed interface PreflightResult {
@@ -80,8 +80,13 @@ class LinkPreflight @Inject constructor(
         allowDowngrade: Boolean,
         links: DownloadLinks,
     ): PreflightResult {
-        val targets = targetsFor(task, allowDowngrade, links)
-        if (targets.isEmpty()) {
+        val candidates = HostSelector.findCandidates(
+            links = links,
+            format = task.format,
+            resolution = task.resolution,
+            preferredHost = task.preferredHost,
+        ).filter { candidate -> !candidate.adjusted || allowDowngrade }
+        if (candidates.isEmpty()) {
             return PreflightResult.Dead(
                 listOf("kualitas ${task.resolution} tidak tersedia di semua server"),
             )
@@ -89,29 +94,33 @@ class LinkPreflight @Inject constructor(
 
         val reasons = mutableListOf<String>()
         var undecided = false
-        for (target in targets) {
-            currentCoroutineContext().ensureActive()
-            when (val health = checker.check(target)) {
-                LinkHealth.Alive -> return PreflightResult.Ready
-                is LinkHealth.Dead -> reasons += health.reason
-                LinkHealth.Unknown -> undecided = true
+        for (selection in candidates) {
+            for (target in selection.targets) {
+                currentCoroutineContext().ensureActive()
+                when (val health = checker.check(target)) {
+                    LinkHealth.Alive -> {
+                        Timber.i(
+                            "Preflight alive: %s %s %s",
+                            selection.format.label,
+                            selection.resolution,
+                            target.host.label,
+                        )
+                        return PreflightResult.Ready
+                    }
+                    is LinkHealth.Dead -> {
+                        Timber.w(
+                            "Preflight dead: %s %s %s (%s)",
+                            selection.format.label,
+                            selection.resolution,
+                            target.host.label,
+                            health.reason,
+                        )
+                        reasons += health.reason
+                    }
+                    LinkHealth.Unknown -> undecided = true
+                }
             }
         }
         return if (undecided) PreflightResult.Unknown else PreflightResult.Dead(reasons)
-    }
-
-    private fun targetsFor(
-        task: DownloadTask,
-        allowDowngrade: Boolean,
-        links: DownloadLinks,
-    ): List<TargetLink> {
-        val selection = HostSelector.findBestTargets(
-            links = links,
-            format = task.format,
-            resolution = task.resolution,
-            preferredHost = task.preferredHost,
-        ) ?: return emptyList()
-        if (selection.adjusted && !allowDowngrade) return emptyList()
-        return selection.targets
     }
 }

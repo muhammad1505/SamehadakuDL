@@ -25,6 +25,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import okhttp3.Response
+import timber.log.Timber
 
 data class DownloadProgress(
     val bytesDone: Long,
@@ -68,22 +69,28 @@ class Downloader @Inject constructor(
         task: DownloadTask,
         links: DownloadLinks,
         listener: DownloadProgressListener,
+        selectedCandidates: List<HostSelector.Selection>? = null,
     ): DownloadOutcome = withContext(Dispatchers.IO) {
         val allowQualityFallback = settings.currentQualityDowngrade()
-        val selection = HostSelector.findBestTargets(
+        val candidates = selectedCandidates ?: HostSelector.findCandidates(
             links = links,
             format = task.format,
             resolution = task.resolution,
             preferredHost = task.preferredHost,
-        )?.takeIf { !it.adjusted || allowQualityFallback }
+        ).filter { candidate -> !candidate.adjusted || allowQualityFallback }
+        val choices = candidates.filter { candidate -> !candidate.adjusted || allowQualityFallback }
 
-        if (selection == null) {
-            return@withContext DownloadOutcome.Skipped("Kualitas tidak tersedia")
+        if (choices.isEmpty()) {
+            Timber.i(
+                "No %s %s candidate for %s",
+                task.format.label,
+                task.resolution,
+                task.episodeUrl,
+            )
+            return@withContext DownloadOutcome.Skipped(
+                "Kualitas ${task.format.label} ${task.resolution} tidak tersedia",
+            )
         }
-
-        val actualFormat = selection.format
-        val actualResolution = selection.resolution
-        val targets = selection.targets
 
         val downloadDir = File(context.cacheDir, "downloads").apply { mkdirs() }
         if (!downloadDir.isDirectory) {
@@ -94,49 +101,72 @@ class Downloader @Inject constructor(
 
         val reasons = mutableListOf<String>()
 
-        for (target in targets) {
-            currentCoroutineContext().ensureActive()
+        for (selection in choices) {
+            val actualFormat = selection.format
+            val actualResolution = selection.resolution
+            Timber.i(
+                "Try %s %s (%d host%s)%s for episode %s",
+                actualFormat.label,
+                actualResolution,
+                selection.targets.size,
+                if (selection.targets.size == 1) "" else "s",
+                if (selection.adjusted) " [fallback format]" else "",
+                task.episodeUrl,
+            )
+            for (target in selection.targets) {
+                currentCoroutineContext().ensureActive()
+                Timber.i("Try %s: %s", target.host.label, target.url)
 
-            val resolved = when (val result = resolvers.resolve(target.host, target.url)) {
-                is HostResolveResult.Success -> result
-                is HostResolveResult.Failure -> {
-                    reasons += "${target.host.label}: ${result.reason}"
-                    continue
+                val resolved = when (val result = resolvers.resolve(target.host, target.url)) {
+                    is HostResolveResult.Success -> result
+                    is HostResolveResult.Failure -> {
+                        Timber.w("Resolve %s failed: %s", target.host.label, result.reason)
+                        reasons += "${target.host.label}: ${result.reason}"
+                        continue
+                    }
                 }
-            }
-            val directUrl = resolved.directUrl
+                val directUrl = resolved.directUrl
 
-            val extension = extensionFor(actualFormat, directUrl)
-            val fileName = buildFileName(task, actualFormat, actualResolution, extension)
+                val extension = extensionFor(actualFormat, directUrl)
+                val fileName = buildFileName(task, actualFormat, actualResolution, extension)
 
-            when (
-                val result = downloadSingle(
-                    host = target.host,
-                    directUrl = directUrl,
-                    headers = resolved.headers,
-                    fileName = fileName,
-                    animeSlug = task.animeSlug,
-                    listener = listener,
-                    downloadDir = downloadDir,
-                )
-            ) {
-                is SingleOutcome.Success -> {
-                    return@withContext DownloadOutcome.Done(
-                        fileName = fileName,
-                        alreadyExisted = result.alreadyExisted,
-                        format = actualFormat,
-                        resolution = actualResolution,
+                when (
+                    val result = downloadSingle(
                         host = target.host,
-                        adjusted = selection.adjusted,
+                        directUrl = directUrl,
+                        headers = resolved.headers,
+                        fileName = fileName,
+                        animeSlug = task.animeSlug,
+                        listener = listener,
+                        downloadDir = downloadDir,
                     )
-                }
-                is SingleOutcome.HostFailure -> {
-                    reasons += "${target.host.label}: ${result.reason}"
-                    continue
-                }
-                is SingleOutcome.LocalFailure -> {
-                    reasons += "${target.host.label}: ${result.reason}"
-                    return@withContext DownloadOutcome.Failed(reasons.toList())
+                ) {
+                    is SingleOutcome.Success -> {
+                        Timber.i(
+                            "Downloaded %s %s from %s%s",
+                            actualFormat.label,
+                            actualResolution,
+                            target.host.label,
+                            if (selection.adjusted) " (format fallback)" else "",
+                        )
+                        return@withContext DownloadOutcome.Done(
+                            fileName = fileName,
+                            alreadyExisted = result.alreadyExisted,
+                            format = actualFormat,
+                            resolution = actualResolution,
+                            host = target.host,
+                            adjusted = selection.adjusted,
+                        )
+                    }
+                    is SingleOutcome.HostFailure -> {
+                        Timber.w("Host %s failed: %s", target.host.label, result.reason)
+                        reasons += "${target.host.label}: ${result.reason}"
+                        continue
+                    }
+                    is SingleOutcome.LocalFailure -> {
+                        reasons += "${target.host.label}: ${result.reason}"
+                        return@withContext DownloadOutcome.Failed(reasons.toList())
+                    }
                 }
             }
         }

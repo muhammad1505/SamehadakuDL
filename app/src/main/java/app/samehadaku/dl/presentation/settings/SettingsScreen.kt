@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BatterySaver
+import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.CloudDone
@@ -105,6 +106,7 @@ fun SettingsScreen(
     onTabSelected: (AppTab) -> Unit,
     onOpenCloudflare: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenLogs: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -633,6 +635,62 @@ fun SettingsScreen(
                         "Reset sesi bila situs terus menolak akses atau verifikasi sudah kedaluwarsa. " +
                             "Setelah reset, lakukan verifikasi ulang.",
                     )
+                }
+            }
+
+            item {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(14.dp),
+                    onClick = onOpenLogs,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(13.dp))
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            BrandAccent.copy(alpha = 0.24f),
+                                            BrandAccent.copy(alpha = 0.06f),
+                                        ),
+                                    ),
+                                )
+                                .border(1.dp, BrandAccent.copy(alpha = 0.28f), RoundedCornerShape(13.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.BugReport,
+                                contentDescription = null,
+                                tint = BrandAccent,
+                                modifier = Modifier.size(19.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(11.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Log aplikasi",
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "Pantau proses pencarian, mirror, host, dan unduhan",
+                                color = TextMuted,
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        StatusPill(
+                            text = "Buka",
+                            color = BrandAccent,
+                        )
+                    }
                 }
             }
 

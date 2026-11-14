@@ -26,6 +26,7 @@ import app.samehadaku.dl.presentation.components.AppBackground
 import app.samehadaku.dl.presentation.components.AppTab
 import app.samehadaku.dl.presentation.episodes.EpisodesScreen
 import app.samehadaku.dl.presentation.home.HomeScreen
+import app.samehadaku.dl.presentation.logs.LogsScreen
 import app.samehadaku.dl.presentation.notifications.NotificationsScreen
 import app.samehadaku.dl.presentation.quality.QualityScreen
 import app.samehadaku.dl.presentation.queue.QueueScreen
@@ -47,6 +48,7 @@ object Routes {
     const val SEARCH_DETAIL = "search-detail"
     const val NOTIFICATIONS = "notifications"
     const val ABOUT = "about"
+    const val LOGS = "logs"
     const val CALENDAR = "calendar"
 }
 
@@ -234,6 +236,10 @@ fun SamehadakuNavHost(
                 AboutScreen(onBack = { navController.popBackStack() })
             }
 
+            composable(Routes.LOGS) {
+                LogsScreen(onBack = { navController.popBackStack() })
+            }
+
             composable(Routes.CLOUDFLARE) {
                 CloudflareScreen(
                     onVerified = {
@@ -302,6 +308,7 @@ fun SamehadakuNavHost(
                     onTabSelected = ::navigateToTab,
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
                     onOpenAbout = { navController.navigate(Routes.ABOUT) },
+                    onOpenLogs = { navController.navigate(Routes.LOGS) },
                 )
             }
         }

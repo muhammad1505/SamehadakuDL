@@ -46,85 +46,50 @@ object HostSelector {
     ): String? = findTargets(links, format, resolution, preferredHost).firstOrNull()?.url
 
     /**
-     * Best links for a requested quality. An exact format + resolution always wins.
-     * When that is not uploaded for an episode, the closest available quality is used
-     * instead: same resolution on another format first (preferred host first), then the
-     * nearest resolution. This is what lets a saved X265 480p Pixeldrain preference
-     * download the MKV 480p Pixeldrain upload of a new episode without user input.
+     * Every quality candidate in the order the user expects:
+     *  1. the configured format,
+     *  2. MKV at the same resolution,
+     *  3. MP4 at the same resolution,
+     *  4. any remaining format at the same resolution.
+     *
+     * The resolution never changes here. A configured 480p download must not silently
+     * become 720p just because another host offers it. Within each format the preferred
+     * host is tried first, then the other hosts for that same quality.
      */
+    fun findCandidates(
+        links: DownloadLinks,
+        format: VideoFormat,
+        resolution: String,
+        preferredHost: Host,
+    ): List<Selection> {
+        val order = linkedSetOf(format).apply {
+            add(VideoFormat.MKV)
+            add(VideoFormat.MP4)
+            add(VideoFormat.X265)
+            addAll(links.formats())
+        }
+        return order.mapNotNull { candidateFormat ->
+            val entry = links.data[candidateFormat]
+                ?.entries
+                ?.firstOrNull { it.key.equals(resolution, ignoreCase = true) }
+                ?: return@mapNotNull null
+            if (entry.value.isEmpty()) return@mapNotNull null
+            Selection(
+                format = candidateFormat,
+                resolution = entry.key,
+                targets = orderedTargets(entry.value, preferredHost),
+                adjusted = candidateFormat != format,
+            )
+        }
+    }
+
+    /** First candidate from [findCandidates], kept for callers that only need one. */
     fun findBestTargets(
         links: DownloadLinks,
         format: VideoFormat,
         resolution: String,
         preferredHost: Host,
-    ): Selection? {
-        exactTargets(links, format, resolution, preferredHost)?.let { exact ->
-            if (exact.isNotEmpty()) {
-                return Selection(
-                    format = format,
-                    resolution = resolution,
-                    targets = exact,
-                    adjusted = false,
-                )
-            }
-        }
-
-        val requested = resolution.filter(Char::isDigit).toIntOrNull() ?: 0
-        val candidates = buildList {
-            for (candidateFormat in links.formats()) {
-                for ((candidateResolution, hosts) in links.data[candidateFormat].orEmpty()) {
-                    if (hosts.isEmpty()) continue
-                    if (candidateFormat == format &&
-                        candidateResolution.equals(resolution, ignoreCase = true)
-                    ) {
-                        continue
-                    }
-                    val number = candidateResolution.filter(Char::isDigit).toIntOrNull() ?: 0
-                    add(
-                        Candidate(
-                            format = candidateFormat,
-                            resolution = candidateResolution,
-                            number = number,
-                            distance = kotlin.math.abs(number - requested),
-                            hasPreferredHost = preferredHost in hosts,
-                            targets = orderedTargets(hosts, preferredHost),
-                        ),
-                    )
-                }
-            }
-        }
-
-        val best = candidates.minWithOrNull(
-            compareBy<Candidate>(
-                { if (it.hasPreferredHost) 0 else 1 },
-                { it.distance },
-                { if (it.format == format) 0 else 1 },
-                { -it.number },
-            ),
-        ) ?: return null
-
-        return Selection(
-            format = best.format,
-            resolution = best.resolution,
-            targets = best.targets,
-            adjusted = true,
-        )
-    }
-
-    private fun exactTargets(
-        links: DownloadLinks,
-        format: VideoFormat,
-        resolution: String,
-        preferredHost: Host,
-    ): List<TargetLink>? {
-        val hosts = links.data[format]
-            ?.entries
-            ?.firstOrNull { it.key.equals(resolution, ignoreCase = true) }
-            ?.value
-            ?: return null
-        if (hosts.isEmpty()) return null
-        return orderedTargets(hosts, preferredHost)
-    }
+    ): Selection? = findCandidates(links, format, resolution, preferredHost).firstOrNull()
 
     private fun orderedTargets(
         hosts: Map<Host, String>,
@@ -137,17 +102,8 @@ object HostSelector {
         val format: VideoFormat,
         val resolution: String,
         val targets: List<TargetLink>,
-        /** True when the exact requested format/resolution was not available. */
+        /** True when the configured format was not available at this resolution. */
         val adjusted: Boolean,
-    )
-
-    private data class Candidate(
-        val format: VideoFormat,
-        val resolution: String,
-        val number: Int,
-        val distance: Int,
-        val hasPreferredHost: Boolean,
-        val targets: List<TargetLink>,
     )
 
     /**

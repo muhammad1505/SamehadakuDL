@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 data class QualityUiState(
     val animeSlug: String = "",
@@ -125,14 +126,13 @@ class QualityViewModel @Inject constructor(
                         sampleEpisodeUrl = preview.episodeUrl,
                     )
                 }
-                // Pengaturan adalah sumber kualitas untuk semua jalur unduhan. Jika
-                // pengguna sudah memilihnya, langsung antrekan setelah tautan terbaca
-                // sehingga layar ini tidak menjadi langkah ekstra di setiap menu.
-                if (saved != null && firstFormat != null && firstResolution != null &&
-                    firstHost != null && !autoStartRequested
-                ) {
+                // Pengaturan adalah sumber kualitas untuk semua jalur unduhan. Antrekan
+                // dengan preferensi tersimpan apa adanya; Downloader yang memeriksa
+                // ketersediaan host lalu fallback format pada resolusi yang sama. Jangan
+                // mengganti task ke kualitas lain hanya karena pilihan pertama di layar.
+                if (saved != null && !autoStartRequested) {
                     autoStartRequested = true
-                    startDownload()
+                    startDownload(saved)
                 }
             } catch (verification: NeedsVerificationException) {
                 _state.update {
@@ -219,10 +219,14 @@ class QualityViewModel @Inject constructor(
     }
 
     fun startDownload() {
+        startDownload(null)
+    }
+
+    private fun startDownload(preferred: app.samehadaku.dl.domain.model.QualityPreference?) {
         val current = _state.value
-        val format = current.selectedFormat
-        val resolution = current.selectedResolution
-        val host = current.selectedHost
+        val format = preferred?.format ?: current.selectedFormat
+        val resolution = preferred?.resolution ?: current.selectedResolution
+        val host = preferred?.host ?: current.selectedHost
         if (format == null || resolution == null || host == null) {
             _state.update { it.copy(error = "Pilih format, resolusi, dan server terlebih dahulu.") }
             return
@@ -237,6 +241,13 @@ class QualityViewModel @Inject constructor(
             try {
                 sessionStore.saveSelection(format, resolution, host)
                 runCatching { settings.saveQualityPreference(format, resolution, host) }
+                Timber.i(
+                    "Enqueue %d episode(s): %s %s via %s",
+                    current.episodes.size,
+                    format.label,
+                    resolution,
+                    host.label,
+                )
                 val result = enqueueDownloads(
                     episodes = current.episodes,
                     animeSlug = current.animeSlug.ifBlank { detection?.animeSlug.orEmpty() },

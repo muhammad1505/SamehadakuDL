@@ -42,6 +42,7 @@ class SiteRepositoryImpl @Inject constructor(
 
     override suspend fun detectEpisodes(url: String): DetectionResult {
         val input = UrlUtils.normalizeInput(url)
+        Timber.i("Detect episodes from %s", input)
         if (!UrlUtils.isHttpUrl(input)) {
             throw FetchFailureException("URL tidak valid. Tempel tautan http(s) dari Samehadaku.")
         }
@@ -116,6 +117,12 @@ class SiteRepositoryImpl @Inject constructor(
             UrlUtils.lastPathSegment(input)
         }
 
+        Timber.i(
+            "Detected %d episode(s) for %s via %s",
+            episodes.size,
+            animeSlug,
+            page.finalUrl,
+        )
         return DetectionResult(
             sourceUrl = input,
             finalUrl = page.finalUrl,
@@ -138,6 +145,7 @@ class SiteRepositoryImpl @Inject constructor(
             try {
                 val page = fetcher.fetch(url, referer = root)
                 val results = SearchResultParser.parse(page.html, page.finalUrl, term)
+                Timber.i("Search '%s' on %s: %d result(s)", term, host, results.size)
                 // A readable page with zero cards is often a parked/placeholder
                 // mirror or a temporary empty search response. Keep trying the
                 // remaining hosts instead of letting one bad mirror hide the site.
@@ -247,7 +255,11 @@ class SiteRepositoryImpl @Inject constructor(
      */
     override suspend fun loadDownloadLinks(episodeUrl: String): DownloadLinks? {
         val key = UrlUtils.normalizeUrl(episodeUrl)
-        freshLinks(key)?.let { return it }
+        freshLinks(key)?.let {
+            Timber.i("Using cached links for %s from %s", key, it.sourceUrl ?: key)
+            return it
+        }
+        Timber.i("Reading download links for %s", episodeUrl)
 
         val ownHost = UrlUtils.hostOf(episodeUrl)
         val ownIsPrimary = SiteMirrors.isPrimaryHost(ownHost)
@@ -269,11 +281,23 @@ class SiteRepositoryImpl @Inject constructor(
                 failure = failure ?: error
                 return
             }
+            val servedUrl = page.finalUrl.ifBlank { source }
+            if (!sameEpisodePage(key, servedUrl)) {
+                Timber.w("Ignore links from another episode: %s (requested %s)", servedUrl, key)
+                return
+            }
             val links = DownloadLinkParser.parse(page.html, page.finalUrl)
             if (links == null || links.isEmpty) return
+            Timber.i(
+                "Links from %s: %s",
+                servedUrl,
+                links.data.entries.joinToString { (format, resolutions) ->
+                    "$format=${resolutions.entries.joinToString { "${it.key}:${it.value.size}" }}"
+                },
+            )
             if (best == null || links.weight() > best!!.weight()) {
                 best = links
-                bestSource = source
+                bestSource = servedUrl
             }
         }
 
@@ -298,6 +322,7 @@ class SiteRepositoryImpl @Inject constructor(
 
         best?.let { links ->
             val served = bestSource ?: episodeUrl
+            Timber.i("Selected links for %s from %s", key, served)
             return remember(key, episodeUrl, served, links.copy(sourceUrl = served))
         }
         verification?.let { throw it }
@@ -326,14 +351,19 @@ class SiteRepositoryImpl @Inject constructor(
                     Timber.d(error, "Mirror page unavailable at %s", url)
                     continue
                 }
+                val servedUrl = page.finalUrl.ifBlank { url }
+                if (!sameEpisodePage(episodeUrl, servedUrl)) {
+                    Timber.w("Ignore mirror page for another episode: %s", servedUrl)
+                    continue
+                }
                 val links = DownloadLinkParser.parse(page.html, page.finalUrl)
                 if (links == null || links.isEmpty) continue
-                UrlUtils.hostOf(url)?.let { coveredHosts += it }
+                UrlUtils.hostOf(servedUrl)?.let { coveredHosts += it }
                 if (results.any { it.data == links.data }) continue
-                Timber.d("Mirror %s served links for %s", url, episodeUrl)
+                Timber.i("Mirror %s served links for %s", servedUrl, episodeUrl)
                 // Keep the page that actually served the links so the queue can
                 // report which mirror was used instead of a generic message.
-                results += links.copy(sourceUrl = page.finalUrl)
+                results += links.copy(sourceUrl = servedUrl)
             }
         }
 
@@ -352,6 +382,7 @@ class SiteRepositoryImpl @Inject constructor(
             ),
         )
 
+        Timber.i("Found %d distinct mirror link set(s) for %s", results.size, episodeUrl)
         return results
     }
 
@@ -381,20 +412,88 @@ class SiteRepositoryImpl @Inject constructor(
             if (excludeHosts.any { it.equals(host, ignoreCase = true) }) continue
             val animePage = animePageBySearch(host, ref.animeSlug) ?: continue
             val episodes = EpisodeListParser.parse(animePage.html, animePage.finalUrl)
-            val match = episodes.firstOrNull { it.number == ref.number } ?: continue
+            val match = episodes.firstOrNull { episode ->
+                episode.number == ref.number && episodeBelongsToAnime(episode, ref.animeSlug)
+            }
+            if (match == null) {
+                Timber.w(
+                    "%s has no episode %d for %s; refusing to use another anime",
+                    animePage.finalUrl,
+                    ref.number,
+                    ref.animeSlug,
+                )
+                continue
+            }
+            Timber.i("Mirror episode for %s: %s", ref.animeSlug, match.url)
             urls += match.url
         }
         return urls.toList()
     }
 
+    /**
+     * Finds the anime page on a mirror, but only when the search result really is the
+     * same series. Taking the first search hit used to attach an episode of a different
+     * anime (with another quality/host set) to the user's download.
+     */
     private suspend fun animePageBySearch(host: String, animeSlug: String): FetchedPage? {
         val term = Names.fromSlug(animeSlug)
         if (term.isBlank()) return null
         val results = searchOnHost(host, term)
-        val best = results.firstOrNull() ?: return null
-        return runCatching {
+        if (results.isEmpty()) {
+            Timber.i("Mirror search %s for %s returned no result", host, animeSlug)
+            return null
+        }
+
+        val matching = results.filter { result ->
+            Names.sameAnime(result.slug, animeSlug) ||
+                Names.titleMatchesSlug(result.title, animeSlug)
+        }
+        results.filterNot { it in matching }.forEach { result ->
+            Timber.i(
+                "Mirror search %s: '%s' (%s) does not match %s",
+                host,
+                result.title,
+                result.slug,
+                animeSlug,
+            )
+        }
+        val best = matching.maxByOrNull { result ->
+            when {
+                Names.sameAnime(result.slug, animeSlug) -> 2
+                else -> 1
+            }
+        } ?: return null
+
+        val page = runCatching {
             fetcher.fetch(best.url, referer = "https://$host/")
-        }.getOrNull()
+        }.getOrNull() ?: return null
+        val finalSlug = UrlUtils.lastPathSegment(page.finalUrl)
+        val finalMatches = Names.sameAnime(finalSlug, animeSlug) ||
+            Names.sameAnime(best.slug, animeSlug) ||
+            Names.titleMatchesSlug(best.title, animeSlug)
+        if (!finalMatches) {
+            Timber.w(
+                "Mirror search %s redirected to another anime: %s",
+                host,
+                page.finalUrl,
+            )
+            return null
+        }
+        Timber.i("Mirror search %s matched %s -> %s", host, animeSlug, page.finalUrl)
+        return page
+    }
+
+    private fun episodeBelongsToAnime(episode: Episode, animeSlug: String): Boolean {
+        val episodeAnime = SiteMirrors.episodeRef(episode.url)?.animeSlug ?: return false
+        return Names.sameAnime(episodeAnime, animeSlug)
+    }
+
+    /** Guard for pages that redirect to a different anime's episode. */
+    private fun sameEpisodePage(expectedUrl: String, candidateUrl: String): Boolean {
+        val expected = SiteMirrors.episodeRef(expectedUrl) ?: return true
+        val candidate = SiteMirrors.episodeRef(candidateUrl) ?: return true
+        return expected.number == candidate.number &&
+            Names.sameAnime(expected.animeSlug, candidate.animeSlug)
     }
 
     private suspend fun searchOnHost(host: String, term: String): List<AnimeSearchResult> {

@@ -3,8 +3,10 @@ package app.samehadaku.dl.data.download
 import app.samehadaku.dl.core.SiteMirrors
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.network.NeedsVerificationException
+import app.samehadaku.dl.data.parser.HostSelector
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.data.subscriptions.SubscriptionRepository
+import app.samehadaku.dl.domain.model.DownloadLinks
 import app.samehadaku.dl.domain.model.DownloadState
 import app.samehadaku.dl.domain.model.DownloadTask
 import app.samehadaku.dl.domain.model.Host
@@ -394,6 +396,15 @@ class DownloadQueue @Inject constructor(
         val initial = _tasks.value.firstOrNull { it.id == taskId } ?: return
         if (!initial.state.isActive) return
 
+        Timber.i(
+            "Start episode %d (%s): requested %s %s via %s",
+            initial.episodeNumber,
+            initial.episodeUrl,
+            initial.format.label,
+            initial.resolution,
+            initial.preferredHost.label,
+        )
+
         try {
             val links = siteRepository.loadDownloadLinks(initial.episodeUrl)
             if (links == null || links.isEmpty) {
@@ -406,61 +417,127 @@ class DownloadQueue @Inject constructor(
             }
 
             // loadDownloadLinks already falls back to a mirror when the requested
-            // primary page is unreachable; keep that source for the queue report.
+            // page is unreachable; keep that source for the queue report. Any host
+            // change is reported, not only a move from a primary to a mirror.
             val requestedHost = UrlUtils.hostOf(initial.episodeUrl)
             var mirrorSource = links.sourceUrl
                 ?.let(UrlUtils::hostOf)
-                ?.takeIf { SiteMirrors.isPrimaryHost(requestedHost) && !SiteMirrors.isPrimaryHost(it) }
+                ?.takeIf { served -> !served.equals(requestedHost, ignoreCase = true) }
+            Timber.i(
+                "Episode %d links from %s (requested host %s)",
+                initial.episodeNumber,
+                links.sourceUrl ?: initial.episodeUrl,
+                requestedHost ?: "unknown",
+            )
 
-            var outcome = downloader.download(initial, links) { progress ->
-                updateProgress(taskId, progress)
+            val allowFormatFallback = runCatching { settings.currentQualityDowngrade() }
+                .getOrDefault(false)
+            fun candidatesFor(
+                linkSet: DownloadLinks,
+                fallbackFormat: Boolean,
+            ): List<HostSelector.Selection> = HostSelector.findCandidates(
+                links = linkSet,
+                format = initial.format,
+                resolution = initial.resolution,
+                preferredHost = initial.preferredHost,
+            ).filter { candidate -> candidate.adjusted == fallbackFormat }
+
+            suspend fun attempt(
+                linkSet: DownloadLinks,
+                candidates: List<HostSelector.Selection>,
+            ): DownloadOutcome {
+                if (candidates.isEmpty()) return DownloadOutcome.Skipped("Kualitas tidak tersedia")
+                return downloader.download(initial, linkSet, { progress ->
+                    updateProgress(taskId, progress)
+                }, candidates)
             }
 
-            if (outcome !is DownloadOutcome.Done) {
-                // The upload links may be refreshed on another Samehadaku mirror. Try
-                // every distinct mirror link set: a parseable page can still point at
-                // a dead upload, so the first one is not necessarily usable.
-                val mirrorSets = runCatching {
-                    siteRepository.loadMirrorLinks(initial.episodeUrl)
-                }.getOrDefault(emptyList())
-                if (mirrorSets.isNotEmpty()) {
-                    val attemptedReasons = when (val attempt = outcome) {
-                        is DownloadOutcome.Failed -> attempt.reasons.toMutableList()
-                        is DownloadOutcome.Skipped -> mutableListOf(attempt.reason)
-                        is DownloadOutcome.Done -> mutableListOf()
-                    }
-                    var mirrorDone: DownloadOutcome.Done? = null
-                    var mirrorAttempted = false
-                    for (mirrorLinks in mirrorSets) {
-                        // The original page is returned as a last resort; it already
-                        // failed above, so skip the exact same link set.
-                        if (mirrorLinks.data == links.data) continue
-                        mirrorAttempted = true
-                        val mirrorOutcome = downloader.download(initial, mirrorLinks) { progress ->
-                            updateProgress(taskId, progress)
-                        }
-                        when (mirrorOutcome) {
-                            is DownloadOutcome.Done -> {
-                                mirrorDone = mirrorOutcome
-                                val servedHost = mirrorLinks.sourceUrl?.let(UrlUtils::hostOf)
-                                mirrorSource = when {
-                                    servedHost == null -> "Samehadaku"
-                                    // A refreshed read from the very same host is not a mirror.
-                                    servedHost.equals(requestedHost, ignoreCase = true) -> null
-                                    else -> servedHost
-                                }
-                                break
-                            }
-                            is DownloadOutcome.Failed -> attemptedReasons += mirrorOutcome.reasons
-                            is DownloadOutcome.Skipped -> attemptedReasons += mirrorOutcome.reason
-                        }
-                    }
-                    outcome = mirrorDone ?: if (mirrorAttempted) {
-                        DownloadOutcome.Failed(attemptedReasons.distinct())
-                    } else {
-                        outcome
+            val reasons = mutableListOf<String>()
+            fun remember(outcome: DownloadOutcome) {
+                when (outcome) {
+                    is DownloadOutcome.Failed -> reasons += outcome.reasons
+                    is DownloadOutcome.Skipped -> reasons += outcome.reason
+                    is DownloadOutcome.Done -> Unit
+                }
+            }
+
+            var outcome = attempt(links, candidatesFor(links, fallbackFormat = false))
+            remember(outcome)
+            Timber.i(
+                "Episode %d exact quality attempt: %s",
+                initial.episodeNumber,
+                outcome.logLabel(),
+            )
+
+            val mirrorSets = if (outcome is DownloadOutcome.Done) {
+                emptyList()
+            } else {
+                runCatching { siteRepository.loadMirrorLinks(initial.episodeUrl) }
+                    .getOrDefault(emptyList())
+            }
+            Timber.i("Episode %d mirrors to try: %d", initial.episodeNumber, mirrorSets.size)
+
+            // Mirrors are checked for the exact requested quality before any format
+            // fallback. A mirror may still have X265 480p even when the main domain
+            // only has MKV/MP4, and changing format too early was the reported bug.
+            for (mirrorLinks in mirrorSets) {
+                if (outcome is DownloadOutcome.Done) break
+                if (mirrorLinks.data == links.data) continue
+                Timber.i(
+                    "Episode %d try exact quality on mirror %s",
+                    initial.episodeNumber,
+                    mirrorLinks.sourceUrl ?: "unknown",
+                )
+                val mirrorOutcome = attempt(
+                    mirrorLinks,
+                    candidatesFor(mirrorLinks, fallbackFormat = false),
+                )
+                remember(mirrorOutcome)
+                Timber.i(
+                    "Episode %d exact mirror result: %s",
+                    initial.episodeNumber,
+                    mirrorOutcome.logLabel(),
+                )
+                if (mirrorOutcome is DownloadOutcome.Done) {
+                    outcome = mirrorOutcome
+                    val servedHost = mirrorLinks.sourceUrl?.let(UrlUtils::hostOf)
+                    mirrorSource = when {
+                        servedHost == null -> "Samehadaku"
+                        servedHost.equals(requestedHost, ignoreCase = true) -> null
+                        else -> servedHost
                     }
                 }
+            }
+
+            if (outcome !is DownloadOutcome.Done && allowFormatFallback) {
+                Timber.i("Episode %d trying same-resolution format fallback", initial.episodeNumber)
+                val fallback = attempt(links, candidatesFor(links, fallbackFormat = true))
+                remember(fallback)
+                if (fallback is DownloadOutcome.Done) {
+                    outcome = fallback
+                }
+                for (mirrorLinks in mirrorSets) {
+                    if (outcome is DownloadOutcome.Done) break
+                    if (mirrorLinks.data == links.data) continue
+                    val mirrorFallback = attempt(
+                        mirrorLinks,
+                        candidatesFor(mirrorLinks, fallbackFormat = true),
+                    )
+                    remember(mirrorFallback)
+                    if (mirrorFallback is DownloadOutcome.Done) {
+                        outcome = mirrorFallback
+                        val servedHost = mirrorLinks.sourceUrl?.let(UrlUtils::hostOf)
+                        mirrorSource = when {
+                            servedHost == null -> "Samehadaku"
+                            servedHost.equals(requestedHost, ignoreCase = true) -> null
+                            else -> servedHost
+                        }
+                    }
+                }
+            }
+
+            if (outcome !is DownloadOutcome.Done && reasons.isNotEmpty()) {
+                outcome = DownloadOutcome.Failed(reasons.distinct())
             }
 
             when (outcome) {
@@ -473,6 +550,13 @@ class DownloadQueue @Inject constructor(
                                 "Kualitas disesuaikan otomatis ke " +
                                     "${outcome.format.label} ${outcome.resolution} karena " +
                                     "pilihan awal tidak tersedia di episode ini.",
+                            )
+                        }
+                        if (outcome.host != initial.preferredHost) {
+                            add(
+                                "Diunduh lewat ${outcome.host.label} karena " +
+                                    "${initial.preferredHost.label} tidak tersedia untuk " +
+                                    "kualitas ini.",
                             )
                         }
                         if (outcome.alreadyExisted) {
@@ -516,6 +600,14 @@ class DownloadQueue @Inject constructor(
                 reasons = listOf("Terjadi kesalahan: ${error.message ?: "tidak diketahui"}"),
             )
         }
+    }
+
+    private fun DownloadOutcome.logLabel(): String = when (this) {
+        is DownloadOutcome.Done ->
+            "done ${format.label} $resolution via ${host.label}" +
+                if (adjusted) " (fallback)" else ""
+        is DownloadOutcome.Failed -> "failed: ${reasons.joinToString("; ")}"
+        is DownloadOutcome.Skipped -> "skipped: $reason"
     }
 
     private fun updateProgress(taskId: String, progress: DownloadProgress) {

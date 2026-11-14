@@ -62,7 +62,7 @@ class HostSelectorTest {
     }
 
     @Test
-    fun `adjustment keeps the preferred host ahead of a closer resolution`() {
+    fun `format fallback follows the configured format order`() {
         val mixed = DownloadLinks(
             linkedMapOf(
                 VideoFormat.MKV to linkedMapOf(
@@ -84,8 +84,69 @@ class HostSelectorTest {
             Host.PIXELDRAIN,
         )!!
         assertTrue(selection.adjusted)
-        assertEquals(VideoFormat.MP4, selection.format)
-        assertEquals(Host.PIXELDRAIN, selection.targets.first().host)
+        assertEquals(VideoFormat.MKV, selection.format)
+        assertEquals(Host.MEDIAFIRE, selection.targets.first().host)
+    }
+
+    @Test
+    fun `exact format on a fallback host wins before changing format`() {
+        val mixed = DownloadLinks(
+            linkedMapOf(
+                VideoFormat.X265 to linkedMapOf(
+                    "480p" to linkedMapOf(
+                        Host.GOFILE to "https://gofile.io/d/x265-480",
+                    ),
+                ),
+                VideoFormat.MKV to linkedMapOf(
+                    "480p" to linkedMapOf(
+                        Host.ACEFILE to "https://acefile.co/f/mkv-480",
+                    ),
+                ),
+            ),
+        )
+        val selection = HostSelector.findBestTargets(
+            mixed,
+            VideoFormat.X265,
+            "480p",
+            Host.ACEFILE,
+        )!!
+        assertEquals(false, selection.adjusted)
+        assertEquals(VideoFormat.X265, selection.format)
+        assertEquals(Host.GOFILE, selection.targets.single().host)
+    }
+
+    @Test
+    fun `resolution never changes during format fallback`() {
+        val mixed = DownloadLinks(
+            linkedMapOf(
+                VideoFormat.X265 to linkedMapOf(
+                    "720p" to linkedMapOf(
+                        Host.ACEFILE to "https://acefile.co/f/x265-720",
+                    ),
+                ),
+                VideoFormat.MKV to linkedMapOf(
+                    "480p" to linkedMapOf(
+                        Host.GOFILE to "https://gofile.io/d/mkv-480",
+                    ),
+                ),
+            ),
+        )
+        val selection = HostSelector.findBestTargets(
+            mixed,
+            VideoFormat.X265,
+            "480p",
+            Host.ACEFILE,
+        )!!
+        assertEquals(VideoFormat.MKV, selection.format)
+        assertEquals("480p", selection.resolution)
+        assertNull(
+            HostSelector.findBestTargets(
+                mixed,
+                VideoFormat.X265,
+                "360p",
+                Host.ACEFILE,
+            ),
+        )
     }
 
     @Test

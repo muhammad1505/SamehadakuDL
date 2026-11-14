@@ -3,6 +3,7 @@ package app.samehadaku.dl
 import android.app.Application
 import android.os.Build
 import android.webkit.WebView
+import app.samehadaku.dl.core.AppLog
 import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
 import app.samehadaku.dl.data.network.CloudflareSession
 import app.samehadaku.dl.domain.usecase.AutoRetryFailedUseCase
@@ -30,6 +31,8 @@ class SamehadakuApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppLog.init(this)
+        Timber.plant(AppLog.Tree())
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
             WebView.setWebContentsDebuggingEnabled(true)
