@@ -42,7 +42,7 @@ class LinkPreflight @Inject constructor(
             ?: return PreflightResult.Unknown
 
         return when (val main = scan(task, allowDowngrade, links)) {
-            is PreflightResult.Dead -> scanMirrors(task, allowDowngrade, main)
+            is PreflightResult.Dead -> scanMirrors(task, allowDowngrade, main, links)
             PreflightResult.Ready, PreflightResult.Unknown -> main
         }
     }
@@ -51,11 +51,27 @@ class LinkPreflight @Inject constructor(
         task: DownloadTask,
         allowDowngrade: Boolean,
         main: PreflightResult.Dead,
+        mainLinks: DownloadLinks,
     ): PreflightResult {
-        val mirrorLinks = siteRepository.loadMirrorLinks(task.episodeUrl) ?: return main
-        return when (val mirror = scan(task, allowDowngrade, mirrorLinks)) {
-            is PreflightResult.Dead -> PreflightResult.Dead(main.reasons + mirror.reasons)
-            PreflightResult.Ready, PreflightResult.Unknown -> mirror
+        val mirrorSets = runCatching { siteRepository.loadMirrorLinks(task.episodeUrl) }
+            .getOrDefault(emptyList())
+        if (mirrorSets.isEmpty()) return main
+
+        val reasons = main.reasons.toMutableList()
+        var undecided = false
+        for (mirrorLinks in mirrorSets) {
+            // The original page is returned as a last resort; do not probe it twice.
+            if (mirrorLinks.data == mainLinks.data) continue
+            when (val mirror = scan(task, allowDowngrade, mirrorLinks)) {
+                PreflightResult.Ready -> return PreflightResult.Ready
+                is PreflightResult.Dead -> reasons += mirror.reasons
+                PreflightResult.Unknown -> undecided = true
+            }
+        }
+        return if (undecided) {
+            PreflightResult.Unknown
+        } else {
+            PreflightResult.Dead(reasons.distinct())
         }
     }
 

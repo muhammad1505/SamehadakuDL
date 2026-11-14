@@ -5,6 +5,7 @@ import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.data.subscriptions.SubscriptionRepository
 import app.samehadaku.dl.domain.model.DownloadState
 import app.samehadaku.dl.domain.model.DownloadTask
+import app.samehadaku.dl.domain.model.Host
 import app.samehadaku.dl.domain.model.VideoFormat
 import app.samehadaku.dl.domain.repository.SiteRepository
 import java.util.concurrent.ConcurrentHashMap
@@ -401,17 +402,44 @@ class DownloadQueue @Inject constructor(
             }
             var mirrorNote: String? = null
 
-            if (outcome is DownloadOutcome.Failed || outcome is DownloadOutcome.Skipped) {
-                // The upload links may be refreshed on another Samehadaku mirror.
-                val mirrorLinks = runCatching {
+            if (outcome !is DownloadOutcome.Done) {
+                // The upload links may be refreshed on another Samehadaku mirror. Try
+                // every distinct mirror link set: a parseable page can still point at
+                // a dead upload, so the first one is not necessarily usable.
+                val mirrorSets = runCatching {
                     siteRepository.loadMirrorLinks(initial.episodeUrl)
-                }.getOrNull()
-                if (mirrorLinks != null && !mirrorLinks.isEmpty) {
-                    outcome = downloader.download(initial, mirrorLinks) { progress ->
-                        updateProgress(taskId, progress)
+                }.getOrDefault(emptyList())
+                if (mirrorSets.isNotEmpty()) {
+                    val attemptedReasons = when (val attempt = outcome) {
+                        is DownloadOutcome.Failed -> attempt.reasons.toMutableList()
+                        is DownloadOutcome.Skipped -> mutableListOf(attempt.reason)
+                        is DownloadOutcome.Done -> mutableListOf()
                     }
-                    if (outcome is DownloadOutcome.Done) {
-                        mirrorNote = "Diunduh dari mirror Samehadaku karena link domain utama mati."
+                    var mirrorDone: DownloadOutcome.Done? = null
+                    var mirrorAttempted = false
+                    for (mirrorLinks in mirrorSets) {
+                        // The original page is returned as a last resort; it already
+                        // failed above, so skip the exact same link set.
+                        if (mirrorLinks.data == links.data) continue
+                        mirrorAttempted = true
+                        val mirrorOutcome = downloader.download(initial, mirrorLinks) { progress ->
+                            updateProgress(taskId, progress)
+                        }
+                        when (mirrorOutcome) {
+                            is DownloadOutcome.Done -> {
+                                mirrorDone = mirrorOutcome
+                                mirrorNote = "Diunduh dari mirror Samehadaku karena link " +
+                                    "domain utama mati."
+                                break
+                            }
+                            is DownloadOutcome.Failed -> attemptedReasons += mirrorOutcome.reasons
+                            is DownloadOutcome.Skipped -> attemptedReasons += mirrorOutcome.reason
+                        }
+                    }
+                    outcome = mirrorDone ?: if (mirrorAttempted) {
+                        DownloadOutcome.Failed(attemptedReasons.distinct())
+                    } else {
+                        outcome
                     }
                 }
             }
@@ -420,18 +448,24 @@ class DownloadQueue @Inject constructor(
                 is DownloadOutcome.Done -> finish(
                     taskId = taskId,
                     state = DownloadState.DONE,
-                    note = mirrorNote ?: when {
-                        outcome.adjusted -> "Kualitas disesuaikan otomatis ke " +
-                            "${outcome.format.label} ${outcome.resolution} karena pilihan awal " +
-                            "tidak tersedia di episode ini."
-                        outcome.alreadyExisted ->
-                            "File sudah ada di penyimpanan, unduhan tidak diulang."
-                        else -> null
-                    },
+                    note = buildList {
+                        mirrorNote?.let { add(it) }
+                        if (outcome.adjusted) {
+                            add(
+                                "Kualitas disesuaikan otomatis ke " +
+                                    "${outcome.format.label} ${outcome.resolution} karena " +
+                                    "pilihan awal tidak tersedia di episode ini.",
+                            )
+                        }
+                        if (outcome.alreadyExisted) {
+                            add("File sudah ada di penyimpanan, unduhan tidak diulang.")
+                        }
+                    }.joinToString(" ").ifBlank { null },
                     fileName = outcome.fileName,
                     alreadyExisted = outcome.alreadyExisted,
                     format = outcome.format,
                     resolution = outcome.resolution,
+                    host = outcome.host,
                 )
                 is DownloadOutcome.Failed -> finish(
                     taskId = taskId,
@@ -493,6 +527,7 @@ class DownloadQueue @Inject constructor(
         alreadyExisted: Boolean = false,
         format: VideoFormat? = null,
         resolution: String? = null,
+        host: Host? = null,
     ) {
         var finishedTask: DownloadTask? = null
         _tasks.update { tasks ->
@@ -504,7 +539,9 @@ class DownloadQueue @Inject constructor(
                         format = format ?: task.format,
                         resolution = resolution ?: task.resolution,
                         speedBytesPerSecond = 0L,
-                        currentHost = null,
+                        // Keep the actual server in history instead of erasing it when
+                        // the task finishes; failures keep the last attempted host.
+                        currentHost = host ?: task.currentHost,
                         failureReasons = reasons,
                         note = note,
                         fileName = fileName ?: task.fileName,

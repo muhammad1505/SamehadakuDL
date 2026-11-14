@@ -12,6 +12,7 @@ import app.samehadaku.dl.MainActivity
 import app.samehadaku.dl.R
 import app.samehadaku.dl.data.notifications.NotificationRepository
 import app.samehadaku.dl.domain.model.AppNotificationKind
+import app.samehadaku.dl.domain.model.QualityPreference
 import app.samehadaku.dl.domain.usecase.SubscriptionCheckResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -36,7 +37,8 @@ class AutoCheckNotifier @Inject constructor(
         } else {
             "$count episode baru tersedia"
         }
-        val body = collapsedNames(result)
+        val body = "${collapsedNames(result)} • Pilih kualitas dan server di Langganan " +
+            "agar episode baru diunduh otomatis."
         inbox.add(
             kind = AppNotificationKind.NEW_EPISODES,
             title = title,
@@ -47,7 +49,7 @@ class AutoCheckNotifier @Inject constructor(
             id = NEW_EPISODES_ID,
             title = title,
             text = body,
-            bigText = expandedEpisodes(result),
+            bigText = "${expandedEpisodes(result)}\n$body",
             route = MainActivity.ROUTE_SUBSCRIPTIONS,
         )
     }
@@ -57,6 +59,7 @@ class AutoCheckNotifier @Inject constructor(
         result: SubscriptionCheckResult,
         queuedCount: Int,
         skippedCount: Int,
+        quality: QualityPreference?,
     ) {
         if (queuedCount <= 0) return
         val title = if (queuedCount == 1) {
@@ -64,9 +67,16 @@ class AutoCheckNotifier @Inject constructor(
         } else {
             "Mengunduh $queuedCount episode baru"
         }
-        val body = collapsedNames(result)
+        val qualityLine = quality?.let {
+            "Kualitas: ${it.format.label} • ${it.resolution.uppercase()} • ${it.host.label}"
+        }
+        val body = buildString {
+            append(collapsedNames(result))
+            if (qualityLine != null) append(" • $qualityLine")
+        }
         val bigText = buildString {
             append(expandedEpisodes(result))
+            if (qualityLine != null) append("\n$qualityLine")
             if (skippedCount > 0) {
                 append("\n$skippedCount episode sudah ada di antrean.")
             }
@@ -74,7 +84,7 @@ class AutoCheckNotifier @Inject constructor(
         inbox.add(
             kind = AppNotificationKind.QUEUED,
             title = title,
-            message = body,
+            message = bigText,
             route = MainActivity.ROUTE_QUEUE,
         )
         notify(

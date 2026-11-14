@@ -136,7 +136,7 @@ class AutoCheckWorker(
         }
 
         if (queued > 0) {
-            entry.notifier().notifyDownloadsQueued(result, queued, skipped)
+            entry.notifier().notifyDownloadsQueued(result, queued, skipped, quality)
         }
     }
 }

@@ -20,9 +20,12 @@ interface SiteRepository {
     suspend fun loadDownloadLinks(episodeUrl: String): DownloadLinks?
 
     /**
-     * Reads the episode page from the other Samehadaku mirrors, ignoring the URL's own
-     * host, and caches the first result under [episodeUrl] so the download itself uses
-     * those links. Returns null when no mirror serves usable links.
+     * Reads the episode page from every Samehadaku mirror and returns each distinct
+     * link set that actually parsed. The URL's own page is included as a last resort
+     * because the richer canonical page can be dead while the mirror still serves a
+     * file. A parseable page is not proof that its uploads still work, so callers must
+     * try the sets in order until one yields a live target. Returns an empty list when
+     * no page works.
      */
-    suspend fun loadMirrorLinks(episodeUrl: String): DownloadLinks?
+    suspend fun loadMirrorLinks(episodeUrl: String): List<DownloadLinks>
 }

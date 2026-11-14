@@ -154,12 +154,23 @@ class DownloadService : Service() {
             if (canceled > 0) append(" • $canceled dibatalkan")
             if (duplicates > 0) append(" • $duplicates sudah ada, dilewati")
         }
+        val finished = tasks.filter { it.state.isFinished }
+        val detailLines = finished.take(MAX_DETAIL_LINES).map { it.detailLine() }
+        val remaining = finished.size - detailLines.size
+        val bigText = buildString {
+            append(text)
+            if (detailLines.isNotEmpty()) {
+                append('\n')
+                append(detailLines.joinToString("\n"))
+            }
+            if (remaining > 0) append("\n+$remaining lainnya")
+        }
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_download)
             .setContentTitle(title)
             .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setContentIntent(contentIntent())
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
@@ -175,7 +186,7 @@ class DownloadService : Service() {
                 inbox.add(
                     kind = AppNotificationKind.COMPLETED,
                     title = title,
-                    message = text,
+                    message = bigText,
                     route = MainActivity.ROUTE_QUEUE,
                 )
             }
@@ -204,11 +215,20 @@ class DownloadService : Service() {
                 append(" • ${Formatter.formatShortFileSize(this@DownloadService, speed)}/dtk")
             }
         }
+        val taskLines = activeTasks.take(MAX_DETAIL_LINES).map { it.detailLine() }
+        val bigText = buildString {
+            append(detail)
+            if (taskLines.isNotEmpty()) {
+                append('\n')
+                append(taskLines.joinToString("\n"))
+            }
+        }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_download)
             .setContentTitle("Mengunduh ${activeTasks.size} episode")
-            .setContentText(detail)
+            .setContentText(taskLines.firstOrNull() ?: detail)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setContentIntent(contentIntent())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -226,15 +246,42 @@ class DownloadService : Service() {
     }
 
     private fun buildPausedNotification(tasks: List<DownloadTask>): Notification {
+        val paused = tasks.filter { it.state == DownloadState.PAUSED }
+        val focus = paused.firstOrNull()?.detailLine()
+        val text = buildString {
+            append("${paused.size} episode menunggu.")
+            if (focus != null) append(" $focus.")
+            append(" Buka aplikasi untuk melanjutkan.")
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_download)
             .setContentTitle("Unduhan dijeda")
-            .setContentText("${tasks.count { it.state == DownloadState.PAUSED }} episode menunggu. Buka aplikasi untuk melanjutkan.")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(contentIntent())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(0, "Batalkan semua", serviceAction(ACTION_CANCEL_ALL, REQUEST_CANCEL))
             .build()
+    }
+
+    /**
+     * One line with the information every menu shows for a task: episode, saved
+     * quality, and the server actually serving it (or the selected server while the
+     * link is still being resolved). Keeping it in the service means notifications
+     * mention Filedon and other hosts exactly like the queue and quality screens.
+     */
+    private fun DownloadTask.detailLine(): String = buildString {
+        append("Ep $episodeNumber")
+        append(" • ${format.label} ${resolution.uppercase()}")
+        append(" • ${(currentHost ?: preferredHost).label}")
+        when (state) {
+            DownloadState.DONE -> append(if (alreadyExisted) " • sudah ada" else " • selesai")
+            DownloadState.FAILED -> append(" • gagal")
+            DownloadState.SKIPPED -> append(" • dilewati")
+            DownloadState.CANCELED -> append(" • dibatalkan")
+            else -> Unit
+        }
     }
 
     private fun emptyNotification(): Notification =
@@ -299,6 +346,7 @@ class DownloadService : Service() {
         private const val REQUEST_PAUSE = 3002
         private const val REQUEST_CANCEL = 3003
         private const val SUMMARY_DISPLAY_MS = 4_000L
+        private const val MAX_DETAIL_LINES = 4
         private const val ACTION_PAUSE_ALL = "app.samehadaku.dl.action.PAUSE_ALL"
         private const val ACTION_CANCEL_ALL = "app.samehadaku.dl.action.CANCEL_ALL"
 

@@ -45,6 +45,8 @@ sealed interface DownloadOutcome {
         /** Quality actually downloaded, which may differ from the requested one. */
         val format: VideoFormat,
         val resolution: String,
+        /** Server that actually served the file; kept for history and notifications. */
+        val host: Host,
         val adjusted: Boolean = false,
     ) : DownloadOutcome
 
@@ -124,6 +126,7 @@ class Downloader @Inject constructor(
                         alreadyExisted = result.alreadyExisted,
                         format = actualFormat,
                         resolution = actualResolution,
+                        host = target.host,
                         adjusted = selection.adjusted,
                     )
                 }
