@@ -5,9 +5,14 @@ import androidx.lifecycle.viewModelScope
 import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
 import app.samehadaku.dl.data.network.CloudflareSession
 import app.samehadaku.dl.data.settings.SettingsRepository
+import app.samehadaku.dl.data.smartstorage.SmartStorageManager
+import app.samehadaku.dl.data.smartstorage.SmartStorageScheduler
 import app.samehadaku.dl.domain.model.Host
 import app.samehadaku.dl.domain.model.QualityPreference
 import app.samehadaku.dl.domain.model.VideoFormat
+import app.samehadaku.dl.domain.usecase.CleanWatchedFilesUseCase
+import app.samehadaku.dl.domain.usecase.SmartStorageCleanupResult
+import app.samehadaku.dl.presentation.util.formatBytes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +31,14 @@ data class SettingsUiState(
     val autoCheckIntervalMinutes: Int = 60,
     val failedRetryEnabled: Boolean = true,
     val lastAutoCheckAt: Long = 0L,
+    val smartStorageEnabled: Boolean = false,
+    val smartStorageGraceDays: Int = 3,
+    val smartWatchedCount: Int = 0,
+    val smartWatchedBytes: Long = 0L,
+    val smartDeletedCount: Int = 0,
+    val smartReclaimedBytes: Long = 0L,
+    val smartLastCleanupAt: Long = 0L,
+    val smartCleaning: Boolean = false,
     val sessionActive: Boolean = false,
     val loading: Boolean = true,
     val message: String? = null,
@@ -36,6 +49,9 @@ class SettingsViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val cloudflareSession: CloudflareSession,
     private val autoCheckScheduler: AutoCheckScheduler,
+    private val smartStorage: SmartStorageManager,
+    private val cleanWatchedFiles: CleanWatchedFilesUseCase,
+    private val smartStorageScheduler: SmartStorageScheduler,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -82,6 +98,25 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
             }
+        }
+        viewModelScope.launch {
+            combine(
+                smartStorage.settings,
+                smartStorage.stats,
+            ) { smart, stats -> smart to stats }
+                .collect { (smart, stats) ->
+                    _state.update {
+                        it.copy(
+                            smartStorageEnabled = smart.enabled,
+                            smartStorageGraceDays = smart.graceDays,
+                            smartWatchedCount = stats.watchedCount,
+                            smartWatchedBytes = stats.watchedBytes,
+                            smartDeletedCount = stats.deletedCount,
+                            smartReclaimedBytes = stats.reclaimedBytes,
+                            smartLastCleanupAt = stats.lastCleanupAt,
+                        )
+                    }
+                }
         }
     }
 
@@ -203,6 +238,51 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setSmartStorageEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            smartStorage.setEnabled(enabled)
+            runCatching { smartStorageScheduler.sync() }
+            _state.update {
+                it.copy(
+                    message = if (enabled) {
+                        "Smart Storage diaktifkan. Episode yang ditandai ditonton " +
+                            "dihapus setelah ${it.smartStorageGraceDays} hari."
+                    } else {
+                        "Smart Storage dimatikan. Tidak ada file yang dihapus otomatis."
+                    },
+                )
+            }
+        }
+    }
+
+    fun setSmartStorageGraceDays(days: Int) {
+        viewModelScope.launch {
+            smartStorage.setGraceDays(days)
+            _state.update {
+                it.copy(message = "Masa tenggang Smart Storage: ${days} hari.")
+            }
+        }
+    }
+
+    fun cleanWatchedNow() {
+        if (!_state.value.smartStorageEnabled || _state.value.smartCleaning) return
+        viewModelScope.launch {
+            _state.update { it.copy(smartCleaning = true) }
+            val result = runCatching { cleanWatchedFiles() }
+            _state.update { current ->
+                current.copy(
+                    smartCleaning = false,
+                    message = result.fold(
+                        onSuccess = ::cleanupMessage,
+                        onFailure = { error ->
+                            "Gagal membersihkan Smart Storage: ${error.message}"
+                        },
+                    ),
+                )
+            }
+        }
+    }
+
     fun runAutoCheckNow() {
         autoCheckScheduler.runNow()
         _state.update { it.copy(message = "Cek episode baru dijalankan di latar belakang.") }
@@ -241,6 +321,34 @@ class SettingsViewModel @Inject constructor(
 
     private fun intervalLabel(minutes: Int): String =
         if (minutes % 60 == 0) "${minutes / 60} jam" else "$minutes menit"
+
+    private fun cleanupMessage(result: SmartStorageCleanupResult): String {
+        if (result.disabled) return "Aktifkan Smart Storage terlebih dahulu."
+        val parts = buildList {
+            if (result.deletedFiles > 0) {
+                add(
+                    "${result.deletedFiles} episode dihapus " +
+                        "(${formatBytes(result.reclaimedBytes)}).",
+                )
+            }
+            if (result.blockedFiles > 0) {
+                add(
+                    "${result.blockedFiles} file menunggu izin penyimpanan; " +
+                        "hapus manual dari Koleksi bila perlu.",
+                )
+            }
+            if (isEmpty()) {
+                add(
+                    if (result.skippedFiles > 0) {
+                        "Belum ada file yang aman dihapus; ukuran file belum cocok."
+                    } else {
+                        "Belum ada episode yang melewati masa tenggang."
+                    },
+                )
+            }
+        }
+        return parts.joinToString(" ")
+    }
 
     private companion object {
         val DEFAULT_QUALITY = QualityPreference(

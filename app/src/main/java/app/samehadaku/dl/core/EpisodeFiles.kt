@@ -10,11 +10,22 @@ object EpisodeFiles {
     private val videoExtensions = setOf("mkv", "mp4", "webm", "avi", "mov", "m4v", "ts")
     private val archiveExtensions = setOf("rar", "zip")
 
-    fun isEpisode(fileName: String): Boolean {
+    /** True for a video file the app can track as a watched episode. */
+    fun isVideo(fileName: String): Boolean {
         val name = fileName.trim()
         if (name.isEmpty() || name.startsWith(".")) return false
         if (name.endsWith(".part", ignoreCase = true)) return false
         val extension = name.substringAfterLast('.', missingDelimiterValue = "").lowercase()
-        return extension in videoExtensions || extension in archiveExtensions
+        return extension in videoExtensions
+    }
+
+    fun isEpisode(fileName: String): Boolean = isVideo(fileName) || isArchive(fileName)
+
+    private fun isArchive(fileName: String): Boolean {
+        val name = fileName.trim()
+        if (name.isEmpty() || name.startsWith(".")) return false
+        if (name.endsWith(".part", ignoreCase = true)) return false
+        val extension = name.substringAfterLast('.', missingDelimiterValue = "").lowercase()
+        return extension in archiveExtensions
     }
 }

@@ -24,6 +24,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
 import app.samehadaku.dl.data.settings.SettingsRepository
+import app.samehadaku.dl.data.smartstorage.SmartStorageManager
+import app.samehadaku.dl.data.smartstorage.SmartStorageScheduler
 import app.samehadaku.dl.presentation.about.UpdateChangelogDialog
 import app.samehadaku.dl.presentation.about.readReleaseNotes
 import app.samehadaku.dl.presentation.navigation.SamehadakuNavHost
@@ -44,6 +46,12 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var smartStorageManager: SmartStorageManager
+
+    @Inject
+    lateinit var smartStorageScheduler: SmartStorageScheduler
+
     private var sharedUrl by mutableStateOf<String?>(null)
     private var pendingRoute by mutableStateOf<String?>(null)
 
@@ -61,9 +69,17 @@ class MainActivity : ComponentActivity() {
                 // the app becomes visible so new episodes show up without a manual check.
                 val checkScope = rememberCoroutineScope()
                 val updateScope = rememberCoroutineScope()
+                val storageScope = rememberCoroutineScope()
                 LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
                     checkScope.launch {
                         runCatching { autoCheckScheduler.runNowIfDue() }
+                    }
+                    // The external player takes the app to the background. On the
+                    // way back, compare the elapsed time with the recorded duration
+                    // and catch up on cleanup if WorkManager was frozen.
+                    storageScope.launch {
+                        runCatching { smartStorageManager.evaluatePendingPlayback() }
+                        runCatching { smartStorageScheduler.runNowIfDue() }
                     }
                 }
                 var showSplash by rememberSaveable { mutableStateOf(true) }

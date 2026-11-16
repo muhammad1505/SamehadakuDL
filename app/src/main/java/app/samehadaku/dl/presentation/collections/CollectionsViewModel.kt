@@ -4,12 +4,14 @@ import android.content.IntentSender
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.samehadaku.dl.core.SmartStoragePolicy
 import app.samehadaku.dl.data.download.DeletionResult
 import app.samehadaku.dl.data.download.StorageWriter
 import app.samehadaku.dl.data.download.StoredFile
 import app.samehadaku.dl.data.download.StoredFolder
 import app.samehadaku.dl.data.repository.AnimeCoverRepository
 import app.samehadaku.dl.data.settings.SettingsRepository
+import app.samehadaku.dl.data.smartstorage.SmartStorageManager
 import app.samehadaku.dl.domain.usecase.OpenDownloadUseCase
 import app.samehadaku.dl.domain.usecase.ShareDownloadUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,11 +31,15 @@ data class CollectionsUiState(
     val query: String = "",
     val location: String = "",
     val covers: Map<String, Bitmap?> = emptyMap(),
+    val watchedKeys: Set<String> = emptySet(),
     val error: String? = null,
 ) {
     val isEmpty: Boolean get() = folders.isEmpty() && query.isBlank()
     val hasNoMatch: Boolean get() = folders.isEmpty() && query.isNotBlank()
     val fileCount: Int get() = folders.sumOf { it.files.size }
+
+    fun isWatched(folderName: String, fileName: String): Boolean =
+        SmartStoragePolicy.key(folderName, fileName) in watchedKeys
 
     // Totals always describe the whole collection, not the filtered result, so the
     // summary stays stable while the user searches.
@@ -55,6 +61,7 @@ class CollectionsViewModel @Inject constructor(
     private val openDownload: OpenDownloadUseCase,
     private val shareDownload: ShareDownloadUseCase,
     private val settings: SettingsRepository,
+    private val smartStorage: SmartStorageManager,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -78,6 +85,17 @@ class CollectionsViewModel @Inject constructor(
 
     init {
         refresh()
+        viewModelScope.launch {
+            smartStorage.watchedEpisodes.collect { entries ->
+                _state.update { current ->
+                    current.copy(
+                        watchedKeys = entries.map { entry ->
+                            SmartStoragePolicy.key(entry.folderName, entry.fileName)
+                        }.toSet(),
+                    )
+                }
+            }
+        }
     }
 
     fun refresh() {
@@ -142,6 +160,63 @@ class CollectionsViewModel @Inject constructor(
     fun openLatest(folder: StoredFolder) {
         val latest = folder.files.maxByOrNull { it.modifiedAt } ?: return
         openFile(folder, latest)
+    }
+
+    fun toggleWatched(folder: StoredFolder, file: StoredFile) {
+        if (!file.isVideo) return
+        viewModelScope.launch {
+            if (_state.value.isWatched(folder.name, file.name)) {
+                smartStorage.unmarkWatched(folder.name, file.name)
+                _messages.send("Tanda tonton ${file.name} dihapus.")
+            } else {
+                val marked = smartStorage.markWatched(folder.name, file.name, file.size)
+                _messages.send(
+                    when {
+                        !marked ->
+                            "File ini tidak dikenali sebagai hasil unduhan aplikasi, " +
+                                "jadi tidak dikelola Smart Storage."
+
+                        file.size <= 0L ->
+                            "Ditandai sudah ditonton, tetapi ukuran file tidak diketahui " +
+                                "sehingga tidak akan dihapus otomatis."
+
+                        else -> "${file.name} ditandai sudah ditonton."
+                    },
+                )
+            }
+        }
+    }
+
+    fun markAllWatched(folder: StoredFolder) {
+        val videos = folder.files.filter { it.isVideo }
+        if (videos.isEmpty()) return
+        viewModelScope.launch {
+            var marked = 0
+            for (file in videos) {
+                if (smartStorage.markWatched(folder.name, file.name, file.size)) {
+                    marked++
+                }
+            }
+            _messages.send(
+                when {
+                    marked == 0 ->
+                        "Tidak ada file yang dikenali sebagai hasil unduhan aplikasi."
+
+                    marked < videos.size ->
+                        "$marked dari ${videos.size} episode ditandai. Sisanya bukan " +
+                            "hasil unduhan aplikasi."
+
+                    else -> "$marked episode ditandai sudah ditonton."
+                },
+            )
+        }
+    }
+
+    fun clearWatched(folder: StoredFolder) {
+        viewModelScope.launch {
+            smartStorage.clearForFolder(folder.name)
+            _messages.send("Semua tanda tonton di folder ini dihapus.")
+        }
     }
 
     fun shareFile(folder: StoredFolder, file: StoredFile) {
@@ -237,6 +312,14 @@ class CollectionsViewModel @Inject constructor(
             else -> {
                 pendingDelete = null
                 _messages.send("${pending.label} sudah tidak ada di penyimpanan.")
+            }
+        }
+        if (result.confirmation == null && (result.deleted > 0 || result.absent > 0)) {
+            when (pending) {
+                is PendingDelete.File ->
+                    smartStorage.clearForFile(pending.folderName, pending.fileName)
+
+                is PendingDelete.Folder -> smartStorage.clearForFolder(pending.folderName)
             }
         }
         refresh()

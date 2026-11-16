@@ -1,0 +1,60 @@
+package app.samehadaku.dl.core
+
+/**
+ * Pure rules for Smart Storage. Keeping them here makes the risky parts (when an
+ * episode counts as watched and when a file may be deleted) testable without
+ * Android, a DataStore or a real file.
+ */
+object SmartStoragePolicy {
+
+    /** Grace periods offered in Settings; the first value is the default. */
+    val graceDayOptions = listOf(1, 3, 7, 14)
+    const val defaultGraceDays = 3
+
+    /**
+     * A playback is treated as finished when the app returns after at least 80%
+     * of the video duration. The 300% ceiling discards stale timestamps from an
+     * episode that was opened long ago and left untouched.
+     */
+    const val minWatchRatio = 0.8
+    const val maxWatchRatio = 3.0
+
+    private const val dayMillis = 24L * 60L * 60L * 1000L
+
+    fun normalizeGraceDays(days: Int): Int {
+        val candidate = days.coerceAtLeast(1)
+        return graceDayOptions.minByOrNull { option ->
+            kotlin.math.abs(option - candidate)
+        } ?: defaultGraceDays
+    }
+
+    /** Whether the grace period since the watched marker has fully elapsed. */
+    fun isDue(watchedAt: Long, now: Long, graceDays: Int): Boolean {
+        if (watchedAt <= 0L || now < watchedAt) return false
+        val graceMillis = normalizeGraceDays(graceDays).toLong() * dayMillis
+        return now - watchedAt >= graceMillis
+    }
+
+    /** Compares the foreground time with the real video duration. */
+    fun looksWatched(startedAt: Long, finishedAt: Long, durationMs: Long): Boolean {
+        if (startedAt <= 0L || durationMs <= 0L || finishedAt < startedAt) return false
+        val elapsed = finishedAt - startedAt
+        return elapsed >= durationMs * minWatchRatio &&
+            elapsed <= durationMs * maxWatchRatio
+    }
+
+    /**
+     * A recorded size is required so a file can be compared byte-for-byte before
+     * it is deleted. Unknown or zero-sized files stay watched but are never
+     * removed automatically.
+     */
+    fun hasUsableSize(recordedSize: Long): Boolean = recordedSize > 0L
+
+    /** Safe folder name used by both the download writer and the watched store. */
+    fun normalizeFolder(folderName: String): String =
+        UrlUtils.fileNameSafe(folderName).ifBlank { "SamehadakuDL" }
+
+    /** Stable identity for one downloaded file; used by the UI and the store. */
+    fun key(folderName: String, fileName: String): String =
+        "${normalizeFolder(folderName)}\u0000$fileName"
+}

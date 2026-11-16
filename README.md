@@ -20,6 +20,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Aksi terpisah untuk membersihkan riwayat (file tetap ada) dan menghapus file permanen,
   masing-masing dengan konfirmasi.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
+- Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
+  otomatis setelah masa tenggang 1/3/7/14 hari.
 - Sesi Cloudflare dengan WebView verifikasi, reset sesi, dan verifikasi ulang otomatis.
 - Pengaturan unduhan paralel dan fallback kualitas terdekat.
 - Splash screen atmosferik, bottom navigation, dan transisi antar layar.
@@ -278,6 +280,30 @@ Izin media hanya dipakai untuk memindai folder `SamehadakuDL`; aplikasi tidak
 menampilkan galeri atau file di luar folder tersebut. Jika izin ditolak, unduhan
 baru tetap muncul, sedangkan file dari instalasi lama dan arsip non-video perlu
 dibuka lewat SAF.
+
+## Smart Storage
+
+Smart Storage nonaktif secara default dan baru bekerja setelah diaktifkan di
+Pengaturan. Fitur ini hanya mengelola video yang diunduh aplikasi ke folder
+`SamehadakuDL/<judul anime>/` atau folder pilihan; arsip `.rar`/`.zip`, file
+pengguna lain, dan video di luar folder unduhan tidak pernah disentuh.
+
+- Episode ditandai tonton secara manual dari Koleksi, atau otomatis saat video
+  dibuka lewat pemutar eksternal lalu aplikasi kembali visible setelah kira-kira
+  80%–300% durasi video. Durasi dibaca dengan `MediaMetadataRetriever`; Fase 1
+  belum memakai pemutar internal.
+- File baru dihapus setelah masa tenggang 1, 3, 7, atau 14 hari (default 3 hari),
+  bukan langsung setelah ditonton. Pemeriksaan berjalan harian lewat WorkManager
+  dan bisa dipicu manual dengan “Bersihkan sekarang”.
+- Sebelum menghapus, aplikasi memastikan foldernya masih ada di lokasi unduhan
+  dan ukuran file sama persis dengan ukuran saat ditandai. Jika penyimpanan
+  meminta konfirmasi sistem atau menolak, file dan tanda tontonnya dipertahankan
+  agar bisa dihapus manual dari Koleksi.
+- File yang tidak punya catatan unduhan aplikasi (misalnya video yang disalin
+  sendiri ke folder pilihan) tidak akan ditandai otomatis dan tidak dikelola
+  Smart Storage.
+- Menghapus file atau folder secara manual juga membersihkan tanda tontonnya,
+  sehingga Smart Storage tidak mencoba menghapusnya lagi.
 
 ## Verifikasi APK
 

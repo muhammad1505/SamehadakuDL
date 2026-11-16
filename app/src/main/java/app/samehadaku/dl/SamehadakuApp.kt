@@ -6,6 +6,7 @@ import android.webkit.WebView
 import app.samehadaku.dl.core.AppLog
 import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
 import app.samehadaku.dl.data.network.CloudflareSession
+import app.samehadaku.dl.data.smartstorage.SmartStorageScheduler
 import app.samehadaku.dl.domain.usecase.AutoRetryFailedUseCase
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -27,6 +28,9 @@ class SamehadakuApp : Application() {
     @Inject
     lateinit var autoRetryFailed: AutoRetryFailedUseCase
 
+    @Inject
+    lateinit var smartStorageScheduler: SmartStorageScheduler
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
@@ -43,6 +47,9 @@ class SamehadakuApp : Application() {
             runCatching { autoRetryFailed() }
             // Re-register the periodic check after reboots, updates or a settings change.
             runCatching { autoCheckScheduler.sync() }
+            // Smart Storage cleanup is separate from the network check: it only
+            // touches files the user opted in to remove.
+            runCatching { smartStorageScheduler.sync() }
             // Some OEMs freeze WorkManager; catch up when the user opens the app.
             runCatching { autoCheckScheduler.runNowIfDue() }
         }

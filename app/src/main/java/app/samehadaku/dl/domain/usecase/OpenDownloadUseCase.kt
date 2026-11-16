@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import app.samehadaku.dl.core.MimeTypes
 import app.samehadaku.dl.data.download.StorageWriter
+import app.samehadaku.dl.data.smartstorage.SmartStorageManager
 import app.samehadaku.dl.domain.model.DownloadTask
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -15,6 +16,7 @@ import javax.inject.Singleton
 class OpenDownloadUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
     private val storageWriter: StorageWriter,
+    private val smartStorage: SmartStorageManager,
 ) {
 
     suspend operator fun invoke(task: DownloadTask): Result<Unit> {
@@ -41,5 +43,8 @@ class OpenDownloadUseCase @Inject constructor(
         } catch (_: ActivityNotFoundException) {
             error("Tidak ada aplikasi yang bisa membuka file ini.")
         }
+        // The external player may start before this returns; recording after the
+        // launch keeps a failed open from becoming a false "watched" candidate.
+        runCatching { smartStorage.recordPlaybackStarted(folderName, fileName, uri) }
     }
 }

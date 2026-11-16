@@ -38,11 +38,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Storage
@@ -443,8 +445,15 @@ fun CollectionsScreen(
                             onOpenLatest = { viewModel.openLatest(folder) },
                             onShareLatest = { viewModel.shareLatest(folder) },
                             onDeleteFolder = { pendingDelete = folder },
+                            watchedCount = folder.files.count { file ->
+                                state.isWatched(folder.name, file.name)
+                            },
+                            isWatched = { file -> state.isWatched(folder.name, file.name) },
+                            onMarkAllWatched = { viewModel.markAllWatched(folder) },
+                            onClearWatched = { viewModel.clearWatched(folder) },
                             onOpenFile = { file -> viewModel.openFile(folder, file) },
                             onShareFile = { file -> viewModel.shareFile(folder, file) },
+                            onToggleWatched = { file -> viewModel.toggleWatched(folder, file) },
                             onDeleteFile = { file ->
                                 pendingDeleteFile = PendingFileDelete(folder, file)
                             },
@@ -564,15 +573,22 @@ private fun FolderGroup(
     onOpenLatest: () -> Unit,
     onShareLatest: () -> Unit,
     onDeleteFolder: () -> Unit,
+    watchedCount: Int,
+    isWatched: (StoredFile) -> Boolean,
+    onMarkAllWatched: () -> Unit,
+    onClearWatched: () -> Unit,
     onOpenFile: (StoredFile) -> Unit,
     onShareFile: (StoredFile) -> Unit,
+    onToggleWatched: (StoredFile) -> Unit,
     onDeleteFile: (StoredFile) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val accent = titleAccent(folder.name)
+    val videoCount = folder.files.count { it.isVideo }
     val meta = buildList {
         if (folder.totalBytes > 0L) add(formatBytes(folder.totalBytes))
         if (folder.lastModified > 0L) add(shortDate(folder.lastModified))
+        if (watchedCount > 0) add("$watchedCount ditonton")
     }.joinToString(" • ")
 
     GlassCard(
@@ -636,8 +652,12 @@ private fun FolderGroup(
             }
             Spacer(Modifier.width(8.dp))
             StatusPill(
-                text = "${folder.files.size} EP",
-                color = accent,
+                text = if (watchedCount > 0 && videoCount > 0) {
+                    "$watchedCount/$videoCount tonton"
+                } else {
+                    "${folder.files.size} EP"
+                },
+                color = if (watchedCount > 0) BrandMint else accent,
             )
             Spacer(Modifier.width(2.dp))
             Box {
@@ -653,9 +673,19 @@ private fun FolderGroup(
                     expanded = menuOpen,
                     onDismiss = { menuOpen = false },
                     canOpen = folder.files.isNotEmpty(),
+                    videoCount = videoCount,
+                    watchedCount = watchedCount,
                     onShareLatest = {
                         menuOpen = false
                         onShareLatest()
+                    },
+                    onMarkAllWatched = {
+                        menuOpen = false
+                        onMarkAllWatched()
+                    },
+                    onClearWatched = {
+                        menuOpen = false
+                        onClearWatched()
                     },
                     onDeleteFolder = {
                         menuOpen = false
@@ -687,6 +717,8 @@ private fun FolderGroup(
                     FileRow(
                         file = file,
                         accent = accent,
+                        watched = file.isVideo && isWatched(file),
+                        onToggleWatched = { onToggleWatched(file) },
                         onOpen = { onOpenFile(file) },
                         onShare = { onShareFile(file) },
                         onDelete = { onDeleteFile(file) },
@@ -702,7 +734,11 @@ private fun FolderMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     canOpen: Boolean,
+    videoCount: Int,
+    watchedCount: Int,
     onShareLatest: () -> Unit,
+    onMarkAllWatched: () -> Unit,
+    onClearWatched: () -> Unit,
     onDeleteFolder: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
@@ -718,6 +754,42 @@ private fun FolderMenu(
             },
             onClick = onShareLatest,
         )
+        if (videoCount > 0) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        if (watchedCount >= videoCount) {
+                            "Semua episode sudah ditandai"
+                        } else {
+                            "Tandai semua sudah ditonton"
+                        },
+                    )
+                },
+                enabled = watchedCount < videoCount,
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = BrandMint,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+                onClick = onMarkAllWatched,
+            )
+        }
+        if (watchedCount > 0) {
+            DropdownMenuItem(
+                text = { Text("Hapus semua tanda tonton") },
+                leadingIcon = {
+                    Icon(
+                        Icons.Rounded.RadioButtonUnchecked,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+                onClick = onClearWatched,
+            )
+        }
         DropdownMenuItem(
             text = { Text("Hapus folder beserta file", color = Danger) },
             leadingIcon = {
@@ -738,10 +810,13 @@ private fun FolderMenu(
 private fun FileRow(
     file: StoredFile,
     accent: Color,
+    watched: Boolean,
+    onToggleWatched: () -> Unit,
     onOpen: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val rowAccent = if (watched) BrandMint else accent
     Row(
         modifier = Modifier
             .pressable(
@@ -752,7 +827,7 @@ private fun FileRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(TextPrimary.copy(alpha = 0.035f))
-            .border(1.dp, accent.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+            .border(1.dp, rowAccent.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
             .padding(horizontal = 9.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -761,13 +836,13 @@ private fun FileRow(
             modifier = Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(9.dp))
-                .background(accent.copy(alpha = 0.12f)),
+                .background(rowAccent.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Movie,
+                imageVector = if (watched) Icons.Rounded.CheckCircle else Icons.Rounded.Movie,
                 contentDescription = null,
-                tint = accent,
+                tint = rowAccent,
                 modifier = Modifier.size(14.dp),
             )
         }
@@ -790,18 +865,37 @@ private fun FileRow(
                         append(" • ")
                         append(shortDate(file.modifiedAt))
                     }
+                    if (watched) append(" • Ditonton")
                 },
-                color = TextMuted,
+                color = if (watched) BrandMint else TextMuted,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (file.isVideo) {
+            GlassIconButton(
+                icon = if (watched) {
+                    Icons.Rounded.CheckCircle
+                } else {
+                    Icons.Rounded.RadioButtonUnchecked
+                },
+                contentDescription = if (watched) {
+                    "Batalkan tanda tonton ${file.name}"
+                } else {
+                    "Tandai ${file.name} sudah ditonton"
+                },
+                onClick = onToggleWatched,
+                tint = if (watched) BrandMint else TextMuted,
+                size = 28.dp,
+                iconSize = 14.dp,
             )
         }
         GlassIconButton(
             icon = Icons.Rounded.PlayArrow,
             contentDescription = "Buka ${file.name}",
             onClick = onOpen,
-            tint = accent,
+            tint = rowAccent,
             size = 28.dp,
             iconSize = 14.dp,
         )

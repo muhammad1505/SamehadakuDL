@@ -27,20 +27,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoDelete
 import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -71,6 +75,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.samehadaku.dl.BuildConfig
+import app.samehadaku.dl.core.SmartStoragePolicy
 import app.samehadaku.dl.domain.model.Host
 import app.samehadaku.dl.domain.model.VideoFormat
 import app.samehadaku.dl.presentation.components.AppBottomBar
@@ -98,6 +103,7 @@ import app.samehadaku.dl.presentation.theme.TextMuted
 import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
 import app.samehadaku.dl.presentation.theme.Warning
+import app.samehadaku.dl.presentation.util.formatBytes
 import app.samehadaku.dl.presentation.util.shortDateTime
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -200,6 +206,127 @@ fun SettingsScreen(
                             "Folder pilihan juga menjadi cadangan untuk membaca file lama bila " +
                             "izin akses file tidak diberikan.",
                     )
+                }
+            }
+
+            item {
+                val graceOptions = SmartStoragePolicy.graceDayOptions
+                val selectedGrace = graceOptions
+                    .indexOf(state.smartStorageGraceDays)
+                    .coerceAtLeast(0)
+                val lastCleanup = if (state.smartLastCleanupAt > 0L) {
+                    shortDateTime(state.smartLastCleanupAt)
+                } else {
+                    "belum pernah"
+                }
+                SettingSection(
+                    title = "Smart Storage",
+                    subtitle = "Hapus episode yang sudah ditonton",
+                    icon = Icons.Rounded.AutoDelete,
+                    tint = BrandAccent,
+                    badge = if (state.smartStorageEnabled) "Aktif" else "Nonaktif",
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Bersihkan otomatis",
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                text = "Hanya video hasil unduhan aplikasi yang sudah ditandai " +
+                                    "tonton, dan hanya setelah masa tenggang.",
+                                color = TextMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Switch(
+                            checked = state.smartStorageEnabled,
+                            onCheckedChange = viewModel::setSmartStorageEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Ink,
+                                checkedTrackColor = BrandMint,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
+                                uncheckedBorderColor = Color.White.copy(alpha = 0.16f),
+                            ),
+                        )
+                    }
+                    if (state.smartStorageEnabled) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Masa tenggang sebelum dihapus",
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Spacer(Modifier.height(7.dp))
+                        SegmentedTabs(
+                            tabs = graceOptions.map { days ->
+                                SegmentTab(label = "$days hari")
+                            },
+                            selectedIndex = selectedGrace,
+                            onSelect = { index ->
+                                viewModel.setSmartStorageGraceDays(graceOptions[index])
+                            },
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            MetricTile(
+                                label = "Ditandai",
+                                value = state.smartWatchedCount.toString(),
+                                icon = Icons.Rounded.Visibility,
+                                accent = BrandMint,
+                                modifier = Modifier.weight(1f),
+                            )
+                            MetricTile(
+                                label = "Terpantau",
+                                value = formatBytes(state.smartWatchedBytes),
+                                icon = Icons.Rounded.Schedule,
+                                accent = BrandAccent,
+                                modifier = Modifier.weight(1f),
+                            )
+                            MetricTile(
+                                label = "Dibersihkan",
+                                value = formatBytes(state.smartReclaimedBytes),
+                                icon = Icons.Rounded.DeleteSweep,
+                                accent = BrandGold,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        GlassButton(
+                            text = if (state.smartCleaning) {
+                                "Membersihkan…"
+                            } else {
+                                "Bersihkan sekarang"
+                            },
+                            onClick = viewModel::cleanWatchedNow,
+                            icon = Icons.Rounded.AutoDelete,
+                            modifier = Modifier.fillMaxWidth(),
+                            height = 44.dp,
+                            tint = BrandAccent,
+                            enabled = !state.smartCleaning,
+                        )
+                        Spacer(Modifier.height(9.dp))
+                        Caption(
+                            "Terakhir diperiksa: $lastCleanup • ${state.smartDeletedCount} episode " +
+                                "sudah dihapus. Episode yang diputar lewat pemutar eksternal " +
+                                "ditandai tonton saat kembali ke aplikasi setelah sekitar 80% durasi. " +
+                                "Tanda tonton juga bisa diatur manual dari Koleksi. File yang " +
+                                "ukurannya berubah atau ditolak penyimpanan tidak akan dihapus.",
+                        )
+                    } else {
+                        Caption(
+                            "Nonaktif secara default. Saat diaktifkan, aplikasi hanya menghapus " +
+                                "video yang diunduh sendiri setelah ditandai tonton dan melewati " +
+                                "masa tenggang. Arsip, file pengguna lain, dan video di luar folder " +
+                                "unduhan tidak disentuh.",
+                        )
+                    }
                 }
             }
 

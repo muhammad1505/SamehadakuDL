@@ -17,6 +17,7 @@ import app.samehadaku.dl.core.EpisodeFiles
 import app.samehadaku.dl.core.MimeTypes
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.settings.SettingsRepository
+import app.samehadaku.dl.data.smartstorage.SmartStorageRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.IOException
@@ -58,7 +59,10 @@ data class StoredFile(
     val modifiedAt: Long,
     val uri: Uri?,
     val path: String? = null,
-)
+) {
+    /** Smart Storage only tracks video files; archives and sidecars stay untouched. */
+    val isVideo: Boolean get() = EpisodeFiles.isVideo(name)
+}
 
 /** A folder (one anime title) discovered in the download storage. */
 data class StoredFolder(
@@ -73,13 +77,14 @@ data class StoredFolder(
 class StorageWriter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settings: SettingsRepository,
+    private val smartStorage: SmartStorageRepository,
 ) {
 
     suspend fun save(partFile: File, animeSlug: String, fileName: String): Boolean =
         withContext(Dispatchers.IO) {
             val safeSlug = UrlUtils.fileNameSafe(animeSlug).ifBlank { "SamehadakuDL" }
             val treeUri = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
-            try {
+            val saved = try {
                 if (!treeUri.isNullOrBlank()) {
                     saveToTree(partFile, Uri.parse(treeUri), safeSlug, fileName)
                 } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -90,6 +95,14 @@ class StorageWriter @Inject constructor(
             } catch (_: Exception) {
                 false
             }
+            if (saved) {
+                // Provenance for Smart Storage: only files written here may be
+                // marked watched automatically or removed by the cleaner.
+                runCatching {
+                    smartStorage.rememberDownloadedFile(safeSlug, fileName, partFile.length())
+                }
+            }
+            saved
         }
 
     suspend fun existsWithSize(animeSlug: String, fileName: String, size: Long): Boolean =
