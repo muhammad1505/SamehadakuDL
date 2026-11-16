@@ -263,6 +263,17 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Cek otomatis berhenti lebih awal jika semua host tidak dapat dihubungi, dan waktu cek
   terakhir tidak diperbarui agar percobaan berikutnya tidak menunggu jadwal penuh.
 
+## Rilis 2.6.25
+
+- Menambahkan Smart Storage opsional untuk menandai episode yang sudah ditonton dan
+  menghapus videonya otomatis setelah masa tenggang 1/3/7/14 hari (default 3 hari).
+- Deteksi tonton memakai durasi `MediaMetadataRetriever` saat video dibuka lewat pemutar
+  eksternal dan aplikasi kembali aktif. Tanda tonton juga bisa diatur manual dari Koleksi.
+- Pembersihan berjalan harian lewat WorkManager dengan catch-up saat aplikasi dibuka,
+  serta tombol “Bersihkan sekarang” di Pengaturan.
+- Hanya file hasil unduhan aplikasi yang dikelola, dan ukuran file diverifikasi ulang
+  sebelum dihapus. Konfirmasi atau penolakan penyimpanan tidak memaksa penghapusan.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:
