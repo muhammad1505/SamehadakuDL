@@ -276,6 +276,20 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Hanya file hasil unduhan aplikasi yang dikelola, dan ukuran file diverifikasi ulang
   sebelum dihapus. Konfirmasi atau penolakan penyimpanan tidak memaksa penghapusan.
 
+## Rilis 2.6.26
+
+- Menambahkan panel “Latar belakang & autostart” di Pengaturan agar cek episode
+  otomatis tidak mudah ditunda oleh Doze atau pengelola daya OEM.
+- Menampilkan status dan tombol perbaikan untuk optimasi baterai (Android 6+),
+  pembatasan latar belakang (Android 9+), dan hemat data (Android 7+).
+- Menambahkan status notifikasi dan permintaan izin `POST_NOTIFICATIONS` pada
+  Android 13+, dengan pengaturan notifikasi aplikasi sebagai fallback.
+- Tombol Autostart membuka pengelola OEM yang terdeteksi—MIUI/HyperOS,
+  ColorOS/Realme/OPPO, OxygenOS, iManager, Device Care, Mobile Manager,
+  Phone Master, dan lainnya—lalu fallback ke optimasi baterai dan Info aplikasi.
+- Semua izin bersifat opsional dan hanya dibuka lewat tindakan pengguna; cek
+  susulan saat aplikasi dibuka tetap menjadi jaring pengaman.
+
 ## Rilis 2.6.25-fix
 
 - File unduhan lama atau sebelum pembaruan Smart Storage kini tetap dikenali dari
