@@ -12,11 +12,13 @@ data class SmartStorageCleanupResult(
     val reclaimedBytes: Long = 0L,
     val skippedFiles: Int = 0,
     val blockedFiles: Int = 0,
+    val waitingFiles: Int = 0,
     val disabled: Boolean = false,
 )
 
 /**
- * Deletes watched episodes whose grace period has passed.
+ * Deletes watched episodes after their grace period, or immediately when the
+ * user explicitly asks for it from Settings.
  *
  * Safety rules: only entries created by this app are considered, the file must
  * still be found in the app download folder, and its byte length must match the
@@ -29,7 +31,10 @@ class CleanWatchedFilesUseCase @Inject constructor(
     private val storage: StorageWriter,
 ) {
 
-    suspend operator fun invoke(now: Long = System.currentTimeMillis()): SmartStorageCleanupResult {
+    suspend operator fun invoke(
+        now: Long = System.currentTimeMillis(),
+        ignoreGrace: Boolean = false,
+    ): SmartStorageCleanupResult {
         val settings = repository.currentSettings()
         if (!settings.enabled) return SmartStorageCleanupResult(disabled = true)
 
@@ -37,9 +42,19 @@ class CleanWatchedFilesUseCase @Inject constructor(
         var reclaimedBytes = 0L
         var skippedFiles = 0
         var blockedFiles = 0
+        var waitingFiles = 0
 
         for (entry in repository.currentWatched()) {
-            if (!SmartStoragePolicy.isDue(entry.watchedAt, now, settings.graceDays)) continue
+            val shouldDelete = SmartStoragePolicy.shouldDelete(
+                watchedAt = entry.watchedAt,
+                now = now,
+                graceDays = settings.graceDays,
+                ignoreGrace = ignoreGrace,
+            )
+            if (!shouldDelete) {
+                waitingFiles++
+                continue
+            }
             if (!SmartStoragePolicy.hasUsableSize(entry.size)) {
                 skippedFiles++
                 continue
@@ -120,6 +135,7 @@ class CleanWatchedFilesUseCase @Inject constructor(
             reclaimedBytes = reclaimedBytes,
             skippedFiles = skippedFiles,
             blockedFiles = blockedFiles,
+            waitingFiles = waitingFiles,
         )
     }
 }

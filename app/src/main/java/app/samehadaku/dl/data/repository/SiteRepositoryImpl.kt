@@ -172,6 +172,8 @@ class SiteRepositoryImpl @Inject constructor(
                 if (results.isNotEmpty()) return results
             } catch (challenge: NeedsVerificationException) {
                 verification = verification ?: challenge
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (error: Exception) {
                 Timber.d(error, "Search failed on %s", host)
                 lastError = error
@@ -191,6 +193,8 @@ class SiteRepositoryImpl @Inject constructor(
                 AnimeDetailParser.parse(org.jsoup.Jsoup.parse(page.html, page.finalUrl))?.let { return it }
             } catch (verification: NeedsVerificationException) {
                 throw verification
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (error: Exception) {
                 lastError = lastError ?: error
                 Timber.d(error, "Anime detail unavailable at %s", source)
@@ -208,6 +212,8 @@ class SiteRepositoryImpl @Inject constructor(
                         org.jsoup.Jsoup.parse(page.html, page.finalUrl),
                     )
                     if (detail != null) return detail
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (error: Exception) {
                     lastError = lastError ?: error
                     Timber.d(error, "Anime detail unavailable at %s", page.finalUrl)
@@ -233,6 +239,8 @@ class SiteRepositoryImpl @Inject constructor(
                     if (parsed.isNotEmpty()) return parsed
                 } catch (challenge: NeedsVerificationException) {
                     verification = verification ?: challenge
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (error: Exception) {
                     Timber.d(error, "Schedule unavailable at %s", url)
                 }
@@ -254,6 +262,8 @@ class SiteRepositoryImpl @Inject constructor(
                 if (parsed.isNotEmpty()) return parsed
             } catch (challenge: NeedsVerificationException) {
                 verification = verification ?: challenge
+            } catch (cancellation: CancellationException) {
+                throw cancellation
             } catch (error: Exception) {
                 Timber.d(error, "Site announcement unavailable at %s", url)
             }

@@ -35,6 +35,21 @@ object SmartStoragePolicy {
         return now - watchedAt >= graceMillis
     }
 
+    /**
+     * Automatic cleanup waits for the grace period, but an explicit user action
+     * may delete a watched episode immediately. Invalid or future markers stay
+     * protected even when the user asks for immediate cleanup.
+     */
+    fun shouldDelete(
+        watchedAt: Long,
+        now: Long,
+        graceDays: Int,
+        ignoreGrace: Boolean = false,
+    ): Boolean {
+        if (watchedAt <= 0L || now < watchedAt) return false
+        return ignoreGrace || isDue(watchedAt, now, graceDays)
+    }
+
     /** Compares the foreground time with the real video duration. */
     fun looksWatched(startedAt: Long, finishedAt: Long, durationMs: Long): Boolean {
         if (startedAt <= 0L || durationMs <= 0L || finishedAt < startedAt) return false

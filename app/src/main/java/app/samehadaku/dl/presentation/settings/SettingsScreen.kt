@@ -43,17 +43,21 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -118,6 +122,7 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    var showCleanupConfirm by remember { mutableStateOf(false) }
     val backgroundScope = rememberCoroutineScope()
     val showBackgroundMessage: (String) -> Unit = { message ->
         backgroundScope.launch {
@@ -245,7 +250,8 @@ fun SettingsScreen(
                             )
                             Text(
                                 text = "Hanya video hasil unduhan aplikasi yang sudah ditandai " +
-                                    "tonton, dan hanya setelah masa tenggang.",
+                                    "tonton. Pembersihan otomatis menunggu masa tenggang; " +
+                                    "tombol manual menghapus sekarang.",
                                 color = TextMuted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -266,7 +272,7 @@ fun SettingsScreen(
                     if (state.smartStorageEnabled) {
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            text = "Masa tenggang sebelum dihapus",
+                            text = "Masa tenggang pembersihan otomatis",
                             color = TextSecondary,
                             style = MaterialTheme.typography.labelMedium,
                         )
@@ -311,7 +317,7 @@ fun SettingsScreen(
                             } else {
                                 "Bersihkan sekarang"
                             },
-                            onClick = viewModel::cleanWatchedNow,
+                            onClick = { showCleanupConfirm = true },
                             icon = Icons.Rounded.AutoDelete,
                             modifier = Modifier.fillMaxWidth(),
                             height = 44.dp,
@@ -321,7 +327,9 @@ fun SettingsScreen(
                         Spacer(Modifier.height(9.dp))
                         Caption(
                             "Terakhir diperiksa: $lastCleanup • ${state.smartDeletedCount} episode " +
-                                "sudah dihapus. Episode yang diputar lewat pemutar eksternal " +
+                                "sudah dihapus. Tombol di atas menghapus episode tonton sekarang " +
+                                "tanpa menunggu masa tenggang; masa tenggang hanya berlaku untuk " +
+                                "pembersihan otomatis. Episode yang diputar lewat pemutar eksternal " +
                                 "ditandai tonton saat kembali ke aplikasi setelah sekitar 80% durasi. " +
                                 "Tanda tonton juga bisa diatur manual dari Koleksi. File yang " +
                                 "ukurannya berubah atau ditolak penyimpanan tidak akan dihapus.",
@@ -329,8 +337,9 @@ fun SettingsScreen(
                     } else {
                         Caption(
                             "Nonaktif secara default. Saat diaktifkan, aplikasi hanya menghapus " +
-                                "video yang diunduh sendiri setelah ditandai tonton dan melewati " +
-                                "masa tenggang. Arsip, file pengguna lain, dan video di luar folder " +
+                                "video yang diunduh sendiri setelah ditandai tonton. Pembersihan " +
+                                "otomatis menunggu masa tenggang; tombol manual bisa menghapus " +
+                                "lebih cepat. Arsip, file pengguna lain, dan video di luar folder " +
                                 "unduhan tidak disentuh.",
                         )
                     }
@@ -873,6 +882,42 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    if (showCleanupConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCleanupConfirm = false },
+            title = {
+                Text(
+                    text = "Hapus episode tonton sekarang?",
+                    color = TextPrimary,
+                )
+            },
+            text = {
+                Text(
+                    text = "Episode yang ditandai tonton akan dihapus sekarang tanpa " +
+                        "menunggu masa tenggang. Tindakan ini tidak bisa dibatalkan. " +
+                        "Hanya video hasil unduhan aplikasi dengan ukuran yang masih " +
+                        "sama yang dihapus.",
+                    color = TextSecondary,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showCleanupConfirm = false
+                        viewModel.cleanWatchedNow()
+                    },
+                ) {
+                    Text("Hapus sekarang", color = Danger)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCleanupConfirm = false }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            },
+        )
     }
 }
 

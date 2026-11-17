@@ -21,7 +21,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   masing-masing dengan konfirmasi.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
 - Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
-  otomatis setelah masa tenggang 1/3/7/14 hari.
+  otomatis setelah masa tenggang 1/3/7/14 hari, atau langsung lewat tombol manual
+  dengan konfirmasi.
 - Panel latar belakang & autostart yang menyesuaikan Android dan OEM agar cek episode
   otomatis tidak mudah ditunda.
 - Sesi Cloudflare dengan WebView verifikasi, reset sesi, dan verifikasi ulang otomatis.
@@ -275,6 +276,19 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   serta tombol “Bersihkan sekarang” di Pengaturan.
 - Hanya file hasil unduhan aplikasi yang dikelola, dan ukuran file diverifikasi ulang
   sebelum dihapus. Konfirmasi atau penolakan penyimpanan tidak memaksa penghapusan.
+
+## Rilis 2.6.27
+
+- Tombol “Bersihkan sekarang” kini benar-benar menghapus episode yang ditandai
+  tonton tanpa menunggu masa tenggang, setelah dialog konfirmasi. Masa tenggang
+  1/3/7/14 hari hanya berlaku untuk pembersihan otomatis di latar belakang.
+- Pesan hasil pembersihan sekarang membedakan tidak ada episode tonton, file yang
+  dilewati karena ukuran atau bentuknya berubah, dan file yang menunggu izin
+  penyimpanan.
+- Pembatalan normal saat memuat pengumuman situs, misalnya ketika layar
+  ditinggalkan, tidak lagi dicatat sebagai error di Log aplikasi.
+- Verifikasi ukuran byte dan kepemilikan file hasil unduhan tetap dilakukan
+  sebelum penghapusan, baik untuk aksi manual maupun otomatis.
 
 ## Rilis 2.6.26-fix
 

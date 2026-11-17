@@ -35,6 +35,45 @@ class SmartStoragePolicyTest {
     }
 
     @Test
+    fun `manual cleanup bypasses grace only for valid markers`() {
+        val day = 24L * 60L * 60L * 1000L
+        val watchedAt = 1_000_000L
+
+        assertFalse(
+            SmartStoragePolicy.shouldDelete(
+                watchedAt,
+                watchedAt + day,
+                3,
+                ignoreGrace = false,
+            ),
+        )
+        assertTrue(
+            SmartStoragePolicy.shouldDelete(
+                watchedAt,
+                watchedAt + day,
+                3,
+                ignoreGrace = true,
+            ),
+        )
+        assertFalse(
+            SmartStoragePolicy.shouldDelete(
+                0L,
+                System.currentTimeMillis(),
+                3,
+                ignoreGrace = true,
+            ),
+        )
+        assertFalse(
+            SmartStoragePolicy.shouldDelete(
+                watchedAt,
+                watchedAt - 1,
+                3,
+                ignoreGrace = true,
+            ),
+        )
+    }
+
+    @Test
     fun `playback between 80 and 300 percent counts as watched`() {
         val duration = 24L * 60L * 1000L
         val start = 5_000_000L

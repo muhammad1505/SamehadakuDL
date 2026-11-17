@@ -39,11 +39,12 @@ class SmartStorageWorker(
         return try {
             val result = entry.cleanWatchedFiles().invoke()
             Timber.d(
-                "Smart Storage cleanup deleted=%d reclaimed=%d skipped=%d blocked=%d",
+                "Smart Storage cleanup deleted=%d reclaimed=%d skipped=%d blocked=%d waiting=%d",
                 result.deletedFiles,
                 result.reclaimedBytes,
                 result.skippedFiles,
                 result.blockedFiles,
+                result.waitingFiles,
             )
             Result.success()
         } catch (cancellation: CancellationException) {

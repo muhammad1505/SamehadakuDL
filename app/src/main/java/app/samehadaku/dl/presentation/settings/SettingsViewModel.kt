@@ -245,8 +245,9 @@ class SettingsViewModel @Inject constructor(
             _state.update {
                 it.copy(
                     message = if (enabled) {
-                        "Smart Storage diaktifkan. Episode yang ditandai ditonton " +
-                            "dihapus setelah ${it.smartStorageGraceDays} hari."
+                        "Smart Storage diaktifkan. Pembersihan otomatis menghapus episode " +
+                            "tonton setelah ${it.smartStorageGraceDays} hari; tombol manual " +
+                            "menghapus sekarang."
                     } else {
                         "Smart Storage dimatikan. Tidak ada file yang dihapus otomatis."
                     },
@@ -259,7 +260,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             smartStorage.setGraceDays(days)
             _state.update {
-                it.copy(message = "Masa tenggang Smart Storage: ${days} hari.")
+                it.copy(message = "Masa tenggang pembersihan otomatis: ${days} hari.")
             }
         }
     }
@@ -268,7 +269,9 @@ class SettingsViewModel @Inject constructor(
         if (!_state.value.smartStorageEnabled || _state.value.smartCleaning) return
         viewModelScope.launch {
             _state.update { it.copy(smartCleaning = true) }
-            val result = runCatching { cleanWatchedFiles() }
+            // The button is an explicit user action, so it must not be blocked by
+            // the grace period that only applies to automatic background cleanup.
+            val result = runCatching { cleanWatchedFiles(ignoreGrace = true) }
             _state.update { current ->
                 current.copy(
                     smartCleaning = false,
@@ -337,14 +340,14 @@ class SettingsViewModel @Inject constructor(
                         "hapus manual dari Koleksi bila perlu.",
                 )
             }
-            if (isEmpty()) {
+            if (result.skippedFiles > 0) {
                 add(
-                    if (result.skippedFiles > 0) {
-                        "Belum ada file yang aman dihapus; ukuran file belum cocok."
-                    } else {
-                        "Belum ada episode yang melewati masa tenggang."
-                    },
+                    "${result.skippedFiles} file dilewati karena ukuran atau bentuk " +
+                        "file tidak lagi cocok.",
                 )
+            }
+            if (isEmpty()) {
+                add("Belum ada episode yang ditandai tonton.")
             }
         }
         return parts.joinToString(" ")
