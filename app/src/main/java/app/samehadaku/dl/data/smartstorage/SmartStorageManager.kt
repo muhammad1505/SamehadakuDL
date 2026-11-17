@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import app.samehadaku.dl.core.EpisodeFiles
 import app.samehadaku.dl.core.SmartStoragePolicy
+import app.samehadaku.dl.data.download.LegacyDownloadCheck
 import app.samehadaku.dl.data.download.QueueStore
 import app.samehadaku.dl.data.download.StorageWriter
 import app.samehadaku.dl.domain.model.DownloadState
@@ -50,7 +51,14 @@ class SmartStorageManager @Inject constructor(
 
     /** Manual marker from Koleksi; works even while Smart Storage is off. */
     suspend fun markWatched(folderName: String, fileName: String, size: Long): Boolean {
-        if (!EpisodeFiles.isVideo(fileName)) return false
+        if (!EpisodeFiles.isVideo(fileName)) {
+            Timber.w(
+                "Smart Storage menolak %s/%s: bukan file video",
+                SmartStoragePolicy.normalizeFolder(folderName),
+                fileName,
+            )
+            return false
+        }
         val normalizedFolder = SmartStoragePolicy.normalizeFolder(folderName)
         if (!isAppDownloaded(normalizedFolder, fileName, size)) return false
         repository.addWatched(
@@ -62,6 +70,14 @@ class SmartStorageManager @Inject constructor(
                 manual = true,
             ),
         )
+        if (!SmartStoragePolicy.hasUsableSize(size)) {
+            Timber.w(
+                "Smart Storage menandai %s/%s tanpa ukuran file; " +
+                    "file tidak akan dihapus otomatis",
+                normalizedFolder,
+                fileName,
+            )
+        }
         return true
     }
 
@@ -93,17 +109,48 @@ class SmartStorageManager @Inject constructor(
      * accepted window, so watching in two sittings can still count.
      */
     suspend fun recordPlaybackStarted(folderName: String, fileName: String, uri: Uri) {
-        if (!EpisodeFiles.isVideo(fileName)) return
-        val settings = runCatching { repository.currentSettings() }.getOrNull() ?: return
-        if (!settings.enabled) return
-        if (isWatched(folderName, fileName)) return
+        val normalizedFolder = SmartStoragePolicy.normalizeFolder(folderName)
+        if (!EpisodeFiles.isVideo(fileName)) {
+            Timber.w(
+                "Smart Storage tidak melacak %s/%s: bukan file video",
+                normalizedFolder,
+                fileName,
+            )
+            return
+        }
+        val settings = runCatching { repository.currentSettings() }.getOrNull()
+        if (settings == null) {
+            Timber.w("Smart Storage tidak dapat membaca pengaturan; pemutaran tidak dicatat")
+            return
+        }
+        if (!settings.enabled) {
+            Timber.d("Smart Storage nonaktif; pemutaran %s tidak dicatat", fileName)
+            return
+        }
+        if (isWatched(normalizedFolder, fileName)) {
+            Timber.d("Smart Storage melewati %s: sudah ditandai tonton", fileName)
+            return
+        }
 
         val size = withContext(Dispatchers.IO) { resolveSize(uri) }
-        if (size <= 0L) return
-        val normalizedFolder = SmartStoragePolicy.normalizeFolder(folderName)
+        if (size <= 0L) {
+            Timber.w(
+                "Smart Storage tidak melacak %s/%s: ukuran file tidak diketahui",
+                normalizedFolder,
+                fileName,
+            )
+            return
+        }
         if (!isAppDownloaded(normalizedFolder, fileName, size)) return
         val duration = withContext(Dispatchers.IO) { resolveDuration(uri) }
-        if (duration <= 0L) return
+        if (duration <= 0L) {
+            Timber.w(
+                "Smart Storage tidak melacak %s/%s: durasi video tidak terbaca",
+                normalizedFolder,
+                fileName,
+            )
+            return
+        }
 
         val now = System.currentTimeMillis()
         val existing = repository.currentPending().firstOrNull { entry ->
@@ -196,10 +243,13 @@ class SmartStorageManager @Inject constructor(
     }
 
     /**
-     * Proves the file came from this app's downloader. New files are registered
-     * by [StorageWriter.save]; files downloaded before the registry existed are
-     * matched against completed queue rows while that history is still present.
-     * Anything else (user-copied videos, arbitrary folders) is ignored.
+     * Proves the file came from this app's downloader.
+     *
+     * New files are registered by [StorageWriter.save]. Files downloaded before the
+     * registry existed (or after app data was reset) are recognized through the
+     * completed queue, then through [StorageWriter.recognizeLegacyDownload], which
+     * verifies location, generated name pattern and byte size. Anything that fails
+     * is logged with the reason so Koleksi rejections are visible in Log aplikasi.
      */
     private suspend fun isAppDownloaded(
         folderName: String,
@@ -207,13 +257,95 @@ class SmartStorageManager @Inject constructor(
         size: Long,
     ): Boolean {
         val normalized = SmartStoragePolicy.normalizeFolder(folderName)
-        if (repository.isKnownDownload(normalized, fileName, size)) return true
-        val tasks = runCatching { queueStore.load() }.getOrDefault(emptyList())
-        return tasks.any { task ->
-            task.state == DownloadState.DONE &&
-                task.fileName == fileName &&
-                SmartStoragePolicy.normalizeFolder(task.animeSlug) == normalized
+        if (repository.isKnownDownload(normalized, fileName, size)) {
+            Timber.d(
+                "Smart Storage menerima %s/%s: tercatat sebagai unduhan aplikasi " +
+                    "(ukuran %d)",
+                normalized,
+                fileName,
+                size,
+            )
+            return true
         }
+
+        val queueMatch = runCatching { queueStore.load() }
+            .onFailure {
+                Timber.w(it, "Smart Storage gagal membaca riwayat unduhan untuk %s", fileName)
+            }
+            .getOrDefault(emptyList())
+            .any { task ->
+                task.state == DownloadState.DONE &&
+                    task.fileName == fileName &&
+                    SmartStoragePolicy.normalizeFolder(task.animeSlug) == normalized
+            }
+        if (queueMatch) {
+            adoptLegacyDownload(
+                folderName = normalized,
+                fileName = fileName,
+                size = size,
+                source = "riwayat unduhan selesai",
+            )
+            return true
+        }
+
+        val check = runCatching {
+            storage.recognizeLegacyDownload(normalized, fileName, size)
+        }.getOrElse { error ->
+            Timber.w(
+                error,
+                "Smart Storage gagal memeriksa asal file %s/%s",
+                normalized,
+                fileName,
+            )
+            LegacyDownloadCheck.Rejected(
+                "pemeriksaan lokasi file gagal: " +
+                    (error.message ?: error.javaClass.simpleName),
+            )
+        }
+
+        return when (check) {
+            is LegacyDownloadCheck.Accepted -> {
+                adoptLegacyDownload(
+                    folderName = normalized,
+                    fileName = fileName,
+                    size = size,
+                    source = check.location,
+                )
+                true
+            }
+
+            is LegacyDownloadCheck.Rejected -> {
+                Timber.w(
+                    "Smart Storage menolak %s/%s (ukuran %d): %s",
+                    normalized,
+                    fileName,
+                    size,
+                    check.reason,
+                )
+                false
+            }
+        }
+    }
+
+    /** Persists a recognized legacy file so later checks no longer depend on history. */
+    private suspend fun adoptLegacyDownload(
+        folderName: String,
+        fileName: String,
+        size: Long,
+        source: String,
+    ) {
+        runCatching {
+            repository.rememberDownloadedFile(folderName, fileName, size)
+        }.onFailure {
+            Timber.w(it, "Smart Storage gagal mencatat unduhan lama %s/%s", folderName, fileName)
+        }
+        Timber.i(
+            "Smart Storage menerima %s/%s: %s (ukuran %d)",
+            folderName,
+            fileName,
+            source,
+            size,
+        )
     }
 
     private fun resolveSize(uri: Uri): Long {

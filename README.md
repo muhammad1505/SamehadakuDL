@@ -310,9 +310,17 @@ pengguna lain, dan video di luar folder unduhan tidak pernah disentuh.
   dan ukuran file sama persis dengan ukuran saat ditandai. Jika penyimpanan
   meminta konfirmasi sistem atau menolak, file dan tanda tontonnya dipertahankan
   agar bisa dihapus manual dari Koleksi.
-- File yang tidak punya catatan unduhan aplikasi (misalnya video yang disalin
-  sendiri ke folder pilihan) tidak akan ditandai otomatis dan tidak dikelola
-  Smart Storage.
+- Unduhan lama yang dibuat sebelum pencatatan Smart Storage tetap dikenali dari
+  file yang tampil di Koleksi. Aplikasi memeriksa lokasi unduhan
+  (`Download/SamehadakuDL`, folder privat aplikasi, atau folder pilihan), pola
+  nama file yang dibuat downloader (`<episode>_<FORMAT>_<resolusi>.<ext>`), dan
+  ukuran file yang sama persis. File yang lolos dicatat ulang agar pengelolaan
+  berikutnya tidak bergantung pada riwayat unduhan.
+- File yang tidak lolos verifikasi (misalnya video yang disalin sendiri ke
+  folder pilihan) tidak akan ditandai otomatis dan tidak dikelola Smart Storage.
+- Setiap keputusan Smart Storage—diterima sebagai unduhan lama atau ditolak
+  beserta alasannya—ditulis ke Log aplikasi di Pengaturan, sehingga masalah file
+  yang tidak bisa ditandai tonton bisa diperiksa tanpa komputer.
 - Menghapus file atau folder secara manual juga membersihkan tanda tontonnya,
   sehingga Smart Storage tidak mencoba menghapusnya lagi.
 

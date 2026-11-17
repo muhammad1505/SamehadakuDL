@@ -15,6 +15,7 @@ import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import app.samehadaku.dl.core.EpisodeFiles
 import app.samehadaku.dl.core.MimeTypes
+import app.samehadaku.dl.core.SmartStoragePolicy
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.settings.SettingsRepository
 import app.samehadaku.dl.data.smartstorage.SmartStorageRepository
@@ -73,6 +74,16 @@ data class StoredFolder(
     val lastModified: Long get() = files.maxOfOrNull { it.modifiedAt } ?: 0L
 }
 
+/**
+ * Result of checking a file that has no provenance registry entry. Legacy
+ * downloads are accepted only when the location, generated name pattern and
+ * byte size all agree; everything else keeps the previous "not app-owned" rule.
+ */
+sealed interface LegacyDownloadCheck {
+    data class Accepted(val location: String) : LegacyDownloadCheck
+    data class Rejected(val reason: String) : LegacyDownloadCheck
+}
+
 @Singleton
 class StorageWriter @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -105,23 +116,32 @@ class StorageWriter @Inject constructor(
             saved
         }
 
+    /**
+     * Checks every known location, not only the currently configured one. A file
+     * downloaded before the user picked a custom SAF folder may still live in the
+     * MediaStore app folder, and an old custom-folder file may survive after the
+     * setting changes. Each location must match the recorded byte size exactly.
+     */
     suspend fun existsWithSize(animeSlug: String, fileName: String, size: Long): Boolean =
         withContext(Dispatchers.IO) {
             if (size <= 0L) return@withContext false
             val safeSlug = UrlUtils.fileNameSafe(animeSlug).ifBlank { "SamehadakuDL" }
             val treeUri = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
             try {
-                when {
-                    !treeUri.isNullOrBlank() -> existsInTree(
-                        Uri.parse(treeUri),
-                        safeSlug,
-                        fileName,
-                        size,
-                    )
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
-                        existsInMediaStore(safeSlug, fileName, size)
-                    else -> legacyFile(safeSlug, fileName).length() == size
+                val fromTree = if (!treeUri.isNullOrBlank()) {
+                    existsInTree(Uri.parse(treeUri), safeSlug, fileName, size)
+                } else {
+                    false
                 }
+                val fromMediaStore = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    existsInMediaStore(safeSlug, fileName, size)
+                } else {
+                    false
+                }
+                val fromLegacy = legacyFile(safeSlug, fileName).let { file ->
+                    file.isFile && file.length() == size
+                }
+                fromTree || fromMediaStore || fromLegacy
             } catch (_: Exception) {
                 false
             }
@@ -147,6 +167,100 @@ class StorageWriter @Inject constructor(
                 null
             }
         }
+
+    /**
+     * Recognizes a download that predates the provenance registry (or survived an
+     * app-data reset). The check is deliberately narrow:
+     *
+     * - MediaStore rows owned by this package are trusted directly.
+     * - Files in `Download/SamehadakuDL` or the app-private download folder are
+     *   trusted when their name matches the generated download pattern.
+     * - A custom SAF folder is trusted only with the same generated name pattern.
+     * - The byte length must always match the listing Koleksi showed.
+     *
+     * Returning the reason lets Smart Storage write the decision to the in-app log.
+     */
+    suspend fun recognizeLegacyDownload(
+        folderName: String,
+        fileName: String,
+        size: Long,
+    ): LegacyDownloadCheck = withContext(Dispatchers.IO) {
+        if (!isSafeName(folderName) || !isSafeName(fileName)) {
+            return@withContext LegacyDownloadCheck.Rejected(
+                "nama folder atau file tidak aman",
+            )
+        }
+        if (!EpisodeFiles.isVideo(fileName)) {
+            return@withContext LegacyDownloadCheck.Rejected("bukan file video")
+        }
+        if (!SmartStoragePolicy.hasUsableSize(size)) {
+            return@withContext LegacyDownloadCheck.Rejected("ukuran file tidak diketahui")
+        }
+
+        val safeSlug = UrlUtils.fileNameSafe(folderName).ifBlank { "SamehadakuDL" }
+        val namedLikeDownload = SmartStoragePolicy.looksLikeAppDownloadName(fileName)
+        val rejectionReasons = mutableListOf<String>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            when (
+                val media = runCatching {
+                    mediaStoreProvenance(safeSlug, fileName, size, namedLikeDownload)
+                }.onFailure {
+                    Log.w(TAG, "provenance media check failed", it)
+                }.getOrNull()
+            ) {
+                is LegacyDownloadCheck.Accepted -> return@withContext media
+                is LegacyDownloadCheck.Rejected -> rejectionReasons += media.reason
+                null -> Unit
+            }
+        }
+
+        val treeUri = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
+        if (!treeUri.isNullOrBlank()) {
+            val treeLength = runCatching {
+                treeFileLength(Uri.parse(treeUri), safeSlug, fileName)
+            }.onFailure {
+                Log.w(TAG, "provenance tree check failed", it)
+            }.getOrNull()
+            when {
+                treeLength == null -> Unit
+                treeLength != size -> rejectionReasons +=
+                    "ukuran file di folder pilihan berbeda dari yang tercatat"
+
+                namedLikeDownload -> return@withContext LegacyDownloadCheck.Accepted(
+                    "folder pilihan dengan pola nama unduhan aplikasi",
+                )
+
+                else -> rejectionReasons +=
+                    "file di folder pilihan tidak memakai pola nama unduhan aplikasi"
+            }
+        }
+
+        val legacyLength = runCatching {
+            legacyFile(safeSlug, fileName).let { file ->
+                if (file.isFile) file.length() else null
+            }
+        }.getOrNull()
+        when {
+            legacyLength == null -> Unit
+            legacyLength != size -> rejectionReasons +=
+                "ukuran file di folder privat aplikasi berubah"
+
+            namedLikeDownload -> return@withContext LegacyDownloadCheck.Accepted(
+                "folder privat aplikasi dengan pola nama unduhan aplikasi",
+            )
+
+            else -> rejectionReasons +=
+                "file di folder privat aplikasi tidak memakai pola nama unduhan aplikasi"
+        }
+
+        LegacyDownloadCheck.Rejected(
+            rejectionReasons.distinct().joinToString("; ").ifBlank {
+                "tidak ada catatan unduhan dan file tidak ditemukan di lokasi " +
+                    "unduhan aplikasi"
+            },
+        )
+    }
 
     /**
      * Deletes one episode from wherever it is stored. It shares the collection path so
@@ -507,14 +621,18 @@ class StorageWriter @Inject constructor(
      */
     private fun deleteFolderInTree(treeUri: Uri, folderName: String): DeletionResult {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return DeletionResult()
-        val directory = tree.findFile(folderName)?.takeIf { it.isDirectory }
-            ?: return DeletionResult()
+        val directories = treeCollectionDirectories(tree, folderName)
+        if (directories.isEmpty()) return DeletionResult()
         var deleted = 0
         var denied = 0
-        directory.listFiles().forEach { entry ->
-            if (entry.delete()) deleted++ else denied++
+        for (directory in directories) {
+            directory.listFiles().forEach { entry ->
+                if (entry.delete()) deleted++ else denied++
+            }
         }
-        if (denied == 0) runCatching { directory.delete() }
+        if (denied == 0) {
+            directories.forEach { directory -> runCatching { directory.delete() } }
+        }
         return DeletionResult(deleted = deleted, denied = denied)
     }
 
@@ -699,10 +817,17 @@ class StorageWriter @Inject constructor(
     /** Returns [DeleteOutcome.ABSENT] when the file simply is not in that location. */
     private fun deleteFileInTree(treeUri: Uri, folderName: String, fileName: String): DeleteOutcome {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return DeleteOutcome.ABSENT
-        val directory = tree.findFile(folderName)?.takeIf { it.isDirectory }
-            ?: return DeleteOutcome.ABSENT
-        val file = directory.findFile(fileName) ?: return DeleteOutcome.ABSENT
-        return if (file.delete()) DeleteOutcome.DELETED else DeleteOutcome.DENIED
+        var deleted = false
+        var denied = false
+        for (directory in treeCollectionDirectories(tree, folderName)) {
+            val file = directory.findFile(fileName) ?: continue
+            if (file.delete()) deleted = true else denied = true
+        }
+        return when {
+            denied -> DeleteOutcome.DENIED
+            deleted -> DeleteOutcome.DELETED
+            else -> DeleteOutcome.ABSENT
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -807,8 +932,7 @@ class StorageWriter @Inject constructor(
         size: Long,
     ): Boolean {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return false
-        val directory = tree.findFile(animeSlug)?.takeIf { it.isDirectory } ?: return false
-        val file = directory.findFile(fileName) ?: return false
+        val file = findTreeFile(tree, animeSlug, fileName) ?: return false
         return file.isFile && file.length() == size
     }
 
@@ -818,8 +942,43 @@ class StorageWriter @Inject constructor(
         fileName: String,
     ): Uri? {
         val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return null
-        val directory = tree.findFile(animeSlug)?.takeIf { it.isDirectory } ?: return null
-        return directory.findFile(fileName)?.takeIf { it.isFile }?.uri
+        return findTreeFile(tree, animeSlug, fileName)?.takeIf { it.isFile }?.uri
+    }
+
+    /**
+     * The tree may be the download root (`Download/SamehadakuDL`) or its parent
+     * (`Download`), where the app folder is one level deeper. Both layouts exist in
+     * Koleksi, so provenance checks and deletions must look in both as well.
+     */
+    private fun treeCollectionDirectories(
+        tree: DocumentFile,
+        folderName: String,
+    ): List<DocumentFile> {
+        val direct = tree.findFile(folderName)?.takeIf { it.isDirectory }
+        val nested = tree.findFile(APP_FOLDER)?.takeIf { it.isDirectory }
+            ?.findFile(folderName)?.takeIf { it.isDirectory }
+        return listOfNotNull(direct, nested).distinctBy { it.uri }
+    }
+
+    private fun findTreeFile(
+        tree: DocumentFile,
+        folderName: String,
+        fileName: String,
+    ): DocumentFile? {
+        for (directory in treeCollectionDirectories(tree, folderName)) {
+            val file = directory.findFile(fileName)
+            if (file != null) return file
+        }
+        return null
+    }
+
+    private fun treeFileLength(
+        treeUri: Uri,
+        folderName: String,
+        fileName: String,
+    ): Long? {
+        val tree = DocumentFile.fromTreeUri(context, treeUri) ?: return null
+        return findTreeFile(tree, folderName, fileName)?.takeIf { it.isFile }?.length()
     }
 
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
@@ -840,6 +999,97 @@ class StorageWriter @Inject constructor(
             } else {
                 null
             }
+        }
+    }
+
+    /**
+     * Reads the MediaStore row for a legacy candidate. `OWNER_PACKAGE_NAME` is the
+     * strongest proof: it stays on rows written by an earlier installation of this
+     * same package. Some providers reject that column, so the query is retried
+     * without it and then falls back to the app folder plus generated name pattern.
+     */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaStoreProvenance(
+        folderName: String,
+        fileName: String,
+        size: Long,
+        namedLikeDownload: Boolean,
+    ): LegacyDownloadCheck? = runCatching {
+        queryMediaStoreProvenance(
+            folderName = folderName,
+            fileName = fileName,
+            size = size,
+            namedLikeDownload = namedLikeDownload,
+            includeOwner = true,
+        )
+    }.getOrElse { error ->
+        Log.w(TAG, "OWNER_PACKAGE_NAME query unavailable, retrying without it", error)
+        queryMediaStoreProvenance(
+            folderName = folderName,
+            fileName = fileName,
+            size = size,
+            namedLikeDownload = namedLikeDownload,
+            includeOwner = false,
+        )
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun queryMediaStoreProvenance(
+        folderName: String,
+        fileName: String,
+        size: Long,
+        namedLikeDownload: Boolean,
+        includeOwner: Boolean,
+    ): LegacyDownloadCheck? {
+        val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/SamehadakuDL/$folderName/"
+        val projection = buildList {
+            add(MediaStore.MediaColumns.SIZE)
+            if (includeOwner) add(MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
+        }.toTypedArray()
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND " +
+            "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?) AND " +
+            "${MediaStore.MediaColumns.IS_PENDING}=0"
+        var rowFound = false
+        context.contentResolver.query(
+            mediaFileCollection(),
+            projection,
+            selection,
+            arrayOf(fileName, relativePath, relativePath.trimEnd('/')),
+            null,
+        )?.use { cursor ->
+            val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
+            val ownerIndex = if (includeOwner) {
+                cursor.getColumnIndex(MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
+            } else {
+                -1
+            }
+            while (cursor.moveToNext()) {
+                rowFound = true
+                val storedSize = if (cursor.isNull(sizeIndex)) 0L else cursor.getLong(sizeIndex)
+                if (storedSize != size) continue
+                val owner = if (ownerIndex >= 0) cursor.getString(ownerIndex) else null
+                return when {
+                    owner == context.packageName -> LegacyDownloadCheck.Accepted(
+                        "MediaStore dengan pemilik paket aplikasi",
+                    )
+
+                    namedLikeDownload -> LegacyDownloadCheck.Accepted(
+                        "folder Download/SamehadakuDL dengan pola nama unduhan aplikasi",
+                    )
+
+                    else -> LegacyDownloadCheck.Rejected(
+                        "file di folder SamehadakuDL tidak memakai pola nama unduhan " +
+                            "dan pemilik MediaStore tidak cocok",
+                    )
+                }
+            }
+        }
+        return if (rowFound) {
+            LegacyDownloadCheck.Rejected(
+                "ukuran file di MediaStore berbeda dari yang terbaca di Koleksi",
+            )
+        } else {
+            null
         }
     }
 

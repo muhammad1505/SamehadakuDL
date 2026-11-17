@@ -70,4 +70,25 @@ class SmartStoragePolicyTest {
             SmartStoragePolicy.key("one_piece", "01.mkv"),
         )
     }
+
+    @Test
+    fun `generated download names are recognized for legacy adoption`() {
+        assertTrue(
+            SmartStoragePolicy.looksLikeAppDownloadName(
+                "one-piece-episode-1096_MKV_1080p.mkv",
+            ),
+        )
+        assertTrue(SmartStoragePolicy.looksLikeAppDownloadName("episode_MP4_720p.MP4"))
+        assertTrue(SmartStoragePolicy.looksLikeAppDownloadName("movie_X265_HD.mkv"))
+        assertTrue(SmartStoragePolicy.looksLikeAppDownloadName("special_MKV_480p.webm"))
+    }
+
+    @Test
+    fun `arbitrary user videos are not treated as app downloads`() {
+        assertFalse(SmartStoragePolicy.looksLikeAppDownloadName("video liburan.mp4"))
+        assertFalse(SmartStoragePolicy.looksLikeAppDownloadName("episode_AVI_720p.avi"))
+        assertFalse(SmartStoragePolicy.looksLikeAppDownloadName("episode_MKV_4k.mkv"))
+        assertFalse(SmartStoragePolicy.looksLikeAppDownloadName("episode_MKV_1080p.part"))
+        assertFalse(SmartStoragePolicy.looksLikeAppDownloadName("episode_MKV_1080p.rar"))
+    }
 }

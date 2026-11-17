@@ -174,7 +174,8 @@ class CollectionsViewModel @Inject constructor(
                     when {
                         !marked ->
                             "File ini tidak dikenali sebagai hasil unduhan aplikasi, " +
-                                "jadi tidak dikelola Smart Storage."
+                                "jadi tidak dikelola Smart Storage. Alasannya ada di " +
+                                "Log aplikasi."
 
                         file.size <= 0L ->
                             "Ditandai sudah ditonton, tetapi ukuran file tidak diketahui " +
@@ -200,11 +201,12 @@ class CollectionsViewModel @Inject constructor(
             _messages.send(
                 when {
                     marked == 0 ->
-                        "Tidak ada file yang dikenali sebagai hasil unduhan aplikasi."
+                        "Tidak ada file yang dikenali sebagai hasil unduhan aplikasi. " +
+                            "Alasannya ada di Log aplikasi."
 
                     marked < videos.size ->
                         "$marked dari ${videos.size} episode ditandai. Sisanya bukan " +
-                            "hasil unduhan aplikasi."
+                            "hasil unduhan aplikasi; alasannya ada di Log aplikasi."
 
                     else -> "$marked episode ditandai sudah ditonton."
                 },

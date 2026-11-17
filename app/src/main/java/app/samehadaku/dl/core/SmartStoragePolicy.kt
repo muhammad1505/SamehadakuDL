@@ -57,4 +57,21 @@ object SmartStoragePolicy {
     /** Stable identity for one downloaded file; used by the UI and the store. */
     fun key(folderName: String, fileName: String): String =
         "${normalizeFolder(folderName)}\u0000$fileName"
+
+    /**
+     * `Downloader.buildFileName()` writes `<episodeSlug>_<FORMAT>_<resolution>.<ext>`.
+     * The pattern is intentionally strict: it is only used to recognize downloads
+     * that predate the provenance registry, never to trust arbitrary user videos.
+     */
+    private val downloadNamePattern = Regex(
+        "^.+_(?:MKV|MP4|X265)_(?:360p|480p|720p|1080p|HD)\\." +
+            "(?:mkv|mp4|webm|avi|mov|m4v|ts)$",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** True when the name matches the file name this app's downloader generates. */
+    fun looksLikeAppDownloadName(fileName: String): Boolean {
+        val name = fileName.trim()
+        return EpisodeFiles.isVideo(name) && downloadNamePattern.matches(name)
+    }
 }
