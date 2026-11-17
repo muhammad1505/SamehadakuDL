@@ -274,6 +274,18 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Hanya file hasil unduhan aplikasi yang dikelola, dan ukuran file diverifikasi ulang
   sebelum dihapus. Konfirmasi atau penolakan penyimpanan tidak memaksa penghapusan.
 
+## Rilis 2.6.25-fix
+
+- File unduhan lama atau sebelum pembaruan Smart Storage kini tetap dikenali dari
+  Koleksi, termasuk setelah riwayat unduhan dibersihkan.
+- Pengenalan memakai lokasi unduhan aplikasi, pola nama file downloader, dan ukuran
+  byte yang sama; file yang lolos dicatat ulang agar pengelolaan berikutnya tidak
+  bergantung pada riwayat.
+- Alasan file diterima atau ditolak sekarang ditulis ke Log aplikasi, sehingga file
+  yang tidak bisa ditandai tonton bisa diperiksa langsung dari ponsel.
+- Penghapusan dari folder SAF pilihan kini juga menangani file di dalam subfolder
+  `SamehadakuDL`, bukan hanya folder anime di level teratas.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:
