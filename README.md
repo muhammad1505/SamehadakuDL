@@ -22,6 +22,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
 - Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
   otomatis setelah masa tenggang 1/3/7/14 hari.
+- Panel latar belakang & autostart yang menyesuaikan Android dan OEM agar cek episode
+  otomatis tidak mudah ditunda.
 - Sesi Cloudflare dengan WebView verifikasi, reset sesi, dan verifikasi ulang otomatis.
 - Pengaturan unduhan paralel dan fallback kualitas terdekat.
 - Splash screen atmosferik, bottom navigation, dan transisi antar layar.
@@ -303,6 +305,30 @@ Izin media hanya dipakai untuk memindai folder `SamehadakuDL`; aplikasi tidak
 menampilkan galeri atau file di luar folder tersebut. Jika izin ditolak, unduhan
 baru tetap muncul, sedangkan file dari instalasi lama dan arsip non-video perlu
 dibuka lewat SAF.
+
+## Latar belakang dan autostart
+
+Cek otomatis dijalankan WorkManager, sehingga Android dapat menundanya saat
+perangkat masuk Doze atau OEM membatasi aktivitas latar belakang. Panel
+“Latar belakang & autostart” di Pengaturan menampilkan status izin dan membuka
+layar pengaturan yang sesuai:
+
+- Android 6+ menampilkan status pengecualian optimasi baterai, dengan dialog izin
+  sistem dan fallback ke daftar optimasi baterai.
+- Android 9+ menampilkan status pembatasan latar belakang; Android 7+ menampilkan
+  status hemat data beserta tombol ke pengaturannya.
+- Android 8+ membuka pengaturan notifikasi aplikasi. Pada Android 13+ aplikasi
+  meminta izin `POST_NOTIFICATIONS` lebih dulu, lalu mengarahkan ke pengaturan bila
+  izin ditolak permanen.
+- Tombol Autostart membuka pengelola autostart OEM yang terdeteksi—MIUI/HyperOS,
+  ColorOS/Realme/OPPO, OxygenOS, iManager, Device Care, Mobile Manager,
+  Phone Master, dan lainnya—dengan fallback ke optimasi baterai dan Info aplikasi
+  bila komponen tidak tersedia. Intent dicoba satu per satu agar tetap bekerja
+  pada Android 11+ yang membatasi visibilitas paket.
+
+Semua tindakan berasal dari pengguna; aplikasi tidak meminta pengecualian baterai
+atau autostart secara otomatis. Doze tetap dapat menunda WorkManager, tetapi
+aplikasi menjalankan pemeriksaan susulan saat dibuka.
 
 ## Smart Storage
 

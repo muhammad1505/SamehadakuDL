@@ -3,7 +3,6 @@ package app.samehadaku.dl.presentation.settings
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -28,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoDelete
-import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Cloud
@@ -55,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -105,6 +104,7 @@ import app.samehadaku.dl.presentation.theme.TextSecondary
 import app.samehadaku.dl.presentation.theme.Warning
 import app.samehadaku.dl.presentation.util.formatBytes
 import app.samehadaku.dl.presentation.util.shortDateTime
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -118,6 +118,13 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val backgroundScope = rememberCoroutineScope()
+    val showBackgroundMessage: (String) -> Unit = { message ->
+        backgroundScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -469,51 +476,33 @@ fun SettingsScreen(
                             },
                         )
                         Spacer(Modifier.height(10.dp))
-                        Row(
+                        GlassButton(
+                            text = "Cek sekarang",
+                            onClick = viewModel::runAutoCheckNow,
+                            icon = Icons.Rounded.Sync,
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            GlassButton(
-                                text = "Cek sekarang",
-                                onClick = viewModel::runAutoCheckNow,
-                                icon = Icons.Rounded.Sync,
-                                modifier = Modifier.weight(1f),
-                                height = 44.dp,
-                                tint = BrandMint,
-                            )
-                            GlassButton(
-                                text = "Info & baterai",
-                                onClick = {
-                                    runCatching {
-                                        context.startActivity(
-                                            Intent(
-                                                AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                                Uri.parse("package:${context.packageName}"),
-                                            ),
-                                        )
-                                    }
-                                },
-                                icon = Icons.Rounded.BatterySaver,
-                                modifier = Modifier.weight(1f),
-                                height = 44.dp,
-                                tint = TextSecondary,
-                            )
-                        }
+                            height = 44.dp,
+                            tint = BrandMint,
+                        )
                         Spacer(Modifier.height(9.dp))
                         Caption(
                             "Terakhir dicek: $lastChecked. Pemeriksaan juga dijalankan saat " +
                                 "aplikasi dibuka bila jadwalnya sudah lewat, jadi episode baru " +
-                                "cepat terlihat. Di Realme/ColorOS buka Info aplikasi → " +
-                                "Baterai → izinkan aktivitas latar belakang, lalu aktifkan " +
-                                "Auto-start di Phone Manager.",
+                                "cepat terlihat. Jika cek sering tertunda, atur izin di panel " +
+                                "“Latar belakang & autostart” di bawah.",
                         )
                     } else {
                         Caption(
                             "Aktifkan agar aplikasi memeriksa episode baru secara berkala " +
-                                "dan memberi notifikasi.",
+                                "dan memberi notifikasi. Izin agar pemeriksaan tidak tertunda " +
+                                "diatur di panel “Latar belakang & autostart” di bawah.",
                         )
                     }
                 }
+            }
+
+            item {
+                BackgroundAccessSection(onMessage = showBackgroundMessage)
             }
 
             item {
@@ -1156,7 +1145,7 @@ private fun prettyFolderPath(treeUri: String): String {
 }
 
 @Composable
-private fun SettingSection(
+internal fun SettingSection(
     title: String,
     subtitle: String,
     icon: ImageVector,
@@ -1228,7 +1217,7 @@ private fun SettingSection(
 }
 
 @Composable
-private fun Caption(text: String) {
+internal fun Caption(text: String) {
     Spacer(Modifier.height(2.dp))
     Text(
         text = text,
