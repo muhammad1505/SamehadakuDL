@@ -3,7 +3,6 @@ package app.samehadaku.dl.presentation.settings
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -201,44 +200,33 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
                 height = 44.dp,
                 tint = if (status.notificationsEnabled) TextSecondary else Warning,
             )
-            val dataSaverIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                access.dataSaverIntent()
-            } else {
-                null
-            }
+            val dataSaverRestricted = status.dataSaverRestricted == true
             GlassButton(
-                text = if (status.dataSaverRestricted == true) "Hemat data" else "Info aplikasi",
+                text = if (dataSaverRestricted) "Hemat data" else "Info aplikasi",
                 onClick = {
-                    val intent = if (status.dataSaverRestricted == true) {
-                        dataSaverIntent
-                    } else {
-                        access.appDetailsIntent()
-                    }
-                    if (intent != null) {
-                        launchTargets(
-                            context = context,
-                            targets = listOf(
+                    launchTargets(
+                        context = context,
+                        targets = if (dataSaverRestricted) {
+                            access.dataSaverTargets()
+                        } else {
+                            listOf(
                                 BackgroundAccessTarget(
-                                    label = if (status.dataSaverRestricted == true) {
-                                        "hemat data"
-                                    } else {
-                                        "info aplikasi"
-                                    },
-                                    intent = intent,
+                                    label = "info aplikasi",
+                                    intent = access.appDetailsIntent(),
                                 ),
-                            ),
-                            onMessage = onMessage,
-                        )
-                    }
+                            )
+                        },
+                        onMessage = onMessage,
+                    )
                 },
-                icon = if (status.dataSaverRestricted == true) {
+                icon = if (dataSaverRestricted) {
                     Icons.Rounded.Sync
                 } else {
                     Icons.Rounded.Info
                 },
                 modifier = Modifier.weight(1f),
                 height = 44.dp,
-                tint = if (status.dataSaverRestricted == true) Warning else TextSecondary,
+                tint = if (dataSaverRestricted) Warning else TextSecondary,
             )
         }
 

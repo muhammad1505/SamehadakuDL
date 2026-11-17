@@ -154,10 +154,28 @@ class BackgroundAccess(context: Context) {
             appDetailsIntent()
         }
 
-    fun dataSaverIntent(): Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        Intent(Settings.ACTION_DATA_SAVER_SETTINGS)
-    } else {
-        null
+    /**
+     * The Data Saver screen uses a framework action that is hidden from the public
+     * SDK, so it is addressed by its stable string and backed by the public data
+     * usage screen. Calling apps cannot grant the exemption themselves; the user
+     * turns it off on the screen that opens.
+     */
+    fun dataSaverTargets(): List<BackgroundAccessTarget> = buildList {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            add(
+                BackgroundAccessTarget(
+                    label = "hemat data",
+                    intent = Intent("android.settings.DATA_SAVER_SETTINGS"),
+                ),
+            )
+            add(
+                BackgroundAccessTarget(
+                    label = "penggunaan data",
+                    intent = Intent("android.settings.DATA_USAGE_SETTINGS"),
+                ),
+            )
+        }
+        add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
     }
 
     fun appDetailsIntent(): Intent = Intent(
