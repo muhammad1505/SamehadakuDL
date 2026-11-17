@@ -276,6 +276,16 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Hanya file hasil unduhan aplikasi yang dikelola, dan ukuran file diverifikasi ulang
   sebelum dihapus. Konfirmasi atau penolakan penyimpanan tidak memaksa penghapusan.
 
+## Rilis 2.6.26-fix
+
+- Menghapus izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` yang dapat membuat
+  Google Play Protect menandai APK sebagai aplikasi tidak aman saat dipasang
+  dari luar Play Store.
+- Tombol optimasi baterai tetap membuka daftar optimasi sistem; pengguna memilih
+  Samehadaku DL lalu “Jangan optimalkan/Tanpa batasan” secara manual.
+- Status pengecualian baterai, pembatasan latar belakang, hemat data, notifikasi,
+  dan autostart OEM tidak berubah.
+
 ## Rilis 2.6.26
 
 - Menambahkan panel “Latar belakang & autostart” di Pengaturan agar cek episode
@@ -327,8 +337,11 @@ perangkat masuk Doze atau OEM membatasi aktivitas latar belakang. Panel
 “Latar belakang & autostart” di Pengaturan menampilkan status izin dan membuka
 layar pengaturan yang sesuai:
 
-- Android 6+ menampilkan status pengecualian optimasi baterai, dengan dialog izin
-  sistem dan fallback ke daftar optimasi baterai.
+- Android 6+ menampilkan status pengecualian optimasi baterai dengan tombol ke
+  daftar optimasi; pengguna memilih Samehadaku DL lalu “Jangan optimalkan”.
+  Aplikasi tidak mendeklarasikan `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` karena
+  izin itu dibatasi Google Play dan dapat memicu peringatan Play Protect saat
+  APK dipasang dari luar Play Store.
 - Android 9+ menampilkan status pembatasan latar belakang; Android 7+ menampilkan
   status hemat data beserta tombol ke pengaturannya.
 - Android 8+ membuka pengaturan notifikasi aplikasi. Pada Android 13+ aplikasi

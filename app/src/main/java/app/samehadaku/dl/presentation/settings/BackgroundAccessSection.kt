@@ -232,9 +232,10 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
 
         Spacer(Modifier.height(9.dp))
         Caption(
-            "Target autostart: ${access.autoStartLabel()}. ${access.guide()} " +
-                "Android tetap bisa menunda WorkManager saat Doze; aplikasi menjalankan " +
-                "pemeriksaan susulan saat dibuka.",
+            "Di layar optimasi baterai, pilih Samehadaku DL lalu “Jangan optimalkan/" +
+                "Tanpa batasan”. Target autostart: ${access.autoStartLabel()}. " +
+                "${access.guide()} Android tetap bisa menunda WorkManager saat Doze; " +
+                "aplikasi menjalankan pemeriksaan susulan saat dibuka.",
         )
     }
 }
