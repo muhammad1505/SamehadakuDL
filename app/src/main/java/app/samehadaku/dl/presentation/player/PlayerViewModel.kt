@@ -29,6 +29,7 @@ data class PlayerUiState(
     val title: String = "",
     val folderLabel: String = "",
     val resumeMs: Long = 0L,
+    val size: Long = 0L,
     val error: String? = null,
 )
 
@@ -82,11 +83,13 @@ class PlayerViewModel @Inject constructor(
         }
         val resume = runCatching { positions.positionFor(folderName, fileName) }
             .getOrDefault(0L)
+        val size = withContext(Dispatchers.IO) { resolveSize(uri) }
         _state.update {
             it.copy(
                 loading = false,
                 uri = uri,
                 resumeMs = resume,
+                size = size,
             )
         }
     }
@@ -118,15 +121,13 @@ class PlayerViewModel @Inject constructor(
         if (completed) return
         completed = true
         positions.clearInBackground(folderName, fileName)
-        viewModelScope.launch {
-            val size = withContext(Dispatchers.IO) { resolveSize() }
-            smartStorage.markWatchedInBackground(folderName, fileName, size)
-            Timber.d("Smart Storage: %s selesai diputar di pemutar internal", fileName)
-        }
+        // App-lifetime write: the user can leave the screen the moment the video
+        // ends, so this must not depend on viewModelScope staying alive.
+        smartStorage.markWatchedInBackground(folderName, fileName, _state.value.size)
+        Timber.d("Smart Storage: %s selesai diputar di pemutar internal", fileName)
     }
 
-    private fun resolveSize(): Long {
-        val uri = _state.value.uri ?: return 0L
+    private fun resolveSize(uri: Uri): Long {
         return runCatching {
             context.contentResolver.query(
                 uri,
