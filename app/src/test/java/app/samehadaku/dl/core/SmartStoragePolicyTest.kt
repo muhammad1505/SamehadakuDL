@@ -29,6 +29,16 @@ class SmartStoragePolicyTest {
     }
 
     @Test
+    fun `due date is the watched time plus the normalized grace period`() {
+        val day = 24L * 60L * 60L * 1000L
+        val watchedAt = 1_000_000L
+
+        assertEquals(watchedAt + 3 * day, SmartStoragePolicy.dueAt(watchedAt, 3))
+        assertEquals(watchedAt + 7 * day, SmartStoragePolicy.dueAt(watchedAt, 8))
+        assertEquals(0L, SmartStoragePolicy.dueAt(0L, 3))
+    }
+
+    @Test
     fun `future or missing markers are never due`() {
         assertFalse(SmartStoragePolicy.isDue(0L, System.currentTimeMillis(), 3))
         assertFalse(SmartStoragePolicy.isDue(2_000L, 1_000L, 3))

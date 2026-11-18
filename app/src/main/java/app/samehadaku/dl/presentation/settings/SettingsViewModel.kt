@@ -242,6 +242,9 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             smartStorage.setEnabled(enabled)
             runCatching { smartStorageScheduler.sync() }
+            // Enabling the feature should not wait for the next app resume to
+            // perform the first catch-up cleanup.
+            if (enabled) runCatching { smartStorageScheduler.runNowIfDue() }
             _state.update {
                 it.copy(
                     message = if (enabled) {

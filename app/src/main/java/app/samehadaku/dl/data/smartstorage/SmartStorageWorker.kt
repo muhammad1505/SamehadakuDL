@@ -16,6 +16,7 @@ import timber.log.Timber
 interface SmartStorageEntryPoint {
     fun smartStorageRepository(): SmartStorageRepository
     fun cleanWatchedFiles(): CleanWatchedFilesUseCase
+    fun smartStorageNotifier(): SmartStorageNotifier
 }
 
 /**
@@ -46,6 +47,8 @@ class SmartStorageWorker(
                 result.blockedFiles,
                 result.waitingFiles,
             )
+            runCatching { entry.smartStorageNotifier().notifyCleanup(result) }
+                .onFailure { Timber.w(it, "Smart Storage notification failed") }
             Result.success()
         } catch (cancellation: CancellationException) {
             throw cancellation

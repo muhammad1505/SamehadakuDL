@@ -166,6 +166,7 @@ class MainActivity : ComponentActivity() {
         const val ROUTE_SUBSCRIPTIONS = "subscriptions"
         const val ROUTE_CLOUDFLARE = "cloudflare"
         const val ROUTE_QUEUE = "queue"
+        const val ROUTE_SMART_STORAGE = "smart-storage"
 
         private const val NOTIFICATION_PERMISSION_REQUEST = 1001
     }
