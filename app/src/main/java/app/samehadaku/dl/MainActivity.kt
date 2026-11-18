@@ -75,8 +75,8 @@ class MainActivity : ComponentActivity() {
                         runCatching { autoCheckScheduler.runNowIfDue() }
                     }
                     // The external player takes the app to the background. On the
-                    // way back, compare the elapsed time with the recorded duration
-                    // and catch up on cleanup if WorkManager was frozen.
+                    // way back, credit that sitting to the recorded playback and
+                    // catch up on cleanup if WorkManager was frozen.
                     storageScope.launch {
                         runCatching { smartStorageManager.evaluatePendingPlayback() }
                         runCatching { smartStorageScheduler.runNowIfDue() }

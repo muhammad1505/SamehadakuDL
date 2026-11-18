@@ -190,6 +190,18 @@ class SmartStorageRepository @Inject constructor(
         }
     }
 
+    /**
+     * Keeps exactly one pending playback. Only the episode most recently handed
+     * to a player can be playing, so older entries are dropped instead of being
+     * evaluated (and possibly marked) together on the next return to the app.
+     */
+    suspend fun replacePending(record: PendingPlayback) {
+        if (record.folderName.isBlank() || record.fileName.isBlank()) return
+        dataStore.edit { preferences ->
+            preferences[KEY_PENDING] = pendingToJson(listOf(record))
+        }
+    }
+
     suspend fun removePending(folderName: String, fileName: String) {
         dataStore.edit { preferences ->
             val current = parsePending(preferences[KEY_PENDING])
@@ -302,6 +314,12 @@ class SmartStorageRepository @Inject constructor(
                             size = item.optLong("size", 0L).coerceAtLeast(0L),
                             startedAt = startedAt,
                             durationMs = duration,
+                            watchedMs = item.optLong("watchedMs", 0L).coerceAtLeast(0L),
+                            // Entries written before session tracking have no
+                            // sessionStartedAt; their old start time is the
+                            // sitting that should still be evaluated.
+                            sessionStartedAt = item.optLong("sessionStartedAt", startedAt)
+                                .coerceAtLeast(0L),
                         ),
                     )
                 }
@@ -365,6 +383,8 @@ class SmartStorageRepository @Inject constructor(
                     put("size", entry.size)
                     put("startedAt", entry.startedAt)
                     put("durationMs", entry.durationMs)
+                    put("watchedMs", entry.watchedMs)
+                    put("sessionStartedAt", entry.sessionStartedAt)
                 },
             )
         }

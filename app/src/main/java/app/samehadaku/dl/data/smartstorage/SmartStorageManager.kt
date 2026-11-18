@@ -20,13 +20,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 /**
  * Coordinates watched markers and playback detection. Phase 1 has no internal
  * player: the app records when an external player was launched and, when it
- * becomes visible again, compares that elapsed time with the real duration.
+ * becomes visible again, credits the time spent away from the app. Time is
+ * accumulated across sittings, so pausing an episode and continuing it later
+ * still reaches the watched threshold. Only one playback is tracked at a time.
  */
 @Singleton
 class SmartStorageManager @Inject constructor(
@@ -39,6 +43,9 @@ class SmartStorageManager @Inject constructor(
     val settings: Flow<SmartStorageSettings> = repository.settings
     val watchedEpisodes: Flow<List<WatchedEpisode>> = repository.watchedEpisodes
     val stats: Flow<SmartStorageStats> = repository.stats
+
+    /** Serializes the read-modify-write of the single pending playback. */
+    private val playbackMutex = Mutex()
 
     suspend fun setEnabled(enabled: Boolean) {
         repository.setEnabled(enabled)
@@ -104,9 +111,9 @@ class SmartStorageManager @Inject constructor(
     }
 
     /**
-     * Called after a video URI was handed to an external player. The start time
-     * is kept across repeated opens while the elapsed time is still inside the
-     * accepted window, so watching in two sittings can still count.
+     * Called after a video URI was handed to an external player. The episode
+     * becomes the only pending playback; reopening the same file keeps the time
+     * already credited, so two sittings add up.
      */
     suspend fun recordPlaybackStarted(folderName: String, fileName: String, uri: Uri) {
         val normalizedFolder = SmartStoragePolicy.normalizeFolder(folderName)
@@ -153,87 +160,120 @@ class SmartStorageManager @Inject constructor(
         }
 
         val now = System.currentTimeMillis()
-        val existing = repository.currentPending().firstOrNull { entry ->
-            SmartStoragePolicy.key(entry.folderName, entry.fileName) ==
-                SmartStoragePolicy.key(normalizedFolder, fileName)
+        playbackMutex.withLock {
+            val existing = repository.currentPending().firstOrNull { entry ->
+                SmartStoragePolicy.key(entry.folderName, entry.fileName) ==
+                    SmartStoragePolicy.key(normalizedFolder, fileName)
+            }
+            val continuing = existing?.takeIf { entry -> entry.size == size }
+            repository.replacePending(
+                PendingPlayback(
+                    folderName = normalizedFolder,
+                    fileName = fileName,
+                    size = size,
+                    startedAt = continuing?.startedAt ?: now,
+                    durationMs = duration,
+                    watchedMs = continuing?.watchedMs
+                        ?.coerceIn(0L, duration)
+                        ?: 0L,
+                    sessionStartedAt = now,
+                ),
+            )
         }
-        val maxElapsed = (duration * SmartStoragePolicy.maxWatchRatio).toLong()
-        val keepStart = existing != null &&
-            existing.size == size &&
-            now - existing.startedAt in 0..maxElapsed
-
-        repository.upsertPending(
-            PendingPlayback(
-                folderName = normalizedFolder,
-                fileName = fileName,
-                size = size,
-                startedAt = if (keepStart && existing != null) existing.startedAt else now,
-                durationMs = duration,
-            ),
-        )
     }
 
     /**
-     * Called when the app becomes visible again. A pending playback that lasted
-     * roughly 80%–300% of the video duration becomes a watched marker. Stale or
-     * missing files are dropped without deleting anything.
+     * Called when the app becomes visible again. The sitting that started at the
+     * player launch is credited to the pending playback; once the accumulated
+     * time covers 80% of the duration the episode becomes a watched marker.
+     * Missing files are dropped without deleting anything.
      */
-    suspend fun evaluatePendingPlayback(now: Long = System.currentTimeMillis()): Int {
-        val settings = runCatching { repository.currentSettings() }.getOrNull()
-        if (settings?.enabled != true) {
-            repository.clearPending()
-            return 0
-        }
-
-        val watchedKeys = repository.currentWatched()
-            .map { entry -> SmartStoragePolicy.key(entry.folderName, entry.fileName) }
-            .toSet()
-        var marked = 0
-
-        for (pending in repository.currentPending()) {
-            val key = SmartStoragePolicy.key(pending.folderName, pending.fileName)
-            if (key in watchedKeys || !SmartStoragePolicy.hasUsableSize(pending.size)) {
-                repository.removePending(pending.folderName, pending.fileName)
-                continue
+    suspend fun evaluatePendingPlayback(now: Long = System.currentTimeMillis()): Int =
+        playbackMutex.withLock {
+            val settings = runCatching { repository.currentSettings() }.getOrNull()
+            if (settings?.enabled != true) {
+                repository.clearPending()
+                return@withLock 0
             }
-            val elapsed = now - pending.startedAt
-            when {
-                elapsed < 0L -> repository.removePending(pending.folderName, pending.fileName)
 
-                SmartStoragePolicy.looksWatched(
-                    startedAt = pending.startedAt,
-                    finishedAt = now,
-                    durationMs = pending.durationMs,
-                ) -> {
-                    val stillThere = runCatching {
-                        storage.existsWithSize(
-                            pending.folderName,
-                            pending.fileName,
-                            pending.size,
-                        )
-                    }.getOrDefault(false)
-                    if (stillThere) {
-                        repository.addWatched(
-                            WatchedEpisode(
-                                folderName = pending.folderName,
-                                fileName = pending.fileName,
-                                size = pending.size,
-                                watchedAt = now,
-                                manual = false,
-                            ),
-                        )
-                        marked++
-                    }
+            val watchedKeys = repository.currentWatched()
+                .map { entry -> SmartStoragePolicy.key(entry.folderName, entry.fileName) }
+                .toSet()
+            var marked = 0
+
+            for (pending in repository.currentPending()) {
+                val key = SmartStoragePolicy.key(pending.folderName, pending.fileName)
+                if (key in watchedKeys || !SmartStoragePolicy.hasUsableSize(pending.size)) {
                     repository.removePending(pending.folderName, pending.fileName)
+                    continue
                 }
 
-                elapsed > (pending.durationMs * SmartStoragePolicy.maxWatchRatio).toLong() ->
-                    repository.removePending(pending.folderName, pending.fileName)
+                val sessionMs = if (pending.sessionStartedAt > 0L) {
+                    now - pending.sessionStartedAt
+                } else {
+                    0L
+                }
+                val creditedMs = SmartStoragePolicy.usableSessionMs(
+                    sessionMs = sessionMs,
+                    durationMs = pending.durationMs,
+                )
+                val watchedMs = pending.watchedMs + creditedMs
+
+                when {
+                    SmartStoragePolicy.countsAsWatched(
+                        watchedMs = watchedMs,
+                        durationMs = pending.durationMs,
+                    ) -> {
+                        val stillThere = runCatching {
+                            storage.existsWithSize(
+                                pending.folderName,
+                                pending.fileName,
+                                pending.size,
+                            )
+                        }.getOrDefault(false)
+                        if (stillThere) {
+                            repository.addWatched(
+                                WatchedEpisode(
+                                    folderName = pending.folderName,
+                                    fileName = pending.fileName,
+                                    size = pending.size,
+                                    watchedAt = now,
+                                    manual = false,
+                                ),
+                            )
+                            marked++
+                        }
+                        repository.removePending(pending.folderName, pending.fileName)
+                    }
+
+                    // The player was left open or paused far longer than the video; this
+                    // sitting says nothing about watching, so the episode is forgotten.
+                    sessionMs > 0L && creditedMs == 0L -> {
+                        Timber.d(
+                            "Smart Storage membuang sesi %s/%s: %d ms di luar batas",
+                            pending.folderName,
+                            pending.fileName,
+                            sessionMs,
+                        )
+                        repository.removePending(pending.folderName, pending.fileName)
+                    }
+
+                    else -> {
+                        val accumulated = watchedMs.coerceAtMost(pending.durationMs)
+                        if (pending.sessionStartedAt != 0L || accumulated != pending.watchedMs) {
+                            repository.upsertPending(
+                                pending.copy(
+                                    watchedMs = accumulated,
+                                    sessionStartedAt = 0L,
+                                ),
+                            )
+                        }
+                    }
+                }
             }
+            if (marked > 0) Timber.d("Smart Storage marked %d episode(s) watched", marked)
+            marked
         }
-        if (marked > 0) Timber.d("Smart Storage marked %d episode(s) watched", marked)
-        return marked
-    }
 
     private suspend fun isWatched(folderName: String, fileName: String): Boolean {
         val key = SmartStoragePolicy.key(folderName, fileName)

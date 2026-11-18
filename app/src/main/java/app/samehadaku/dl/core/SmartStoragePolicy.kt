@@ -12,9 +12,10 @@ object SmartStoragePolicy {
     const val defaultGraceDays = 3
 
     /**
-     * A playback is treated as finished when the app returns after at least 80%
-     * of the video duration. The 300% ceiling discards stale timestamps from an
-     * episode that was opened long ago and left untouched.
+     * A playback is treated as finished when the accumulated time spent outside
+     * the app while the video was open covers at least 80% of the duration. One
+     * sitting longer than 300% of the duration is discarded as unreliable (the
+     * player was probably left open or paused), so it can never become a marker.
      */
     const val minWatchRatio = 0.8
     const val maxWatchRatio = 3.0
@@ -50,12 +51,21 @@ object SmartStoragePolicy {
         return ignoreGrace || isDue(watchedAt, now, graceDays)
     }
 
-    /** Compares the foreground time with the real video duration. */
-    fun looksWatched(startedAt: Long, finishedAt: Long, durationMs: Long): Boolean {
-        if (startedAt <= 0L || durationMs <= 0L || finishedAt < startedAt) return false
-        val elapsed = finishedAt - startedAt
-        return elapsed >= durationMs * minWatchRatio &&
-            elapsed <= durationMs * maxWatchRatio
+    /**
+     * Time from one sitting that may be credited. A sitting far longer than the
+     * video is more likely a paused or abandoned player than real watching, so
+     * it counts as zero instead of becoming a false marker.
+     */
+    fun usableSessionMs(sessionMs: Long, durationMs: Long): Long {
+        if (sessionMs <= 0L || durationMs <= 0L) return 0L
+        val ceiling = (durationMs * maxWatchRatio).toLong()
+        return if (sessionMs > ceiling) 0L else sessionMs
+    }
+
+    /** Accumulated sitting time, not one wall-clock span, decides a marker. */
+    fun countsAsWatched(watchedMs: Long, durationMs: Long): Boolean {
+        if (watchedMs <= 0L || durationMs <= 0L) return false
+        return watchedMs >= durationMs * minWatchRatio
     }
 
     /**

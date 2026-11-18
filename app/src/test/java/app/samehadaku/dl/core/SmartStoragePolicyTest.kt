@@ -74,21 +74,42 @@ class SmartStoragePolicyTest {
     }
 
     @Test
-    fun `playback between 80 and 300 percent counts as watched`() {
+    fun `accumulated watching counts as watched from eighty percent`() {
         val duration = 24L * 60L * 1000L
-        val start = 5_000_000L
 
-        assertFalse(SmartStoragePolicy.looksWatched(start, start + 19 * 60_000L, duration))
-        assertTrue(SmartStoragePolicy.looksWatched(start, start + 20 * 60_000L, duration))
-        assertTrue(SmartStoragePolicy.looksWatched(start, start + 72 * 60_000L, duration))
-        assertFalse(SmartStoragePolicy.looksWatched(start, start + 73 * 60_000L, duration))
+        assertFalse(SmartStoragePolicy.countsAsWatched(19 * 60_000L, duration))
+        assertTrue(SmartStoragePolicy.countsAsWatched(20 * 60_000L, duration))
+        assertTrue(SmartStoragePolicy.countsAsWatched(duration, duration))
     }
 
     @Test
-    fun `unknown duration or reversed clock is not watched`() {
-        assertFalse(SmartStoragePolicy.looksWatched(10L, 20L, 0L))
-        assertFalse(SmartStoragePolicy.looksWatched(20L, 10L, 100L))
-        assertFalse(SmartStoragePolicy.looksWatched(0L, 10L, 100L))
+    fun `watching from two sittings adds up`() {
+        val duration = 24L * 60L * 1000L
+        val firstSitting = 10 * 60_000L
+        val secondSitting = 10 * 60_000L
+
+        assertFalse(SmartStoragePolicy.countsAsWatched(firstSitting, duration))
+        assertTrue(
+            SmartStoragePolicy.countsAsWatched(firstSitting + secondSitting, duration),
+        )
+    }
+
+    @Test
+    fun `unknown duration or empty watching is not watched`() {
+        assertFalse(SmartStoragePolicy.countsAsWatched(10L, 0L))
+        assertFalse(SmartStoragePolicy.countsAsWatched(0L, 100L))
+        assertFalse(SmartStoragePolicy.countsAsWatched(-1L, 100L))
+    }
+
+    @Test
+    fun `a single sitting longer than three times the duration is discarded`() {
+        val duration = 24L * 60L * 1000L
+
+        assertEquals(0L, SmartStoragePolicy.usableSessionMs(73 * 60_000L, duration))
+        assertEquals(72 * 60_000L, SmartStoragePolicy.usableSessionMs(72 * 60_000L, duration))
+        assertEquals(20 * 60_000L, SmartStoragePolicy.usableSessionMs(20 * 60_000L, duration))
+        assertEquals(0L, SmartStoragePolicy.usableSessionMs(20 * 60_000L, 0L))
+        assertEquals(0L, SmartStoragePolicy.usableSessionMs(-5L, duration))
     }
 
     @Test
