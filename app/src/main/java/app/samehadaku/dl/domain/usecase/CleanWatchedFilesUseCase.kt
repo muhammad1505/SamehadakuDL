@@ -47,6 +47,26 @@ class CleanWatchedFilesUseCase @Inject constructor(
         var blockedFiles = 0
         var waitingFiles = 0
         val issues = mutableListOf<CleanupIssue>()
+        val watchedEntries = repository.currentWatched()
+
+        // Optional cap: when watched episodes exceed it, the oldest ones are
+        // removed even before their grace period. The cap is off by default.
+        var excessBytes = SmartStoragePolicy.excessBytes(
+            totalBytes = watchedEntries
+                .filter { SmartStoragePolicy.hasUsableSize(it.size) }
+                .sumOf { it.size },
+            limitGb = settings.maxStorageGb,
+        )
+        val forcedKeys = mutableSetOf<String>()
+        if (excessBytes > 0L) {
+            for (entry in watchedEntries
+                .filter { SmartStoragePolicy.hasUsableSize(it.size) }
+                .sortedBy { it.watchedAt }) {
+                forcedKeys += SmartStoragePolicy.key(entry.folderName, entry.fileName)
+                excessBytes -= entry.size
+                if (excessBytes <= 0L) break
+            }
+        }
 
         fun issue(entry: WatchedEpisode, reason: CleanupIssueReason) {
             issues += CleanupIssue(
@@ -58,8 +78,10 @@ class CleanWatchedFilesUseCase @Inject constructor(
             )
         }
 
-        for (entry in repository.currentWatched()) {
-            val shouldDelete = SmartStoragePolicy.shouldDelete(
+        for (entry in watchedEntries) {
+            val overLimit = SmartStoragePolicy.key(entry.folderName, entry.fileName) in
+                forcedKeys
+            val shouldDelete = overLimit || SmartStoragePolicy.shouldDelete(
                 watchedAt = entry.watchedAt,
                 now = now,
                 graceDays = settings.graceDays,

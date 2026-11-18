@@ -288,6 +288,28 @@ fun SettingsScreen(
                             },
                         )
                         Spacer(Modifier.height(12.dp))
+                        val limitOptions = SmartStoragePolicy.storageLimitOptions
+                        val selectedLimit = limitOptions
+                            .indexOf(state.smartStorageLimitGb)
+                            .coerceAtLeast(0)
+                        Text(
+                            text = "Batas penyimpanan episode tonton",
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        Spacer(Modifier.height(7.dp))
+                        SegmentedTabs(
+                            tabs = limitOptions.map { gigabytes ->
+                                SegmentTab(
+                                    label = if (gigabytes == 0) "Tanpa batas" else "$gigabytes GB",
+                                )
+                            },
+                            selectedIndex = selectedLimit,
+                            onSelect = { index ->
+                                viewModel.setSmartStorageLimitGb(limitOptions[index])
+                            },
+                        )
+                        Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             MetricTile(
                                 label = "Ditandai",

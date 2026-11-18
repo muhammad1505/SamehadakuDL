@@ -65,6 +65,10 @@ class SmartStorageManager @Inject constructor(
         repository.setGraceDays(days)
     }
 
+    suspend fun setMaxStorageGb(gigabytes: Int) {
+        repository.setMaxStorageGb(gigabytes)
+    }
+
     /** Manual marker from Koleksi; works even while Smart Storage is off. */
     suspend fun markWatched(
         folderName: String,

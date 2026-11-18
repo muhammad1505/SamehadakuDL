@@ -409,6 +409,9 @@ pengguna lain, dan video di luar folder unduhan tidak pernah disentuh.
 - Setiap keputusan Smart Storage—diterima sebagai unduhan lama atau ditolak
   beserta alasannya—ditulis ke Log aplikasi di Pengaturan, sehingga masalah file
   yang tidak bisa ditandai tonton bisa diperiksa tanpa komputer.
+- Batas penyimpanan opsional (tanpa batas, 5, 10, atau 20 GB) bisa diaktifkan.
+  Jika total episode tonton melebihi batas, episode tertua dihapus lebih awal
+  tanpa menunggu masa tenggang; default tetap tanpa batas.
 - Layar “Kelola episode” di Pengaturan menampilkan semua tanda tonton beserta
   tanggal jatuh tempo, sisa masa tenggang, playback yang sedang dilacak, dan file
   yang tertahan. File yang menunggu konfirmasi sistem, ukurannya berubah, atau

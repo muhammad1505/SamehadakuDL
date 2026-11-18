@@ -33,6 +33,7 @@ data class SettingsUiState(
     val lastAutoCheckAt: Long = 0L,
     val smartStorageEnabled: Boolean = false,
     val smartStorageGraceDays: Int = 3,
+    val smartStorageLimitGb: Int = 0,
     val smartWatchedCount: Int = 0,
     val smartWatchedBytes: Long = 0L,
     val smartDeletedCount: Int = 0,
@@ -109,6 +110,7 @@ class SettingsViewModel @Inject constructor(
                         it.copy(
                             smartStorageEnabled = smart.enabled,
                             smartStorageGraceDays = smart.graceDays,
+                            smartStorageLimitGb = smart.maxStorageGb,
                             smartWatchedCount = stats.watchedCount,
                             smartWatchedBytes = stats.watchedBytes,
                             smartDeletedCount = stats.deletedCount,
@@ -264,6 +266,22 @@ class SettingsViewModel @Inject constructor(
             smartStorage.setGraceDays(days)
             _state.update {
                 it.copy(message = "Masa tenggang pembersihan otomatis: ${days} hari.")
+            }
+        }
+    }
+
+    fun setSmartStorageLimitGb(gigabytes: Int) {
+        viewModelScope.launch {
+            smartStorage.setMaxStorageGb(gigabytes)
+            _state.update {
+                it.copy(
+                    message = if (gigabytes <= 0) {
+                        "Batas penyimpanan Smart Storage dimatikan."
+                    } else {
+                        "Batas penyimpanan Smart Storage: $gigabytes GB. Episode tonton " +
+                            "tertua dihapus lebih awal bila totalnya melebihi batas."
+                    },
+                )
             }
         }
     }

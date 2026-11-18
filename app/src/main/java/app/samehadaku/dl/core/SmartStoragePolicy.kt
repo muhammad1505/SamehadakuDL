@@ -11,6 +11,10 @@ object SmartStoragePolicy {
     val graceDayOptions = listOf(1, 3, 7, 14)
     const val defaultGraceDays = 3
 
+    /** Storage caps in GB; 0 disables the cap. */
+    val storageLimitOptions = listOf(0, 5, 10, 20)
+    const val defaultStorageLimitGb = 0
+
     /**
      * A playback is treated as finished when the accumulated time spent outside
      * the app while the video was open covers at least 80% of the duration. One
@@ -27,6 +31,21 @@ object SmartStoragePolicy {
         return graceDayOptions.minByOrNull { option ->
             kotlin.math.abs(option - candidate)
         } ?: defaultGraceDays
+    }
+
+    fun normalizeStorageLimitGb(gigabytes: Int): Int {
+        val candidate = gigabytes.coerceAtLeast(0)
+        return storageLimitOptions.minByOrNull { option ->
+            kotlin.math.abs(option - candidate)
+        } ?: defaultStorageLimitGb
+    }
+
+    /** Bytes to reclaim when the watched markers exceed an optional size cap. */
+    fun excessBytes(totalBytes: Long, limitGb: Int): Long {
+        val limit = normalizeStorageLimitGb(limitGb)
+        if (limit <= 0 || totalBytes <= 0L) return 0L
+        val limitBytes = limit.toLong() * 1024L * 1024L * 1024L
+        return (totalBytes - limitBytes).coerceAtLeast(0L)
     }
 
     /** Whether the grace period since the watched marker has fully elapsed. */

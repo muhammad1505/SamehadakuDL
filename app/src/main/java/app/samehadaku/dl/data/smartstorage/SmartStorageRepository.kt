@@ -38,6 +38,9 @@ class SmartStorageRepository @Inject constructor(
             graceDays = SmartStoragePolicy.normalizeGraceDays(
                 preferences[KEY_GRACE_DAYS] ?: SmartStoragePolicy.defaultGraceDays,
             ),
+            maxStorageGb = SmartStoragePolicy.normalizeStorageLimitGb(
+                preferences[KEY_MAX_STORAGE_GB] ?: SmartStoragePolicy.defaultStorageLimitGb,
+            ),
         )
     }
 
@@ -143,6 +146,12 @@ class SmartStorageRepository @Inject constructor(
 
     suspend fun setGraceDays(days: Int) {
         dataStore.edit { it[KEY_GRACE_DAYS] = SmartStoragePolicy.normalizeGraceDays(days) }
+    }
+
+    suspend fun setMaxStorageGb(gigabytes: Int) {
+        dataStore.edit {
+            it[KEY_MAX_STORAGE_GB] = SmartStoragePolicy.normalizeStorageLimitGb(gigabytes)
+        }
     }
 
     /** Adds a marker once. Re-marking an already watched file keeps its original date. */
@@ -502,6 +511,7 @@ class SmartStorageRepository @Inject constructor(
 
         val KEY_ENABLED = booleanPreferencesKey("smart_storage_enabled")
         val KEY_GRACE_DAYS = intPreferencesKey("smart_storage_grace_days")
+        val KEY_MAX_STORAGE_GB = intPreferencesKey("smart_storage_max_storage_gb")
         val KEY_WATCHED = stringPreferencesKey("smart_storage_watched")
         val KEY_PENDING = stringPreferencesKey("smart_storage_pending")
         val KEY_ISSUES = stringPreferencesKey("smart_storage_issues")

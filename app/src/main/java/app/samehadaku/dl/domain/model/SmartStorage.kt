@@ -4,6 +4,8 @@ package app.samehadaku.dl.domain.model
 data class SmartStorageSettings(
     val enabled: Boolean = false,
     val graceDays: Int = 3,
+    /** 0 means unlimited; otherwise the oldest watched episodes are removed early. */
+    val maxStorageGb: Int = 0,
 )
 
 /**

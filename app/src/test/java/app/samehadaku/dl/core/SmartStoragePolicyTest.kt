@@ -29,6 +29,25 @@ class SmartStoragePolicyTest {
     }
 
     @Test
+    fun `storage limit is normalized to an offered option`() {
+        assertEquals(0, SmartStoragePolicy.normalizeStorageLimitGb(0))
+        assertEquals(0, SmartStoragePolicy.normalizeStorageLimitGb(-3))
+        assertEquals(5, SmartStoragePolicy.normalizeStorageLimitGb(4))
+        assertEquals(10, SmartStoragePolicy.normalizeStorageLimitGb(10))
+        assertEquals(20, SmartStoragePolicy.normalizeStorageLimitGb(18))
+    }
+
+    @Test
+    fun `excess bytes only exist above the enabled limit`() {
+        val gigabyte = 1024L * 1024L * 1024L
+
+        assertEquals(0L, SmartStoragePolicy.excessBytes(30 * gigabyte, 0))
+        assertEquals(0L, SmartStoragePolicy.excessBytes(4 * gigabyte, 5))
+        assertEquals(2 * gigabyte, SmartStoragePolicy.excessBytes(7 * gigabyte, 5))
+        assertEquals(0L, SmartStoragePolicy.excessBytes(-1L, 5))
+    }
+
+    @Test
     fun `due date is the watched time plus the normalized grace period`() {
         val day = 24L * 60L * 60L * 1000L
         val watchedAt = 1_000_000L
