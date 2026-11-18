@@ -65,7 +65,8 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
         status = access.status()
     }
 
-    val tint = if (status.needsAttention) Warning else BrandMint
+    val appInfoMode = access.prefersAppInfoForBackground()
+    val tint = if (status.needsAttention && !appInfoMode) Warning else BrandMint
     val autoStartLabel = access.autoStartLabel()
     val autoStartSubtitle = if (autoStartLabel == "Info aplikasi") {
         "Buka Info aplikasi → Baterai."
@@ -74,34 +75,57 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
     }
     SettingSection(
         title = "Latar belakang & autostart",
-        subtitle = "Agar cek episode baru tidak tertunda",
+        subtitle = if (appInfoMode) {
+            "Izinkan latar belakang dan autostart"
+        } else {
+            "Agar cek episode baru tidak tertunda"
+        },
         icon = Icons.Rounded.BatterySaver,
         tint = tint,
-        badge = if (status.needsAttention) "Perlu izin" else "Siap",
+        badge = when {
+            appInfoMode -> "Atur"
+            status.needsAttention -> "Perlu izin"
+            else -> "Siap"
+        },
     ) {
-        AccessRow(
-            title = "Optimasi baterai",
-            subtitle = if (status.batteryOptimizationIgnored) {
-                "Tanpa batasan, cek tidak mudah ditunda."
-            } else {
-                "Sistem masih boleh menunda pekerjaan latar belakang."
-            },
-            badge = if (status.batteryOptimizationIgnored) "Aman" else "Batasi",
-            ready = status.batteryOptimizationIgnored,
-            onClick = {
-                launchTargets(context, access.batteryTargets(), onMessage)
-                status = access.status()
-            },
-        )
+        if (appInfoMode) {
+            AccessRow(
+                title = "Izin latar belakang & autostart",
+                subtitle = if (status.batteryOptimizationIgnored) {
+                    "Baterai sudah aman. Periksa Autostart di Info aplikasi."
+                } else {
+                    "Buka Info aplikasi → Baterai dan Autostart."
+                },
+                onClick = {
+                    launchTargets(context, access.batteryTargets(), onMessage)
+                    status = access.status()
+                },
+            )
+        } else {
+            AccessRow(
+                title = "Optimasi baterai",
+                subtitle = if (status.batteryOptimizationIgnored) {
+                    "Tanpa batasan, cek tidak mudah ditunda."
+                } else {
+                    "Sistem masih boleh menunda pekerjaan latar belakang."
+                },
+                badge = if (status.batteryOptimizationIgnored) "Aman" else "Batasi",
+                ready = status.batteryOptimizationIgnored,
+                onClick = {
+                    launchTargets(context, access.batteryTargets(), onMessage)
+                    status = access.status()
+                },
+            )
 
-        AccessRow(
-            title = "Autostart",
-            subtitle = autoStartSubtitle,
-            onClick = {
-                launchTargets(context, access.autoStartTargets(), onMessage)
-                status = access.status()
-            },
-        )
+            AccessRow(
+                title = "Autostart",
+                subtitle = autoStartSubtitle,
+                onClick = {
+                    launchTargets(context, access.autoStartTargets(), onMessage)
+                    status = access.status()
+                },
+            )
+        }
 
         if (status.backgroundRestricted == true) {
             AccessRow(

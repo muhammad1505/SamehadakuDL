@@ -53,6 +53,19 @@ class BackgroundAccess(context: Context) {
     private val packageName = appContext.packageName
     private val deviceFamily = "${Build.MANUFACTURER} ${Build.BRAND}".lowercase(Locale.US)
 
+    /**
+     * Legacy ColorOS (Realme/Oppo on Android 10 and older) keeps both the
+     * background-activity switch and the autostart switch inside the app info
+     * screen. Sending those devices to the generic battery list or to a ColorOS
+     * autostart component makes users hunt through screens that do not exist on
+     * their ROM, so App info is the primary entry point there.
+     */
+    private val legacyColorOsAppInfo: Boolean
+        get() = Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q &&
+            matches("realme", "oppo")
+
+    fun prefersAppInfoForBackground(): Boolean = legacyColorOsAppInfo
+
     fun status(): BackgroundAccessStatus {
         val batteryOptimizationIgnored = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             appContext.getSystemService(PowerManager::class.java)
@@ -108,6 +121,9 @@ class BackgroundAccess(context: Context) {
      * list needs no permission, so the user selects the app there instead.
      */
     fun batteryTargets(): List<BackgroundAccessTarget> = buildList {
+        if (legacyColorOsAppInfo) {
+            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             add(
                 BackgroundAccessTarget(
@@ -117,15 +133,21 @@ class BackgroundAccess(context: Context) {
             )
         }
         addAll(oemBatteryTargets())
-        add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
+        if (!legacyColorOsAppInfo) {
+            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
+        }
     }
 
     /**
      * OEM autostart managers, then generic battery optimization and app info.
      * Only the current device family is added so unrelated components are not
-     * probed with failed intents.
+     * probed with failed intents. Legacy ColorOS starts with app info because
+     * that is where its autostart switch actually lives.
      */
     fun autoStartTargets(): List<BackgroundAccessTarget> = buildList {
+        if (legacyColorOsAppInfo) {
+            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
+        }
         addAll(oemAutoStartTargets())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             add(
@@ -135,7 +157,9 @@ class BackgroundAccess(context: Context) {
                 ),
             )
         }
-        add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
+        if (!legacyColorOsAppInfo) {
+            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
+        }
     }
 
     fun notificationSettingsIntent(): Intent =
@@ -177,6 +201,7 @@ class BackgroundAccess(context: Context) {
 
     /** Name shown on the autostart button so the user knows which app to open. */
     fun autoStartLabel(): String = when {
+        legacyColorOsAppInfo -> "Info aplikasi"
         matches("xiaomi", "redmi", "poco") -> "MIUI Security"
         matches("huawei") -> "Phone Manager"
         matches("honor") -> "Honor Manager"
@@ -195,6 +220,11 @@ class BackgroundAccess(context: Context) {
 
     /** Short OEM-specific steps, with a general fallback for other devices. */
     fun guide(): String = when {
+        legacyColorOsAppInfo ->
+            "Buka Info aplikasi Samehadaku DL → Baterai, lalu izinkan aktivitas " +
+                "latar belakang. Di halaman Info aplikasi yang sama, buka Autostart/" +
+                "Manajemen peluncuran otomatis dan izinkan Samehadaku DL."
+
         matches("xiaomi", "redmi", "poco") ->
             "Di MIUI/HyperOS buka Keamanan → Autostart, aktifkan Samehadaku DL, " +
                 "lalu pilih Baterai → Tanpa batasan."

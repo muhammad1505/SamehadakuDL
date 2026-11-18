@@ -362,7 +362,7 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Mencatat jadwal pembersihan Smart Storage hanya ketika WorkManager benar-benar
   memasang ulang jadwalnya.
 
-## Rilis 2.8.0
+## Rilis 2.7.2
 
 - Menyatukan notifikasi unduhan menjadi satu alur dengan satu ID: progres, dijeda,
   lalu selesai. Ringkasan selesai tidak lagi muncul sebagai notifikasi kedua, dan
@@ -379,6 +379,10 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   diblokir, dan panduan OEM bisa dibuka-tutup. Panel tidak lagi meminta izin
   notifikasi sendiri; permintaan awal tetap dilakukan setelah splash dan
   pengguna yang menolak diarahkan ke pengaturan sistem.
+- Menyesuaikan alur izin dengan perangkat: Realme/Oppo dengan ColorOS lama
+  (Android 10 ke bawah, termasuk Realme 3) diarahkan ke Info aplikasi karena izin
+  latar belakang dan autostart berada di sana. Perangkat lain tetap memakai layar
+  baterai atau pengelola autostart OEM yang sesuai.
 
 ## Penyimpanan dan izin
 
@@ -415,6 +419,10 @@ diketuk dan langsung membuka layar pengaturan yang sesuai.
   Phone Master, dan lainnya—dengan fallback ke optimasi baterai dan Info aplikasi
   bila komponen tidak tersedia. Intent dicoba satu per satu agar tetap bekerja
   pada Android 11+ yang membatasi visibilitas paket.
+- Pada Realme/Oppo dengan ColorOS lama (Android 10 ke bawah), kedua baris digabung
+  menjadi “Izin latar belakang & autostart” yang langsung membuka Info aplikasi.
+  Di sana pengguna mengizinkan aktivitas latar belakang lewat Baterai dan
+  mengaktifkan Autostart, sesuai susunan menu perangkat tersebut.
 - Baris pembatasan latar belakang dan hemat data hanya muncul saat sistem
   benar-benar membatasi aplikasi, sehingga panel tidak penuh status yang sudah
   aman.
