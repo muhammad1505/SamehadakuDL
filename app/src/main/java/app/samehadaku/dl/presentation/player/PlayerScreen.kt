@@ -11,35 +11,47 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.ScreenRotation
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Subtitles
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -53,12 +65,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -85,7 +99,11 @@ import app.samehadaku.dl.R
 import app.samehadaku.dl.presentation.components.GlassButton
 import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.theme.BrandMint
+import app.samehadaku.dl.presentation.theme.SlateSurface
+import app.samehadaku.dl.presentation.theme.TextMuted
+import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
+import app.samehadaku.dl.presentation.util.formatBytes
 import kotlinx.coroutines.delay
 import timber.log.Timber
 
@@ -98,16 +116,21 @@ private val ResizeModes = listOf(
 private const val MAX_ZOOM = 4f
 private const val SEEK_STEP_MS = 10_000L
 
+private enum class PlayerSheet { NONE, EPISODES, SUBTITLE }
+
 /**
  * Full-screen internal player. The player reports real positions, so Smart
  * Storage gets a truthful completion signal and can resume where the user
  * stopped. Beyond the basic controls the screen offers:
  *
- * - hardware decoding with an automatic software fallback (ExoPlayer picks the
- *   platform decoder first; MediaCodec itself uses every core the codec allows),
+ * - the whole collection folder as an episode playlist, with previous/next
+ *   buttons and a list to jump to any episode,
+ * - display rules (scale, speed, subtitle layout) that survive the next episode,
+ * - hardware decoding with an automatic software fallback,
  * - pinch to zoom and drag to pan the video surface,
- * - external subtitles (SRT, WebVTT, SSA/ASS) with pinch/vertical-drag gestures
- *   for text size and vertical position once subtitle gesture mode is on,
+ * - external subtitles (SRT, WebVTT, SSA/ASS) behind an options panel instead of
+ *   jumping straight into the file picker, with pinch/vertical-drag gestures for
+ *   text size and position once subtitle gesture mode is on,
  * - speed, scaling and rotation controls, plus the system Do Not Disturb filter
  *   while the user watches, restored on exit,
  * - double-tap to seek 10 seconds back or forward.
@@ -134,15 +157,16 @@ fun PlayerScreen(
             )
         }
     }
-    var speed by remember { mutableFloatStateOf(1f) }
-    var resizeMode by remember {
-        mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT)
-    }
+    val preferences = remember(context) { PlayerPreferences(context) }
+    var speed by remember { mutableFloatStateOf(preferences.speed) }
+    var resizeMode by remember { mutableIntStateOf(preferences.resizeMode) }
     var playerError by remember { mutableStateOf<String?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(true) }
+    var ended by remember { mutableStateOf(false) }
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
+    var bufferedMs by remember { mutableLongStateOf(0L) }
     var controlsVisible by remember { mutableStateOf(true) }
     var scrubbing by remember { mutableStateOf(false) }
     var scrubPosition by remember { mutableLongStateOf(0L) }
@@ -151,10 +175,13 @@ fun PlayerScreen(
     var panY by remember { mutableFloatStateOf(0f) }
     var subtitleUri by remember { mutableStateOf<Uri?>(null) }
     var subtitleMime by remember { mutableStateOf<String?>(null) }
+    var subtitleLabel by remember { mutableStateOf<String?>(null) }
     var subtitleMode by remember { mutableStateOf(false) }
-    var subtitleSize by remember { mutableFloatStateOf(1f) }
-    var subtitleBottom by remember { mutableFloatStateOf(0f) }
+    var subtitleSize by remember { mutableFloatStateOf(preferences.subtitleSize) }
+    var subtitleBottom by remember { mutableFloatStateOf(preferences.subtitleBottom) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+    var loadedUri by remember { mutableStateOf<Uri?>(null) }
+    var sheet by remember { mutableStateOf(PlayerSheet.NONE) }
     var hint by remember { mutableStateOf<String?>(null) }
     var hintToken by remember { mutableIntStateOf(0) }
     val dnd = remember(context) { DoNotDisturb(context) }
@@ -186,6 +213,29 @@ fun PlayerScreen(
         }
     }
 
+    fun openEntry(index: Int) {
+        sheet = PlayerSheet.NONE
+        if (index == state.index) return
+        viewModel.playIndex(index, exoPlayer.currentPosition)
+        // A different episode starts clean: the previous zoom and side-loaded
+        // subtitle belong to the old file.
+        zoom = 1f
+        panX = 0f
+        panY = 0f
+        subtitleUri = null
+        subtitleMime = null
+        subtitleLabel = null
+        subtitleMode = false
+        applySurfaceTransform()
+        controlsVisible = true
+    }
+
+    fun replay() {
+        ended = false
+        exoPlayer.seekTo(0L)
+        exoPlayer.play()
+    }
+
     fun toggleDnd() {
         when {
             dndActive -> {
@@ -196,7 +246,7 @@ fun PlayerScreen(
             dnd.hasAccess() -> {
                 dndActive = dnd.activate()
                 dndGranted = dndActive
-                showHint(if (dndActive) "Jangan ganggu aktif" else "Jangan ganggu gagal aktif")
+                showHint(if (dndActive) "Notifikasi ditahan" else "Jangan ganggu gagal aktif")
             }
             else -> {
                 dndPending = true
@@ -233,11 +283,15 @@ fun PlayerScreen(
         }
         subtitleMime = mime
         subtitleUri = uri
+        subtitleLabel = runCatching { DocumentFile.fromSingleUri(context, uri)?.name }.getOrNull()
+            ?: uri.lastPathSegment
         subtitleMode = false
         showHint("Subtitle dimuat")
     }
 
-    BackHandler(onBack = ::leave)
+    BackHandler {
+        if (sheet != PlayerSheet.NONE) sheet = PlayerSheet.NONE else leave()
+    }
 
     LaunchedEffect(hintToken) {
         if (hint != null) {
@@ -246,12 +300,29 @@ fun PlayerScreen(
         }
     }
 
-    // Rebuild the media item when a subtitle is attached, keeping the position
-    // the user was already watching.
+    // Display rules are remembered, so the next episode opens with the same
+    // scale, speed and subtitle layout the user already chose.
+    LaunchedEffect(resizeMode) { preferences.resizeMode = resizeMode }
+    LaunchedEffect(speed) {
+        preferences.speed = speed
+        exoPlayer.setPlaybackSpeed(speed)
+    }
+    LaunchedEffect(subtitleSize) { preferences.subtitleSize = subtitleSize }
+    LaunchedEffect(subtitleBottom) { preferences.subtitleBottom = subtitleBottom }
+    LaunchedEffect(subtitleSize, subtitleBottom) { applySurfaceTransform() }
+
+    // Rebuild the media item when the episode or the attached subtitle changes,
+    // keeping the position the user was already watching for a subtitle swap.
     LaunchedEffect(state.uri, subtitleUri, subtitleMime) {
         val videoUri = state.uri ?: return@LaunchedEffect
+        val sameItem = loadedUri == videoUri
         playerError = null
-        val resume = if (exoPlayer.mediaItemCount > 0) exoPlayer.currentPosition else state.resumeMs
+        ended = false
+        val resume = if (sameItem && exoPlayer.mediaItemCount > 0) {
+            exoPlayer.currentPosition
+        } else {
+            state.resumeMs
+        }
         exoPlayer.setMediaItem(buildMediaItem(videoUri, subtitleUri, subtitleMime))
         exoPlayer.prepare()
         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
@@ -261,15 +332,13 @@ fun PlayerScreen(
             .build()
         if (resume > 0L) exoPlayer.seekTo(resume)
         exoPlayer.playWhenReady = true
-    }
-
-    LaunchedEffect(speed) {
-        exoPlayer.setPlaybackSpeed(speed)
+        loadedUri = videoUri
     }
 
     LaunchedEffect(exoPlayer) {
         while (true) {
             durationMs = exoPlayer.duration.coerceAtLeast(0L)
+            bufferedMs = exoPlayer.bufferedPosition.coerceAtLeast(0L)
             if (!scrubbing) positionMs = exoPlayer.currentPosition
             if (exoPlayer.isPlaying) {
                 viewModel.onPosition(
@@ -289,7 +358,8 @@ fun PlayerScreen(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
-                if (playbackState == Player.STATE_ENDED) viewModel.onPlaybackEnded()
+                ended = playbackState == Player.STATE_ENDED
+                if (ended) viewModel.onPlaybackEnded()
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -369,8 +439,8 @@ fun PlayerScreen(
         dndActive = false
     }
 
-    LaunchedEffect(controlsVisible, isPlaying, scrubbing) {
-        if (controlsVisible && isPlaying && !scrubbing) {
+    LaunchedEffect(controlsVisible, isPlaying, scrubbing, sheet) {
+        if (controlsVisible && isPlaying && !scrubbing && sheet == PlayerSheet.NONE) {
             delay(3_500)
             controlsVisible = false
         }
@@ -440,7 +510,7 @@ fun PlayerScreen(
                 },
         )
 
-        if (state.loading || (buffering && playerError == null && state.uri != null)) {
+        if (state.loading || (buffering && playerError == null && state.uri != null && !ended)) {
             CircularProgressIndicator(
                 modifier = Modifier.align(Alignment.Center),
                 color = Color.White,
@@ -455,7 +525,7 @@ fun PlayerScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(bottom = 92.dp, start = 16.dp, end = 16.dp)
+                    .padding(bottom = 150.dp, start = 16.dp, end = 16.dp)
                     .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(50))
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
@@ -473,7 +543,7 @@ fun PlayerScreen(
             )
         }
 
-        if (controlsVisible) {
+        if (controlsVisible && state.uri != null && !ended) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -498,15 +568,19 @@ fun PlayerScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (state.folderLabel.isNotBlank()) {
-                            Text(
-                                text = state.folderLabel,
-                                color = TextSecondary,
-                                style = MaterialTheme.typography.labelSmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                        Text(
+                            text = buildString {
+                                if (state.folderLabel.isNotBlank()) append(state.folderLabel)
+                                if (state.entries.size > 1) {
+                                    if (isNotEmpty()) append(" • ")
+                                    append("Ep ${state.index + 1} dari ${state.entries.size}")
+                                }
+                            },
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     Spacer(Modifier.width(6.dp))
                     GlassIconButton(
@@ -541,6 +615,15 @@ fun PlayerScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                 ) {
+                    if (state.entries.size > 1) {
+                        GlassButton(
+                            text = "Ep ${state.index + 1}/${state.entries.size}",
+                            icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
+                            onClick = { sheet = PlayerSheet.EPISODES },
+                            tint = BrandMint,
+                            height = 32.dp,
+                        )
+                    }
                     GlassButton(
                         text = speedLabel(speed),
                         onClick = { speed = nextSpeed(speed) },
@@ -560,13 +643,7 @@ fun PlayerScreen(
                             else -> "Subtitle: aktif"
                         },
                         icon = Icons.Rounded.Subtitles,
-                        onClick = {
-                            if (subtitleUri == null) {
-                                subtitlePicker.launch(arrayOf("*/*"))
-                            } else {
-                                subtitleMode = !subtitleMode
-                            }
-                        },
+                        onClick = { sheet = PlayerSheet.SUBTITLE },
                         tint = if (subtitleUri != null) BrandMint else Color.White,
                         height = 32.dp,
                     )
@@ -574,59 +651,130 @@ fun PlayerScreen(
             }
         }
 
-        if (controlsVisible && state.uri != null) {
-            Row(
+        if (controlsVisible && state.uri != null && !ended) {
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
+                        ),
+                    )
                     .navigationBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .background(Color.Black.copy(alpha = 0.42f), RoundedCornerShape(18.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
             ) {
-                GlassIconButton(
-                    icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (isPlaying) "Jeda" else "Putar",
-                    onClick = {
-                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
-                    },
-                    size = 36.dp,
-                    iconSize = 20.dp,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = formatTime(if (scrubbing) scrubPosition else positionMs),
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-                Slider(
-                    value = (if (scrubbing) scrubPosition else positionMs)
-                        .toFloat()
-                        .coerceIn(0f, durationMs.coerceAtLeast(1L).toFloat()),
-                    onValueChange = {
-                        scrubbing = true
-                        scrubPosition = it.toLong()
-                    },
-                    onValueChangeFinished = {
-                        seekTo(scrubPosition)
-                        scrubbing = false
-                    },
-                    valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
-                    colors = SliderDefaults.colors(
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(34.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = formatTime(if (scrubbing) scrubPosition else positionMs),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(50.dp),
+                    )
+                    PlayerScrubber(
+                        value = (if (scrubbing) scrubPosition else positionMs)
+                            .toFloat()
+                            .coerceIn(0f, durationMs.coerceAtLeast(1L).toFloat()),
+                        duration = durationMs.coerceAtLeast(1L).toFloat(),
+                        buffered = bufferedMs.toFloat(),
+                        onScrub = {
+                            scrubbing = true
+                            scrubPosition = it.toLong()
+                        },
+                        onScrubFinished = {
+                            seekTo(scrubPosition)
+                            scrubbing = false
+                        },
+                        enabled = durationMs > 0L,
+                        activeColor = BrandMint,
                         thumbColor = BrandMint,
-                        activeTrackColor = BrandMint,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.24f),
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 8.dp),
-                )
+                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                        contentDescription = "Posisi pemutaran video",
+                        stateDescription = "${formatTime(if (scrubbing) scrubPosition else positionMs)} " +
+                            "dari ${formatTime(durationMs)}",
+                    )
+                    Text(
+                        text = if (durationMs > 0L) formatTime(durationMs) else "--:--",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(50.dp),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(58.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GlassIconButton(
+                        icon = Icons.Rounded.SkipPrevious,
+                        contentDescription = "Episode sebelumnya",
+                        onClick = { openEntry(state.index - 1) },
+                        enabled = state.hasPrevious,
+                        tint = Color.White,
+                        size = 42.dp,
+                        iconSize = 24.dp,
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    GlassIconButton(
+                        icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = if (isPlaying) "Jeda" else "Putar",
+                        onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() },
+                        tint = BrandMint,
+                        size = 54.dp,
+                        iconSize = 28.dp,
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    GlassIconButton(
+                        icon = Icons.Rounded.SkipNext,
+                        contentDescription = "Episode berikutnya",
+                        onClick = { openEntry(state.index + 1) },
+                        enabled = state.hasNext,
+                        tint = Color.White,
+                        size = 42.dp,
+                        iconSize = 24.dp,
+                    )
+                }
+            }
+        }
+
+        if (ended && playerError == null) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color.Black.copy(alpha = 0.66f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 24.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text(
-                    text = formatTime(durationMs),
+                    text = if (state.hasNext) "Episode selesai" else "Semua episode selesai",
                     color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassButton(
+                        text = "Putar ulang",
+                        icon = Icons.Rounded.Replay,
+                        onClick = ::replay,
+                        height = 38.dp,
+                    )
+                    if (state.hasNext) {
+                        GlassButton(
+                            text = "Episode berikutnya",
+                            icon = Icons.Rounded.SkipNext,
+                            onClick = { openEntry(state.index + 1) },
+                            tint = BrandMint,
+                            height = 38.dp,
+                        )
+                    }
+                }
             }
         }
 
@@ -657,6 +805,220 @@ fun PlayerScreen(
                     }
                     GlassButton(text = "Kembali", onClick = ::leave)
                 }
+            }
+        }
+
+        when (sheet) {
+            PlayerSheet.EPISODES -> PlayerPanel(
+                title = "Daftar episode",
+                subtitle = "${state.entries.size} episode • ${state.folderLabel}",
+                onDismiss = { sheet = PlayerSheet.NONE },
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 6.dp),
+                ) {
+                    itemsIndexed(
+                        state.entries,
+                        key = { _, entry -> entry.fileName },
+                    ) { index, entry ->
+                        val current = index == state.index
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { openEntry(index) }
+                                .padding(horizontal = 20.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "${index + 1}",
+                                color = if (current) BrandMint else TextMuted,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.width(30.dp),
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = entry.title,
+                                    color = TextPrimary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = if (current) "Sedang diputar" else formatBytes(entry.size),
+                                    color = if (current) BrandMint else TextSecondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                            if (current) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = BrandMint,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            PlayerSheet.SUBTITLE -> PlayerPanel(
+                title = "Subtitle",
+                subtitle = subtitleLabel ?: "Belum ada subtitle eksternal",
+                onDismiss = { sheet = PlayerSheet.NONE },
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    GlassButton(
+                        text = if (subtitleUri == null) "Pilih file subtitle" else "Ganti file subtitle",
+                        icon = Icons.Rounded.FolderOpen,
+                        onClick = {
+                            sheet = PlayerSheet.NONE
+                            runCatching { subtitlePicker.launch(arrayOf("*/*")) }
+                                .onFailure { showHint("Pemilih file tidak bisa dibuka") }
+                        },
+                        height = 44.dp,
+                    )
+                    if (subtitleUri != null) {
+                        GlassButton(
+                            text = "Lepas subtitle",
+                            icon = Icons.Rounded.Close,
+                            onClick = {
+                                subtitleUri = null
+                                subtitleMime = null
+                                subtitleLabel = null
+                                subtitleMode = false
+                                sheet = PlayerSheet.NONE
+                                showHint("Subtitle dilepas")
+                            },
+                            height = 44.dp,
+                        )
+                    }
+                    Text(
+                        text = "Ukuran teks",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0.85f to "Kecil", 1f to "Normal", 1.3f to "Besar").forEach { (value, label) ->
+                            GlassButton(
+                                text = label,
+                                onClick = {
+                                    subtitleSize = value
+                                    applySurfaceTransform()
+                                },
+                                tint = if (subtitleSize == value) BrandMint else Color.White,
+                                height = 34.dp,
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Posisi",
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0f to "Bawah", 0.2f to "Tengah", 0.4f to "Atas").forEach { (value, label) ->
+                            GlassButton(
+                                text = label,
+                                onClick = {
+                                    subtitleBottom = value
+                                    applySurfaceTransform()
+                                },
+                                tint = if (subtitleBottom == value) BrandMint else Color.White,
+                                height = 34.dp,
+                            )
+                        }
+                    }
+                    GlassButton(
+                        text = if (subtitleMode) "Mode gestur aktif" else "Atur ukuran lewat gestur",
+                        icon = Icons.Rounded.Subtitles,
+                        onClick = {
+                            subtitleMode = !subtitleMode
+                            sheet = PlayerSheet.NONE
+                            if (subtitleMode) {
+                                showHint("Cubit untuk ukuran, geser untuk posisi")
+                            }
+                        },
+                        tint = if (subtitleMode) BrandMint else Color.White,
+                        height = 44.dp,
+                    )
+                    Text(
+                        text = "Subtitle eksternal didukung dalam format SRT, WebVTT, dan SSA/ASS. " +
+                            "Ukuran dan posisi terakhir dipakai lagi di episode berikutnya.",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+            }
+
+            PlayerSheet.NONE -> Unit
+        }
+    }
+}
+
+/**
+ * Bottom panel over the video. The scrim closes it on tap; taps inside the
+ * surface stop there so buttons and list rows keep working.
+ */
+@Composable
+private fun PlayerPanel(
+    title: String,
+    subtitle: String,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .clickable(onClick = onDismiss),
+    ) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .pointerInput(Unit) { detectTapGestures { } },
+            color = SlateSurface,
+            contentColor = TextPrimary,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(top = 16.dp, bottom = 14.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = subtitle,
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    GlassButton(
+                        text = "Tutup",
+                        onClick = onDismiss,
+                        height = 34.dp,
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Column(Modifier.padding(horizontal = 20.dp)) { content() }
             }
         }
     }

@@ -14,6 +14,10 @@ import timber.log.Timber
  * The filter that was active before is remembered and restored as soon as the
  * player closes, pauses, or goes to the background, so the phone is never left
  * silenced after watching.
+ *
+ * The filter used is "prioritas", not "total senyap": total silence also mutes
+ * media on many devices, so enabling it left the video playing without sound.
+ * Priority keeps notifications quiet while the movie's audio stays audible.
  */
 internal class DoNotDisturb(private val context: Context) {
 
@@ -41,7 +45,7 @@ internal class DoNotDisturb(private val context: Context) {
                 .getOrDefault(NotificationManager.INTERRUPTION_FILTER_ALL)
         }
         val activated = runCatching {
-            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
+            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY)
         }.isSuccess
         if (!activated) previousFilter = null
         return activated
