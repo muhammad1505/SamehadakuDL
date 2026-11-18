@@ -430,6 +430,25 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   posisi vertikalnya lewat geseran. Pemutar juga mengaktifkan fallback dekoder
   perangkat lunak saat dekoder perangkat keras tidak mendukung video.
 
+## Rilis 2.7.5
+
+- Aturan pemutar tidak lagi kembali ke awal setiap episode. Mode layar
+  Pas/Zoom/Penuh, kecepatan putar, serta ukuran dan posisi subtitle disimpan,
+  lalu dipakai lagi saat membuka episode berikutnya.
+- “Jangan ganggu” memakai filter prioritas, bukan total senyap, sehingga
+  notifikasi tetap ditahan tetapi audio video terus berbunyi. Filter yang aktif
+  sebelum menonton tetap dipulihkan saat pemutar ditutup.
+- Bilah progres digambar ulang: track tipis, bagian yang sudah dimuat lebih
+  terang, dan titik geser yang membesar saat ditarik. Waktu berjalan dan durasi
+  mengapit bilah, jadi posisi video lebih mudah dibaca.
+- Folder episode kini menjadi playlist pemutar: tombol episode sebelumnya dan
+  berikutnya, label “Ep x dari y”, panel daftar episode untuk melompat langsung,
+  serta overlay akhir episode dengan pilihan putar ulang atau lanjut. Posisi
+  tiap episode disimpan saat berpindah.
+- Tombol subtitle membuka panel opsi lebih dulu — pilih atau ganti file, lepas
+  subtitle, atur ukuran teks dan posisi, atau aktifkan mode gestur — bukan
+  langsung membuka pemilih file.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:
