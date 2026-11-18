@@ -36,6 +36,7 @@ class SamehadakuApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AppLog.init(this)
+        AppLog.installCrashHandler()
         Timber.plant(AppLog.Tree())
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())

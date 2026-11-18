@@ -81,6 +81,19 @@ object AppLog {
         }
     }
 
+    /**
+     * Fatal crashes never reach Timber, so a report used to leave no trace in the
+     * in-app log. Writing the throwable before the process dies keeps the cause
+     * available the next time the app opens.
+     */
+    fun installCrashHandler() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching { record(Log.ERROR, "Crash", "Thread ${thread.name}", throwable) }
+            if (previous != null) previous.uncaughtException(thread, throwable) else throw throwable
+        }
+    }
+
     private fun Throwable.dnsFailure(): UnknownHostException? =
         generateSequence(this) { it.cause }
             .filterIsInstance<UnknownHostException>()

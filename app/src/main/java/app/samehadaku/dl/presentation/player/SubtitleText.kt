@@ -50,7 +50,9 @@ internal fun activeTextCue(
 private val SrtTime = Regex("""(\d{1,3}):(\d{2}):(\d{2})[.,](\d{1,3})""")
 private val VttShortTime = Regex("""(\d{1,2}):(\d{2})[.,](\d{1,3})""")
 private val HtmlTag = Regex("<[^>]*>")
-private val SsaTag = Regex("""\{[^}]*}""")
+// Android's regex engine (ICU) rejects an unescaped closing brace, unlike the
+// desktop JVM, so both braces must be escaped or this file's initializer throws.
+private val SsaTag = Regex("""\{[^}]*\}""")
 
 private fun parseSrtOrVtt(content: String): List<TextCue> {
     val normalized = content
