@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -66,7 +67,7 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
     }
 
     val appInfoMode = access.prefersAppInfoForBackground()
-    val tint = if (status.needsAttention && !appInfoMode) Warning else BrandMint
+    val tint = if (status.needsAttention) Warning else BrandMint
     val autoStartLabel = access.autoStartLabel()
     val autoStartSubtitle = if (autoStartLabel == "Info aplikasi") {
         "Buka Info aplikasi → Baterai."
@@ -82,22 +83,31 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
         },
         icon = Icons.Rounded.BatterySaver,
         tint = tint,
-        badge = when {
-            appInfoMode -> "Atur"
-            status.needsAttention -> "Perlu izin"
-            else -> "Siap"
-        },
+        badge = if (status.needsAttention) "Perlu izin" else "Siap",
     ) {
         if (appInfoMode) {
             AccessRow(
-                title = "Izin latar belakang & autostart",
+                title = "Izin latar belakang",
                 subtitle = if (status.batteryOptimizationIgnored) {
-                    "Baterai sudah aman. Periksa Autostart di Info aplikasi."
+                    "Sudah dikecualikan dari optimasi baterai."
                 } else {
-                    "Buka Info aplikasi → Baterai dan Autostart."
+                    "Belum diizinkan; buka Info aplikasi → Baterai."
                 },
+                badge = if (status.batteryOptimizationIgnored) "Aman" else "Batasi",
+                ready = status.batteryOptimizationIgnored,
                 onClick = {
                     launchTargets(context, access.batteryTargets(), onMessage)
+                    status = access.status()
+                },
+            )
+
+            AccessRow(
+                title = "Autostart",
+                subtitle = "Diatur manual di Info aplikasi; status tidak bisa dibaca otomatis.",
+                badge = "Manual",
+                badgeColor = TextSecondary,
+                onClick = {
+                    launchTargets(context, access.autoStartTargets(), onMessage)
                     status = access.status()
                 },
             )
@@ -231,6 +241,7 @@ private fun AccessRow(
     title: String,
     subtitle: String,
     badge: String? = null,
+    badgeColor: Color? = null,
     ready: Boolean = true,
     onClick: () -> Unit,
 ) {
@@ -258,7 +269,7 @@ private fun AccessRow(
             Spacer(Modifier.width(8.dp))
             StatusPill(
                 text = badge,
-                color = if (ready) BrandMint else Warning,
+                color = badgeColor ?: if (ready) BrandMint else Warning,
             )
         }
         Spacer(Modifier.width(4.dp))

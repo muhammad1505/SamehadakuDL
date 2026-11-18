@@ -63,6 +63,9 @@ class DownloadService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         stopping = false
+        // A new download session starts clean: the previous session's result
+        // notification must not sit next to the new progress notification.
+        NotificationManagerCompat.from(this).cancel(RESULT_NOTIFICATION_ID)
         when (intent?.action) {
             ACTION_PAUSE_ALL -> queue.pauseAll()
             ACTION_RESUME_ALL -> queue.resumeAll()
@@ -147,7 +150,7 @@ class DownloadService : Service() {
         try {
             ServiceCompat.startForeground(
                 this,
-                NOTIFICATION_ID,
+                PROGRESS_NOTIFICATION_ID,
                 notification,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
@@ -162,17 +165,21 @@ class DownloadService : Service() {
     }
 
     private fun updateNotification(notification: Notification) {
+        notify(PROGRESS_NOTIFICATION_ID, notification)
+    }
+
+    private fun notify(id: Int, notification: Notification) {
         try {
-            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
+            NotificationManagerCompat.from(this).notify(id, notification)
         } catch (error: SecurityException) {
             Timber.w(error, "Notification permission denied")
         }
     }
 
     /**
-     * Keeps the same notification id from progress to paused to finished. The
-     * finished notification is detached from the foreground service instead of
-     * removed, so the session ends as one continuous notification.
+     * Ends the download session with one visible notification. The foreground
+     * progress card is removed before the completion card is posted, so the
+     * result replaces it instead of appearing next to it.
      */
     private fun finishSession(tasks: List<DownloadTask>) {
         val finished = tasks.filter { it.state.isFinished }
@@ -227,8 +234,12 @@ class DownloadService : Service() {
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .build()
 
-        updateNotification(notification)
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+        // Remove the progress notification first, then post the result under its
+        // own id. This is the transition the user sees: the downloading card
+        // disappears and the completion card takes its place, never both at once.
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        NotificationManagerCompat.from(this).cancel(PROGRESS_NOTIFICATION_ID)
+        notify(RESULT_NOTIFICATION_ID, notification)
         stopping = true
         scope.launch {
             runCatching {
@@ -458,7 +469,8 @@ class DownloadService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "downloads"
-        private const val NOTIFICATION_ID = 2001
+        private const val PROGRESS_NOTIFICATION_ID = 2001
+        private const val RESULT_NOTIFICATION_ID = 2002
         private const val REQUEST_OPEN = 3001
         private const val REQUEST_PAUSE = 3002
         private const val REQUEST_CANCEL = 3003

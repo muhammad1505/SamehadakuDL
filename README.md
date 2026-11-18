@@ -362,6 +362,18 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Mencatat jadwal pembersihan Smart Storage hanya ketika WorkManager benar-benar
   memasang ulang jadwalnya.
 
+## Rilis 2.7.3
+
+- Memastikan notifikasi hasil unduhan benar-benar menggantikan notifikasi progres:
+  kartu progres dihapus lebih dulu, lalu kartu selesai dipasang, sehingga keduanya
+  tidak pernah tampil bersamaan.
+- Menghapus laporan selesai dari sesi sebelumnya saat sesi unduhan baru dimulai.
+- Membedakan status panel latar belakang: izin latar belakang menampilkan
+  Aman/Batasi berdasarkan status sistem, sedangkan Autostart diberi label Manual
+  karena Android tidak menyediakan cara membacanya otomatis.
+- Menyesuaikan alur Realme/Oppo ColorOS lama agar tetap membuka Info aplikasi,
+  dengan baris izin latar belakang dan autostart yang terpisah.
+
 ## Rilis 2.7.2
 
 - Menyatukan notifikasi unduhan menjadi satu alur dengan satu ID: progres, dijeda,
