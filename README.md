@@ -378,14 +378,19 @@ Pengaturan. Fitur ini hanya mengelola video yang diunduh aplikasi ke folder
 `SamehadakuDL/<judul anime>/` atau folder pilihan; arsip `.rar`/`.zip`, file
 pengguna lain, dan video di luar folder unduhan tidak pernah disentuh.
 
-- Episode ditandai tonton secara manual dari Koleksi, atau otomatis saat video
-  dibuka lewat pemutar eksternal lalu aplikasi kembali visible. Durasi dibaca
-  dengan `MediaMetadataRetriever`; Fase 1 belum memakai pemutar internal.
-- Waktu tonton dihitung per sesi dan diakumulasi: jeda panjang atau menonton
-  dalam dua kesempatan tidak lagi menghapus progres, dan hanya episode yang
-  terakhir dibuka yang dilacak. Satu sesi yang jauh lebih lama dari durasi video
-  (misalnya pemutar ditinggal atau di-pause) diabaikan agar tidak menjadi tanda
-  tonton palsu. Ambang tanda tonton tetap 80% durasi.
+- Episode ditandai tonton secara manual dari Koleksi, otomatis oleh pemutar
+  internal setelah 90% video benar-benar diputar, atau lewat pemutar eksternal
+  lalu aplikasi kembali visible. Durasi pemutar eksternal dibaca dengan
+  `MediaMetadataRetriever`.
+- Video bisa diputar di dalam aplikasi dengan pemutar Media3: posisi tonton
+  disimpan dan ditawarkan lagi saat episode dibuka berikutnya, sehingga sinyal
+  selesai berasal dari posisi nyata, bukan perkiraan waktu. Menu folder di
+  Koleksi tetap menyediakan “Putar dengan aplikasi lain”.
+- Untuk pemutar eksternal, waktu tonton dihitung per sesi dan diakumulasi: jeda
+  panjang atau menonton dalam dua kesempatan tidak lagi menghapus progres, dan
+  hanya episode yang terakhir dibuka yang dilacak. Satu sesi yang jauh lebih lama
+  dari durasi video (misalnya pemutar ditinggal atau di-pause) diabaikan agar
+  tidak menjadi tanda tonton palsu. Ambangnya 80% durasi.
 - File baru dihapus setelah masa tenggang 1, 3, 7, atau 14 hari (default 3 hari),
   bukan langsung setelah ditonton. Pemeriksaan berjalan harian lewat WorkManager
   dan bisa dipicu manual dengan “Bersihkan sekarang”.

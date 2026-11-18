@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Refresh
@@ -110,6 +111,7 @@ import app.samehadaku.dl.presentation.util.shortDate
 fun CollectionsScreen(
     onTabSelected: (AppTab) -> Unit,
     onBrowse: () -> Unit,
+    onPlay: (folderName: String, fileName: String) -> Unit,
     viewModel: CollectionsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -451,7 +453,7 @@ fun CollectionsScreen(
                             isWatched = { file -> state.isWatched(folder.name, file.name) },
                             onMarkAllWatched = { viewModel.markAllWatched(folder) },
                             onClearWatched = { viewModel.clearWatched(folder) },
-                            onOpenFile = { file -> viewModel.openFile(folder, file) },
+                            onPlayFile = { file -> onPlay(folder.name, file.name) },
                             onShareFile = { file -> viewModel.shareFile(folder, file) },
                             onToggleWatched = { file -> viewModel.toggleWatched(folder, file) },
                             onDeleteFile = { file ->
@@ -577,7 +579,7 @@ private fun FolderGroup(
     isWatched: (StoredFile) -> Boolean,
     onMarkAllWatched: () -> Unit,
     onClearWatched: () -> Unit,
-    onOpenFile: (StoredFile) -> Unit,
+    onPlayFile: (StoredFile) -> Unit,
     onShareFile: (StoredFile) -> Unit,
     onToggleWatched: (StoredFile) -> Unit,
     onDeleteFile: (StoredFile) -> Unit,
@@ -675,6 +677,10 @@ private fun FolderGroup(
                     canOpen = folder.files.isNotEmpty(),
                     videoCount = videoCount,
                     watchedCount = watchedCount,
+                    onOpenLatest = {
+                        menuOpen = false
+                        onOpenLatest()
+                    },
                     onShareLatest = {
                         menuOpen = false
                         onShareLatest()
@@ -719,7 +725,7 @@ private fun FolderGroup(
                         accent = accent,
                         watched = file.isVideo && isWatched(file),
                         onToggleWatched = { onToggleWatched(file) },
-                        onOpen = { onOpenFile(file) },
+                        onOpen = { onPlayFile(file) },
                         onShare = { onShareFile(file) },
                         onDelete = { onDeleteFile(file) },
                     )
@@ -736,12 +742,25 @@ private fun FolderMenu(
     canOpen: Boolean,
     videoCount: Int,
     watchedCount: Int,
+    onOpenLatest: () -> Unit,
     onShareLatest: () -> Unit,
     onMarkAllWatched: () -> Unit,
     onClearWatched: () -> Unit,
     onDeleteFolder: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("Putar dengan aplikasi lain") },
+            enabled = canOpen,
+            leadingIcon = {
+                Icon(
+                    Icons.Rounded.OpenInNew,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            onClick = onOpenLatest,
+        )
         DropdownMenuItem(
             text = { Text("Bagikan file terakhir") },
             enabled = canOpen,

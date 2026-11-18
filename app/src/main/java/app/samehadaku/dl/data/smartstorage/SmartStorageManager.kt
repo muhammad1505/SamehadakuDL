@@ -19,8 +19,11 @@ import app.samehadaku.dl.domain.model.WatchedEpisode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -49,6 +52,9 @@ class SmartStorageManager @Inject constructor(
 
     /** Serializes the read-modify-write of the single pending playback. */
     private val playbackMutex = Mutex()
+
+    /** App-lifetime work for markers created by the internal player. */
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     suspend fun setEnabled(enabled: Boolean) {
         repository.setEnabled(enabled)
@@ -94,6 +100,23 @@ class SmartStorageManager @Inject constructor(
             )
         }
         return true
+    }
+
+    /**
+     * Marks an episode watched from the internal player. The player screen may be
+     * closing at that moment, so the write runs in an app-lifetime scope.
+     */
+    fun markWatchedInBackground(folderName: String, fileName: String, size: Long) {
+        backgroundScope.launch {
+            runCatching {
+                markWatched(
+                    folderName = folderName,
+                    fileName = fileName,
+                    size = size,
+                    manual = false,
+                )
+            }
+        }
     }
 
     suspend fun unmarkWatched(folderName: String, fileName: String) {

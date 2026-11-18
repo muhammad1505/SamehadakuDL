@@ -1,5 +1,6 @@
 package app.samehadaku.dl.presentation.navigation
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -15,9 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import app.samehadaku.dl.presentation.about.AboutScreen
 import app.samehadaku.dl.presentation.cloudflare.CloudflareScreen
 import app.samehadaku.dl.presentation.collections.CollectionsScreen
@@ -28,6 +31,7 @@ import app.samehadaku.dl.presentation.episodes.EpisodesScreen
 import app.samehadaku.dl.presentation.home.HomeScreen
 import app.samehadaku.dl.presentation.logs.LogsScreen
 import app.samehadaku.dl.presentation.notifications.NotificationsScreen
+import app.samehadaku.dl.presentation.player.PlayerScreen
 import app.samehadaku.dl.presentation.quality.QualityScreen
 import app.samehadaku.dl.presentation.queue.QueueScreen
 import app.samehadaku.dl.presentation.search.SearchScreen
@@ -52,6 +56,11 @@ object Routes {
     const val LOGS = "logs"
     const val CALENDAR = "calendar"
     const val SMART_STORAGE = "smart-storage"
+    const val PLAYER = "player"
+
+    /** Player route; both parts are URI-encoded because file names may contain `/`. */
+    fun player(folderName: String, fileName: String): String =
+        "$PLAYER/${Uri.encode(folderName)}/${Uri.encode(fileName)}"
 }
 
 /** Tabs cross-fade; every other route is a pushed detail page. */
@@ -287,7 +296,20 @@ fun SamehadakuNavHost(
                 CollectionsScreen(
                     onTabSelected = ::navigateToTab,
                     onBrowse = { navigateToTab(AppTab.HOME) },
+                    onPlay = { folderName, fileName ->
+                        navController.navigate(Routes.player(folderName, fileName))
+                    },
                 )
+            }
+
+            composable(
+                route = "${Routes.PLAYER}/{folder}/{file}",
+                arguments = listOf(
+                    navArgument("folder") { type = NavType.StringType },
+                    navArgument("file") { type = NavType.StringType },
+                ),
+            ) {
+                PlayerScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Routes.SUBSCRIPTIONS) { entry ->
