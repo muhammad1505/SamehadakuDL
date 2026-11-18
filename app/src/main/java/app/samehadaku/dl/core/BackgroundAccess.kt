@@ -109,25 +109,18 @@ class BackgroundAccess(context: Context) {
     }
 
     /**
-     * Battery screens. While the app is still optimized the first target is the
-     * system exemption dialog, which gives a definitive "allowed" result the
-     * panel can read back. The optimization list and app info stay as fallbacks
-     * for ROMs that do not handle the dialog.
+     * Battery screens. The exemption is set manually by the user: the direct
+     * "ignore battery optimizations" dialog needs the restricted
+     * `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission, which Play Protect can
+     * treat as unsafe for sideloaded APKs. Opening the optimization list needs
+     * no permission, so the user selects the app there instead. The panel still
+     * reads the result back through PowerManager.
      */
     fun batteryTargets(): List<BackgroundAccessTarget> = buildList {
         if (legacyColorOsAppInfo) {
             add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!status().batteryOptimizationIgnored) {
-                add(
-                    BackgroundAccessTarget(
-                        label = "izin optimasi baterai",
-                        intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                            .setData(Uri.parse("package:$packageName")),
-                    ),
-                )
-            }
             add(
                 BackgroundAccessTarget(
                     label = "optimasi baterai",

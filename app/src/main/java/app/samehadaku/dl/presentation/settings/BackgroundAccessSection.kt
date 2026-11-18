@@ -170,7 +170,7 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
                 subtitle = if (status.batteryOptimizationIgnored) {
                     "Sudah dikecualikan; cek tidak mudah ditunda."
                 } else {
-                    "Masih dioptimalkan; cek otomatis bisa tertunda."
+                    "Pilih aplikasi ini di daftar, lalu “Jangan optimalkan”."
                 },
                 badge = if (status.batteryOptimizationIgnored) "Sudah" else "Belum",
                 ready = status.batteryOptimizationIgnored,

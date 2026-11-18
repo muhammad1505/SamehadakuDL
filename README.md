@@ -407,6 +407,15 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   penyembunyian system bar selama pemutaran, serta pesan kegagalan pemutaran yang
   menyediakan tombol “Coba lagi” tanpa harus keluar dari video.
 
+## Rilis 2.7.4
+
+- Menghapus izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` yang membuat Play Protect
+  menandai APK sideload sebagai berbahaya. Pengecualian baterai kini disetel manual
+  oleh pengguna dari daftar optimasi sistem, sementara status “Sudah”/“Belum” tetap
+  dibaca ulang otomatis.
+- Memperjelas baris optimasi baterai: pengguna diarahkan memilih aplikasi ini di
+  daftar lalu menekan “Jangan optimalkan”.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:
@@ -437,11 +446,11 @@ diketuk dan langsung membuka layar pengaturan yang sesuai.
   baris dengan “Sudah” atau “Belum”. Status dibaca ulang saat kembali dari pengaturan
   sistem, dan tombol “Periksa ulang” memperbaruinya tanpa meninggalkan layar.
 - Baris “Optimasi baterai” menunjukkan apakah aplikasi sudah dikecualikan. Saat belum,
-  mengetuknya membuka dialog sistem “Jangan optimalkan” lewat
-  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; izin ini hanya dipakai untuk alur yang
-  dimulai pengguna dan tidak pernah meminta pengecualian otomatis. Bila dialog tidak
-  tersedia di ROM tersebut, daftar optimasi dan Info aplikasi tetap dibuka. Izin ini
-  dibatasi Google Play, jadi APK sideload dapat memicu peringatan Play Protect.
+  mengetuknya membuka daftar optimasi baterai sistem; pengguna memilih Samehadaku DL
+  lalu “Jangan optimalkan”. Aplikasi tidak memakai izin
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` yang dibatasi Google Play dan memicu
+  peringatan Play Protect pada APK sideload, serta tidak pernah meminta pengecualian
+  otomatis. Info aplikasi tetap menjadi cadangan bila daftar tidak tersedia.
 - Baris “Autostart” diberi label “Tidak terbaca” karena Android tidak menyediakan cara
   membacanya otomatis, lalu membuka pengelola autostart OEM yang terdeteksi—MIUI/HyperOS,
   ColorOS/Realme/OPPO, OxygenOS, iManager, Device Care, Mobile Manager,
