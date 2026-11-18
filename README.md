@@ -22,14 +22,16 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Aksi terpisah untuk membersihkan riwayat (file tetap ada) dan menghapus file permanen,
   masing-masing dengan konfirmasi.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
-- Pemutar internal Media3/ExoPlayer dengan resume posisi tonton dan tanda tonton
-  otomatis setelah 90% video diputar; pemutar eksternal tetap tersedia dari menu folder.
+- Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
+  setelah 90% video diputar, kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh, dan
+  layar penuh tanpa system bar; pemutar eksternal tetap tersedia dari menu folder.
 - Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
   otomatis setelah masa tenggang 1/3/7/14 hari, atau langsung lewat tombol manual
   dengan konfirmasi. Batas penyimpanan 5/10/20 GB dapat diaktifkan, dan layar
   “Kelola episode” menampilkan alasan file yang tertahan agar bisa ditindaklanjuti.
-- Panel latar belakang & autostart yang ringkas: baris izin bisa diketuk langsung ke
-  pengaturan sistem, dan panduan OEM dibuka hanya saat dibutuhkan.
+- Panel latar belakang & autostart yang ringkas: ringkasan “x/y siap” dan status
+  per baris, baris izin bisa diketuk langsung ke pengaturan sistem, dan panduan OEM
+  dibuka hanya saat dibutuhkan.
 - Sesi Cloudflare dengan WebView verifikasi, reset sesi, dan verifikasi ulang otomatis.
 - Pengaturan unduhan paralel dan fallback kualitas terdekat.
 - Splash screen atmosferik, bottom navigation, dan transisi antar layar.
@@ -396,6 +398,21 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   latar belakang dan autostart berada di sana. Perangkat lain tetap memakai layar
   baterai atau pengelola autostart OEM yang sesuai.
 
+## Rilis 2.7.4
+
+- Panel “Latar belakang & autostart” kini menampilkan ringkasan “x/y siap” dan status
+  per baris (“Sudah”/“Belum”) yang dibaca ulang setiap kembali ke layar ini, ditambah
+  tombol “Periksa ulang”, sehingga jelas apakah pengecualian baterai sudah disetel.
+- Mengembalikan izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` untuk alur yang dimulai
+  pengguna: mengetuk baris optimasi baterai kembali membuka dialog sistem “Jangan
+  optimalkan” yang hasilnya bisa dibaca ulang. Daftar optimasi dan Info aplikasi tetap
+  menjadi cadangan bila ROM tidak menyediakan dialog tersebut.
+- Baris Autostart kini berlabel “Tidak terbaca” karena Android tidak menyediakan API
+  untuk membaca status autostart; pengguna tetap diarahkan ke pengelola OEM terkait.
+- Pemutar internal menambahkan kontrol kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh,
+  penyembunyian system bar selama pemutaran, serta pesan kegagalan pemutaran yang
+  menyediakan tombol “Coba lagi” tanpa harus keluar dari video.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:
@@ -421,12 +438,18 @@ perangkat masuk Doze atau OEM membatasi aktivitas latar belakang. Panel
 “Latar belakang & autostart” di Pengaturan dibuat ringkas: setiap baris bisa
 diketuk dan langsung membuka layar pengaturan yang sesuai.
 
-- Baris “Optimasi baterai” menunjukkan apakah aplikasi sudah dikecualikan.
-  Mengetuknya membuka daftar optimasi; pengguna memilih Samehadaku DL lalu
-  “Jangan optimalkan”. Aplikasi tidak mendeklarasikan
-  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` karena izin itu dibatasi Google Play
-  dan dapat memicu peringatan Play Protect saat APK dipasang dari luar Play Store.
-- Baris “Autostart” membuka pengelola autostart OEM yang terdeteksi—MIUI/HyperOS,
+- Ringkasan “Status izin sistem” menghitung hanya status yang bisa dibaca Android
+  (baterai, pembatasan latar belakang, hemat data, notifikasi) dan menandai setiap
+  baris dengan “Sudah” atau “Belum”. Status dibaca ulang saat kembali dari pengaturan
+  sistem, dan tombol “Periksa ulang” memperbaruinya tanpa meninggalkan layar.
+- Baris “Optimasi baterai” menunjukkan apakah aplikasi sudah dikecualikan. Saat belum,
+  mengetuknya membuka dialog sistem “Jangan optimalkan” lewat
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; izin ini hanya dipakai untuk alur yang
+  dimulai pengguna dan tidak pernah meminta pengecualian otomatis. Bila dialog tidak
+  tersedia di ROM tersebut, daftar optimasi dan Info aplikasi tetap dibuka. Izin ini
+  dibatasi Google Play, jadi APK sideload dapat memicu peringatan Play Protect.
+- Baris “Autostart” diberi label “Tidak terbaca” karena Android tidak menyediakan cara
+  membacanya otomatis, lalu membuka pengelola autostart OEM yang terdeteksi—MIUI/HyperOS,
   ColorOS/Realme/OPPO, OxygenOS, iManager, Device Care, Mobile Manager,
   Phone Master, dan lainnya—dengan fallback ke optimasi baterai dan Info aplikasi
   bila komponen tidak tersedia. Intent dicoba satu per satu agar tetap bekerja

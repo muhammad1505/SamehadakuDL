@@ -26,13 +26,7 @@ data class BackgroundAccessStatus(
     val dataSaverRestricted: Boolean?,
     val notificationsEnabled: Boolean,
     val notificationPermissionRequired: Boolean,
-) {
-    val needsAttention: Boolean
-        get() = !batteryOptimizationIgnored ||
-            backgroundRestricted == true ||
-            dataSaverRestricted == true ||
-            !notificationsEnabled
-}
+)
 
 /** A settings screen to try, newest/OEM-specific first. */
 data class BackgroundAccessTarget(
@@ -115,16 +109,25 @@ class BackgroundAccess(context: Context) {
     }
 
     /**
-     * Battery screens. The direct "ignore battery optimizations" dialog needs the
-     * restricted `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission, which Play
-     * Protect can treat as unsafe for sideloaded apps. Opening the optimization
-     * list needs no permission, so the user selects the app there instead.
+     * Battery screens. While the app is still optimized the first target is the
+     * system exemption dialog, which gives a definitive "allowed" result the
+     * panel can read back. The optimization list and app info stay as fallbacks
+     * for ROMs that do not handle the dialog.
      */
     fun batteryTargets(): List<BackgroundAccessTarget> = buildList {
         if (legacyColorOsAppInfo) {
             add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!status().batteryOptimizationIgnored) {
+                add(
+                    BackgroundAccessTarget(
+                        label = "izin optimasi baterai",
+                        intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                            .setData(Uri.parse("package:$packageName")),
+                    ),
+                )
+            }
             add(
                 BackgroundAccessTarget(
                     label = "optimasi baterai",

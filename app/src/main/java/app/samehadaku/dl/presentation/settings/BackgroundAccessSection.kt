@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import app.samehadaku.dl.core.BackgroundAccess
 import app.samehadaku.dl.core.BackgroundAccessTarget
 import app.samehadaku.dl.presentation.components.StatusPill
+import app.samehadaku.dl.presentation.theme.BrandAccent
 import app.samehadaku.dl.presentation.theme.BrandMint
 import app.samehadaku.dl.presentation.theme.TextMuted
 import app.samehadaku.dl.presentation.theme.TextPrimary
@@ -67,7 +68,18 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
     }
 
     val appInfoMode = access.prefersAppInfoForBackground()
-    val tint = if (status.needsAttention) Warning else BrandMint
+    // Only checks the system can actually report are counted, so the summary
+    // never implies that autostart (unreadable by design) is still off.
+    val checks = listOfNotNull(
+        status.batteryOptimizationIgnored,
+        status.backgroundRestricted?.let { !it },
+        status.dataSaverRestricted?.let { !it },
+        status.notificationsEnabled,
+    )
+    val readyCount = checks.count { it }
+    val totalCount = checks.size
+    val allReady = readyCount == totalCount
+    val tint = if (allReady) BrandMint else Warning
     val autoStartLabel = access.autoStartLabel()
     val autoStartSubtitle = if (autoStartLabel == "Info aplikasi") {
         "Buka Info aplikasi → Baterai."
@@ -83,8 +95,49 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
         },
         icon = Icons.Rounded.BatterySaver,
         tint = tint,
-        badge = if (status.needsAttention) "Perlu izin" else "Siap",
+        badge = "$readyCount/$totalCount siap",
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Status izin sistem",
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = if (allReady) {
+                        "Semua status yang bisa dibaca sudah siap."
+                    } else {
+                        "$readyCount dari $totalCount siap. Baris berlabel " +
+                            "“Belum” masih perlu diatur."
+                    },
+                    color = TextMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            StatusPill(
+                text = if (allReady) "Siap" else "Belum lengkap",
+                color = tint,
+            )
+        }
+        Text(
+            text = "Periksa ulang",
+            color = BrandAccent,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier
+                .clickable {
+                    status = access.status()
+                    onMessage("Status izin diperbarui.")
+                }
+                .clip(RoundedCornerShape(10.dp))
+                .padding(vertical = 4.dp),
+        )
+        Spacer(Modifier.height(2.dp))
+
         if (appInfoMode) {
             AccessRow(
                 title = "Izin latar belakang",
@@ -93,7 +146,7 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
                 } else {
                     "Belum diizinkan; buka Info aplikasi → Baterai."
                 },
-                badge = if (status.batteryOptimizationIgnored) "Aman" else "Batasi",
+                badge = if (status.batteryOptimizationIgnored) "Sudah" else "Belum",
                 ready = status.batteryOptimizationIgnored,
                 onClick = {
                     launchTargets(context, access.batteryTargets(), onMessage)
@@ -115,11 +168,11 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
             AccessRow(
                 title = "Optimasi baterai",
                 subtitle = if (status.batteryOptimizationIgnored) {
-                    "Tanpa batasan, cek tidak mudah ditunda."
+                    "Sudah dikecualikan; cek tidak mudah ditunda."
                 } else {
-                    "Sistem masih boleh menunda pekerjaan latar belakang."
+                    "Masih dioptimalkan; cek otomatis bisa tertunda."
                 },
-                badge = if (status.batteryOptimizationIgnored) "Aman" else "Batasi",
+                badge = if (status.batteryOptimizationIgnored) "Sudah" else "Belum",
                 ready = status.batteryOptimizationIgnored,
                 onClick = {
                     launchTargets(context, access.batteryTargets(), onMessage)
@@ -130,6 +183,8 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
             AccessRow(
                 title = "Autostart",
                 subtitle = autoStartSubtitle,
+                badge = "Tidak terbaca",
+                badgeColor = TextSecondary,
                 onClick = {
                     launchTargets(context, access.autoStartTargets(), onMessage)
                     status = access.status()
