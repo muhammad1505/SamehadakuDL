@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--
+        Only used by the in-app player's "Jangan ganggu" toggle. The user grants
+        this special access by hand in system settings and the previous filter is
+        restored when playback ends, so nothing is ever silenced behind their back.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!--
         Koleksi needs read access to show episodes written by an earlier install.
         Android ties MediaStore rows to the installation that created them, so
         without these permissions old downloads in Download/SamehadakuDL only
@@ -30,6 +36,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
             android:launchMode="singleTask"
             android:theme="@style/Theme.SamehadakuDL">

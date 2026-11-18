@@ -23,8 +23,11 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   masing-masing dengan konfirmasi.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
 - Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
-  setelah 90% video diputar, kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh, dan
-  layar penuh tanpa system bar; pemutar eksternal tetap tersedia dari menu folder.
+  setelah 90% video diputar, kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh,
+  layar penuh tanpa system bar, rotasi landscape otomatis (plus kunci landscape),
+  subtitle eksternal SRT/VTT/SSA-ASS, cubit untuk zoom dan geser untuk pan, serta
+  mode “Jangan ganggu” selama menonton; pemutar eksternal tetap tersedia dari
+  menu folder.
 - Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
   otomatis setelah masa tenggang 1/3/7/14 hari, atau langsung lewat tombol manual
   dengan konfirmasi. Batas penyimpanan 5/10/20 GB dapat diaktifkan, dan layar
@@ -407,6 +410,25 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Pemutar internal menambahkan kontrol kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh,
   penyembunyian system bar selama pemutaran, serta pesan kegagalan pemutaran yang
   menyediakan tombol “Coba lagi” tanpa harus keluar dari video.
+
+## Rilis 2.7.4
+
+- Pemutar internal mengikuti rotasi perangkat: memutar HP ke landscape langsung
+  membuat video memenuhi layar, dengan tombol kunci landscape untuk perangkat yang
+  rotasinya dikunci. Perubahan orientasi ditangani tanpa membuat ulang aktivitas,
+  jadi video tidak terputus atau kembali ke posisi awal.
+- Tombol “Jangan ganggu” di pemutar menonaktifkan notifikasi selama menonton lewat
+  akses kebijakan notifikasi (`ACCESS_NOTIFICATION_POLICY`) yang diberikan pengguna
+  sendiri di pengaturan sistem; filter yang aktif sebelumnya dipulihkan saat pemutar
+  ditutup atau aplikasi ditinggalkan, sehingga HP tidak tertinggal dalam mode senyap.
+- Kontrol pemutaran baru: tombol putar/jeda dan slider posisi dengan waktu berjalan,
+  ketuk dua kali di sisi kiri/kanan untuk mundur/maju 10 detik, serta cubit dan geser
+  pada video untuk zoom hingga 4x. Layar gelap sendiri setelah 3,5 detik berjalan dan
+  muncul lagi saat diketuk.
+- Subtitle eksternal bisa dimuat dari penyimpanan (SRT, WebVTT, SSA/ASS) tanpa
+  meninggalkan video; mode gestur subtitle mengatur ukuran teks lewat cubit dan
+  posisi vertikalnya lewat geseran. Pemutar juga mengaktifkan fallback dekoder
+  perangkat lunak saat dekoder perangkat keras tidak mendukung video.
 
 ## Penyimpanan dan izin
 
