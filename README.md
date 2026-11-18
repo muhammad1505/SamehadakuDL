@@ -349,6 +349,17 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   episode tonton melebihi batas, episode tertua dihapus lebih awal; default tetap
   tanpa batas.
 
+## Rilis 2.7.1
+
+- Menghentikan pencarian mirror tambahan ketika semua mirror utama gagal DNS, sehingga
+  cek otomatis tidak tertahan beberapa menit saat koneksi internet bermasalah.
+- Meringkas kegagalan DNS di Log aplikasi menjadi satu baris penyebab; stack trace
+  berulang tidak lagi memenuhi riwayat log.
+- Memperjelas catatan Smart Storage saat sesi pemutar eksternal diabaikan: durasi
+  ditampilkan dalam jam/menit dan file video ditegaskan tetap ada.
+- Mencatat jadwal pembersihan Smart Storage hanya ketika WorkManager benar-benar
+  memasang ulang jadwalnya.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:

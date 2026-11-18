@@ -65,11 +65,15 @@ class SiteRepositoryImpl @Inject constructor(
         var episodes: List<Episode> = emptyList()
         var lastError: Exception? = null
         var anyPageLoaded = false
+        var directAttempts = 0
+        var networkFailures = 0
+        val mirrorCandidates = SiteMirrors.candidates(input)
 
         // Read the selected page, then the known mirrors. A mirror is useful not only
         // when the selected page parses to nothing, but also when that host itself is
         // unreachable (DNS failure, HTTP 5xx, ...).
-        for (source in listOf(input) + SiteMirrors.candidates(input)) {
+        for (source in listOf(input) + mirrorCandidates) {
+            directAttempts++
             val fetched = try {
                 fetcher.fetch(source, referer = UrlUtils.siteRoot(source))
             } catch (cancellation: CancellationException) {
@@ -79,6 +83,7 @@ class SiteRepositoryImpl @Inject constructor(
                 if (source == input) throw verification
                 continue
             } catch (error: Exception) {
+                if (error is NetworkUnavailableException) networkFailures++
                 if (lastError == null) lastError = error
                 continue
             }
@@ -96,6 +101,18 @@ class SiteRepositoryImpl @Inject constructor(
                 episodes = parsed
                 break
             }
+        }
+
+        if (episodes.isEmpty() && !anyPageLoaded && mirrorCandidates.isNotEmpty() &&
+            directAttempts > 0 && networkFailures == directAttempts
+        ) {
+            // Every direct mirror failed at DNS/connection level. Searching those
+            // same hosts would only repeat the full DNS timeout several more times.
+            val networkError = lastError as? NetworkUnavailableException
+                ?: NetworkUnavailableException(
+                    "Tidak dapat terhubung ke Samehadaku. Periksa koneksi internet.",
+                )
+            throw networkError
         }
 
         if (episodes.isEmpty()) {

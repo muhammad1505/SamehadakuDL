@@ -3,6 +3,7 @@ package app.samehadaku.dl.core
 import android.content.Context
 import android.util.Log
 import java.io.File
+import java.net.UnknownHostException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -53,7 +54,15 @@ object AppLog {
             if (!message.isNullOrBlank()) append(message)
             if (throwable != null) {
                 if (isNotEmpty()) append('\n')
-                append(Log.getStackTraceString(throwable).trimEnd())
+                val dnsFailure = throwable.dnsFailure()
+                if (dnsFailure != null) {
+                    // DNS outages repeat for every mirror and every subscription.
+                    // One concise cause is enough; a stack trace would evict the
+                    // more useful entries from the in-app log.
+                    append("DNS: ${dnsFailure.message ?: "host tidak dapat ditemukan"}")
+                } else {
+                    append(Log.getStackTraceString(throwable).trimEnd())
+                }
             }
         }
         if (body.isBlank()) return
@@ -71,6 +80,11 @@ object AppLog {
             }
         }
     }
+
+    private fun Throwable.dnsFailure(): UnknownHostException? =
+        generateSequence(this) { it.cause }
+            .filterIsInstance<UnknownHostException>()
+            .firstOrNull()
 
     private fun priorityLabel(priority: Int): String = when (priority) {
         Log.VERBOSE -> "V"

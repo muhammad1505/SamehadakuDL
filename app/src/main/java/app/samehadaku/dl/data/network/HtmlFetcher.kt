@@ -67,7 +67,13 @@ class HtmlFetcher @Inject constructor(
                 } catch (error: UnknownHostException) {
                     // Retrying a DNS failure usually just burns the WorkManager
                     // execution window (each lookup can take tens of seconds).
-                    Timber.w(error, "DNS lookup failed for %s", url)
+                    // Keep this to one line: Log aplikasi must not fill up with
+                    // identical stack traces from every mirror attempt.
+                    Timber.w(
+                        "DNS lookup failed for %s: %s",
+                        url,
+                        error.message ?: "host tidak ditemukan",
+                    )
                     val host = UrlUtils.hostOf(url) ?: url
                     throw NetworkUnavailableException(
                         message = "Tidak dapat terhubung ke $host. Periksa koneksi internet.",

@@ -287,10 +287,11 @@ class SmartStorageManager @Inject constructor(
                     // sitting says nothing about watching, so the episode is forgotten.
                     sessionMs > 0L && creditedMs == 0L -> {
                         Timber.d(
-                            "Smart Storage membuang sesi %s/%s: %d ms di luar batas",
+                            "Smart Storage mengabaikan sesi tonton pemutar eksternal " +
+                                "%s/%s: %s (melebihi batas 3x durasi video; file tetap ada)",
                             pending.folderName,
                             pending.fileName,
-                            sessionMs,
+                            readableDuration(sessionMs),
                         )
                         repository.removePending(pending.folderName, pending.fileName)
                     }
@@ -423,6 +424,18 @@ class SmartStorageManager @Inject constructor(
             source,
             size,
         )
+    }
+
+    private fun readableDuration(millis: Long): String {
+        val totalMinutes = (millis / 60_000L).coerceAtLeast(0L)
+        val hours = totalMinutes / 60L
+        val minutes = totalMinutes % 60L
+        return when {
+            hours > 0L && minutes == 0L -> "$hours jam"
+            hours > 0L -> "$hours jam $minutes menit"
+            totalMinutes > 0L -> "$minutes menit"
+            else -> "kurang dari 1 menit"
+        }
     }
 
     private fun resolveSize(uri: Uri): Long {

@@ -12,6 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 import timber.log.Timber
 
 /**
@@ -36,6 +37,13 @@ class SmartStorageScheduler @Inject constructor(
             workManager.cancelUniqueWork(NOW_WORK)
             return
         }
+
+        val alreadyScheduled = runCatching {
+            workManager.getWorkInfosForUniqueWorkFlow(PERIODIC_WORK)
+                .first()
+                .any { info -> !info.state.isFinished }
+        }.getOrDefault(false)
+        if (alreadyScheduled) return
 
         val request = PeriodicWorkRequestBuilder<SmartStorageWorker>(
             CLEANUP_INTERVAL_HOURS,
