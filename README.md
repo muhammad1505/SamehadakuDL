@@ -14,6 +14,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Satu layar Unduhan untuk antrean berjalan sekaligus riwayat (Semua/Selesai/Gagal),
   dengan konkurensi 1–3, jeda/lanjut per episode maupun massal.
 - Progres, kecepatan, ukuran, server aktif, dan alasan kegagalan per task.
+- Satu notifikasi unduhan yang berubah dari progres ke jeda lalu selesai, lengkap
+  dengan judul anime, episode, kualitas, server, ukuran, kecepatan, dan alasan gagal.
 - Koleksi per judul anime: tampilan folder ringkas, ketuk untuk memutar file terakhir,
   tekan lama untuk aksi berbagi atau menghapus folder.
 - Pemberitahuan saat file episode yang sama sudah ada sehingga tidak diunduh ulang.
@@ -26,8 +28,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   otomatis setelah masa tenggang 1/3/7/14 hari, atau langsung lewat tombol manual
   dengan konfirmasi. Batas penyimpanan 5/10/20 GB dapat diaktifkan, dan layar
   “Kelola episode” menampilkan alasan file yang tertahan agar bisa ditindaklanjuti.
-- Panel latar belakang & autostart yang menyesuaikan Android dan OEM agar cek episode
-  otomatis tidak mudah ditunda.
+- Panel latar belakang & autostart yang ringkas: baris izin bisa diketuk langsung ke
+  pengaturan sistem, dan panduan OEM dibuka hanya saat dibutuhkan.
 - Sesi Cloudflare dengan WebView verifikasi, reset sesi, dan verifikasi ulang otomatis.
 - Pengaturan unduhan paralel dan fallback kualitas terdekat.
 - Splash screen atmosferik, bottom navigation, dan transisi antar layar.
@@ -360,6 +362,24 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Mencatat jadwal pembersihan Smart Storage hanya ketika WorkManager benar-benar
   memasang ulang jadwalnya.
 
+## Rilis 2.8.0
+
+- Menyatukan notifikasi unduhan menjadi satu alur dengan satu ID: progres, dijeda,
+  lalu selesai. Ringkasan selesai tidak lagi muncul sebagai notifikasi kedua, dan
+  notifikasi akhir tetap tersedia sampai diketuk atau ditutup pengguna.
+- Melengkapi isi notifikasi: judul anime, episode, format dan resolusi, server yang
+  dipakai, ukuran file, persen, kecepatan, status, serta alasan kegagalan. Data ini
+  dipakai sama pada progres, jeda, dan ringkasan selesai.
+- Membatasi hitungan notifikasi ke sesi unduhan yang sedang berjalan agar riwayat
+  episode lama tidak ikut terhitung.
+- Menambahkan aksi “Lanjut semua” pada notifikasi yang dijeda, berdampingan dengan
+  “Batalkan semua”.
+- Menyederhanakan panel “Latar belakang & autostart”: status baterai dan autostart
+  menjadi baris ringkas yang bisa diketuk, baris notifikasi hanya muncul saat
+  diblokir, dan panduan OEM bisa dibuka-tutup. Panel tidak lagi meminta izin
+  notifikasi sendiri; permintaan awal tetap dilakukan setelah splash dan
+  pengguna yang menolak diarahkan ke pengaturan sistem.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:
@@ -382,24 +402,28 @@ dibuka lewat SAF.
 
 Cek otomatis dijalankan WorkManager, sehingga Android dapat menundanya saat
 perangkat masuk Doze atau OEM membatasi aktivitas latar belakang. Panel
-“Latar belakang & autostart” di Pengaturan menampilkan status izin dan membuka
-layar pengaturan yang sesuai:
+“Latar belakang & autostart” di Pengaturan dibuat ringkas: setiap baris bisa
+diketuk dan langsung membuka layar pengaturan yang sesuai.
 
-- Android 6+ menampilkan status pengecualian optimasi baterai dengan tombol ke
-  daftar optimasi; pengguna memilih Samehadaku DL lalu “Jangan optimalkan”.
-  Aplikasi tidak mendeklarasikan `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` karena
-  izin itu dibatasi Google Play dan dapat memicu peringatan Play Protect saat
-  APK dipasang dari luar Play Store.
-- Android 9+ menampilkan status pembatasan latar belakang; Android 7+ menampilkan
-  status hemat data beserta tombol ke pengaturannya.
-- Android 8+ membuka pengaturan notifikasi aplikasi. Pada Android 13+ aplikasi
-  meminta izin `POST_NOTIFICATIONS` lebih dulu, lalu mengarahkan ke pengaturan bila
-  izin ditolak permanen.
-- Tombol Autostart membuka pengelola autostart OEM yang terdeteksi—MIUI/HyperOS,
+- Baris “Optimasi baterai” menunjukkan apakah aplikasi sudah dikecualikan.
+  Mengetuknya membuka daftar optimasi; pengguna memilih Samehadaku DL lalu
+  “Jangan optimalkan”. Aplikasi tidak mendeklarasikan
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` karena izin itu dibatasi Google Play
+  dan dapat memicu peringatan Play Protect saat APK dipasang dari luar Play Store.
+- Baris “Autostart” membuka pengelola autostart OEM yang terdeteksi—MIUI/HyperOS,
   ColorOS/Realme/OPPO, OxygenOS, iManager, Device Care, Mobile Manager,
   Phone Master, dan lainnya—dengan fallback ke optimasi baterai dan Info aplikasi
   bila komponen tidak tersedia. Intent dicoba satu per satu agar tetap bekerja
   pada Android 11+ yang membatasi visibilitas paket.
+- Baris pembatasan latar belakang dan hemat data hanya muncul saat sistem
+  benar-benar membatasi aplikasi, sehingga panel tidak penuh status yang sudah
+  aman.
+- Baris “Notifikasi” hanya muncul saat notifikasi diblokir dan mengetuknya membuka
+  pengaturan notifikasi aplikasi. Pada Android 13+ aplikasi tetap meminta izin
+  `POST_NOTIFICATIONS` setelah splash; panel tidak meminta izin sendiri.
+  Pengguna yang menolak bisa mengaktifkannya lagi lewat pengaturan tersebut.
+- Panduan langkah per OEM tersembunyi di balik baris “Panduan …” dan hanya
+  ditampilkan saat dibuka.
 
 Semua tindakan berasal dari pengguna; aplikasi tidak meminta pengecualian baterai
 atau autostart secara otomatis. Doze tetap dapat menunda WorkManager, tetapi
