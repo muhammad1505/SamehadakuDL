@@ -52,6 +52,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import app.samehadaku.dl.presentation.components.GlassButton
 import app.samehadaku.dl.presentation.components.GlassIconButton
@@ -61,9 +62,9 @@ import timber.log.Timber
 
 private val PlaybackSpeeds = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
 private val ResizeModes = listOf(
-    PlayerView.RESIZE_MODE_FIT to "Pas",
-    PlayerView.RESIZE_MODE_ZOOM to "Zoom",
-    PlayerView.RESIZE_MODE_FILL to "Penuh",
+    AspectRatioFrameLayout.RESIZE_MODE_FIT to "Pas",
+    AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "Zoom",
+    AspectRatioFrameLayout.RESIZE_MODE_FILL to "Penuh",
 )
 
 /**
@@ -92,7 +93,9 @@ fun PlayerScreen(
         }
     }
     var speed by remember { mutableFloatStateOf(1f) }
-    var resizeMode by remember { mutableIntStateOf(PlayerView.RESIZE_MODE_FIT) }
+    var resizeMode by remember {
+        mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT)
+    }
     var playerError by remember { mutableStateOf<String?>(null) }
 
     fun leave() {
