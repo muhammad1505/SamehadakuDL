@@ -40,6 +40,30 @@ data class PendingPlayback(
     val sessionStartedAt: Long = 0L,
 )
 
+/** Why a watched file could not be removed during the last cleanup pass. */
+enum class CleanupIssueReason {
+    /** The marker has no usable byte length, so the file cannot be verified. */
+    UNKNOWN_SIZE,
+
+    /** The file on disk no longer has the size recorded when it was marked. */
+    SIZE_MISMATCH,
+
+    /** Android requires the user to approve the delete through a system dialog. */
+    NEEDS_CONFIRMATION,
+
+    /** The storage provider refused the delete. */
+    DENIED,
+}
+
+/** A file that is due for cleanup but needs the user's attention first. */
+data class CleanupIssue(
+    val folderName: String,
+    val fileName: String,
+    val size: Long,
+    val reason: CleanupIssueReason,
+    val at: Long,
+)
+
 /** Live counters for the Smart Storage section in Settings. */
 data class SmartStorageStats(
     val watchedCount: Int = 0,

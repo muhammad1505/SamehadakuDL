@@ -10,6 +10,7 @@ import app.samehadaku.dl.core.SmartStoragePolicy
 import app.samehadaku.dl.data.download.LegacyDownloadCheck
 import app.samehadaku.dl.data.download.QueueStore
 import app.samehadaku.dl.data.download.StorageWriter
+import app.samehadaku.dl.domain.model.CleanupIssue
 import app.samehadaku.dl.domain.model.DownloadState
 import app.samehadaku.dl.domain.model.PendingPlayback
 import app.samehadaku.dl.domain.model.SmartStorageSettings
@@ -43,6 +44,8 @@ class SmartStorageManager @Inject constructor(
     val settings: Flow<SmartStorageSettings> = repository.settings
     val watchedEpisodes: Flow<List<WatchedEpisode>> = repository.watchedEpisodes
     val stats: Flow<SmartStorageStats> = repository.stats
+    val pendingPlayback: Flow<List<PendingPlayback>> = repository.pendingPlayback
+    val cleanupIssues: Flow<List<CleanupIssue>> = repository.cleanupIssues
 
     /** Serializes the read-modify-write of the single pending playback. */
     private val playbackMutex = Mutex()
@@ -57,7 +60,12 @@ class SmartStorageManager @Inject constructor(
     }
 
     /** Manual marker from Koleksi; works even while Smart Storage is off. */
-    suspend fun markWatched(folderName: String, fileName: String, size: Long): Boolean {
+    suspend fun markWatched(
+        folderName: String,
+        fileName: String,
+        size: Long,
+        manual: Boolean = true,
+    ): Boolean {
         if (!EpisodeFiles.isVideo(fileName)) {
             Timber.w(
                 "Smart Storage menolak %s/%s: bukan file video",
@@ -74,7 +82,7 @@ class SmartStorageManager @Inject constructor(
                 fileName = fileName,
                 size = size.coerceAtLeast(0L),
                 watchedAt = System.currentTimeMillis(),
-                manual = true,
+                manual = manual,
             ),
         )
         if (!SmartStoragePolicy.hasUsableSize(size)) {
@@ -96,11 +104,13 @@ class SmartStorageManager @Inject constructor(
         repository.removeWatched(folderName, fileName)
         repository.removePending(folderName, fileName)
         repository.forgetDownloadedFile(folderName, fileName)
+        repository.removeIssue(folderName, fileName)
     }
 
     suspend fun clearForFolder(folderName: String) {
         repository.removeWatchedForFolder(folderName)
         repository.forgetDownloadedFolder(folderName)
+        repository.removeIssuesForFolder(folderName)
         val pending = repository.currentPending().filter { entry ->
             SmartStoragePolicy.normalizeFolder(entry.folderName) ==
                 SmartStoragePolicy.normalizeFolder(folderName)

@@ -404,6 +404,11 @@ pengguna lain, dan video di luar folder unduhan tidak pernah disentuh.
 - Setiap keputusan Smart Storage—diterima sebagai unduhan lama atau ditolak
   beserta alasannya—ditulis ke Log aplikasi di Pengaturan, sehingga masalah file
   yang tidak bisa ditandai tonton bisa diperiksa tanpa komputer.
+- Layar “Kelola episode” di Pengaturan menampilkan semua tanda tonton beserta
+  tanggal jatuh tempo, sisa masa tenggang, playback yang sedang dilacak, dan file
+  yang tertahan. File yang menunggu konfirmasi sistem, ukurannya berubah, atau
+  ditolak penyimpanan ditandai dengan alasannya dan bisa dihapus atau dibatalkan
+  satu per satu.
 - Menghapus file atau folder secara manual juga membersihkan tanda tontonnya,
   sehingga Smart Storage tidak mencoba menghapusnya lagi.
 

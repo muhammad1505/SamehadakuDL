@@ -3,6 +3,9 @@ package app.samehadaku.dl.domain.usecase
 import app.samehadaku.dl.core.SmartStoragePolicy
 import app.samehadaku.dl.data.download.StorageWriter
 import app.samehadaku.dl.data.smartstorage.SmartStorageRepository
+import app.samehadaku.dl.domain.model.CleanupIssue
+import app.samehadaku.dl.domain.model.CleanupIssueReason
+import app.samehadaku.dl.domain.model.WatchedEpisode
 import javax.inject.Inject
 import timber.log.Timber
 
@@ -43,6 +46,17 @@ class CleanWatchedFilesUseCase @Inject constructor(
         var skippedFiles = 0
         var blockedFiles = 0
         var waitingFiles = 0
+        val issues = mutableListOf<CleanupIssue>()
+
+        fun issue(entry: WatchedEpisode, reason: CleanupIssueReason) {
+            issues += CleanupIssue(
+                folderName = entry.folderName,
+                fileName = entry.fileName,
+                size = entry.size,
+                reason = reason,
+                at = now,
+            )
+        }
 
         for (entry in repository.currentWatched()) {
             val shouldDelete = SmartStoragePolicy.shouldDelete(
@@ -57,6 +71,7 @@ class CleanWatchedFilesUseCase @Inject constructor(
             }
             if (!SmartStoragePolicy.hasUsableSize(entry.size)) {
                 skippedFiles++
+                issue(entry, CleanupIssueReason.UNKNOWN_SIZE)
                 continue
             }
 
@@ -75,6 +90,7 @@ class CleanWatchedFilesUseCase @Inject constructor(
             }.getOrDefault(false)
             if (!sizeMatches) {
                 skippedFiles++
+                issue(entry, CleanupIssueReason.SIZE_MISMATCH)
                 continue
             }
 
@@ -87,6 +103,7 @@ class CleanWatchedFilesUseCase @Inject constructor(
             val result = deletion.getOrNull()
             if (result == null) {
                 blockedFiles++
+                issue(entry, CleanupIssueReason.DENIED)
                 continue
             }
 
@@ -113,6 +130,14 @@ class CleanWatchedFilesUseCase @Inject constructor(
 
                 else -> {
                     blockedFiles++
+                    issue(
+                        entry,
+                        if (result.confirmation != null) {
+                            CleanupIssueReason.NEEDS_CONFIRMATION
+                        } else {
+                            CleanupIssueReason.DENIED
+                        },
+                    )
                     Timber.d(
                         "Smart Storage kept %s: deleted=%d absent=%d denied=%d confirmation=%s",
                         entry.fileName,
@@ -130,6 +155,7 @@ class CleanWatchedFilesUseCase @Inject constructor(
             reclaimedBytes = reclaimedBytes,
             at = now,
         )
+        repository.recordIssues(issues)
         return SmartStorageCleanupResult(
             deletedFiles = deletedFiles,
             reclaimedBytes = reclaimedBytes,

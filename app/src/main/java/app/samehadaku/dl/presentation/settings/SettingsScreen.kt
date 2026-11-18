@@ -117,6 +117,7 @@ fun SettingsScreen(
     onOpenCloudflare: () -> Unit,
     onOpenAbout: () -> Unit,
     onOpenLogs: () -> Unit,
+    onOpenSmartStorage: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -311,6 +312,14 @@ fun SettingsScreen(
                             )
                         }
                         Spacer(Modifier.height(10.dp))
+                        GlassButton(
+                            text = "Kelola episode",
+                            onClick = onOpenSmartStorage,
+                            icon = Icons.Rounded.Visibility,
+                            modifier = Modifier.fillMaxWidth(),
+                            height = 44.dp,
+                        )
+                        Spacer(Modifier.height(8.dp))
                         GlassButton(
                             text = if (state.smartCleaning) {
                                 "Membersihkan…"

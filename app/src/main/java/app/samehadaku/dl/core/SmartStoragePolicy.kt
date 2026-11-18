@@ -68,6 +68,12 @@ object SmartStoragePolicy {
         return watchedMs >= durationMs * minWatchRatio
     }
 
+    /** Timestamp at which a watched marker becomes eligible for cleanup. */
+    fun dueAt(watchedAt: Long, graceDays: Int): Long {
+        if (watchedAt <= 0L) return 0L
+        return watchedAt + normalizeGraceDays(graceDays).toLong() * dayMillis
+    }
+
     /**
      * A recorded size is required so a file can be compared byte-for-byte before
      * it is deleted. Unknown or zero-sized files stay watched but are never

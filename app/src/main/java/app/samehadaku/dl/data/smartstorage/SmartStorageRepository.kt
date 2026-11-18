@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.samehadaku.dl.core.SmartStoragePolicy
+import app.samehadaku.dl.domain.model.CleanupIssue
+import app.samehadaku.dl.domain.model.CleanupIssueReason
 import app.samehadaku.dl.domain.model.PendingPlayback
 import app.samehadaku.dl.domain.model.SmartStorageSettings
 import app.samehadaku.dl.domain.model.SmartStorageStats
@@ -41,6 +43,14 @@ class SmartStorageRepository @Inject constructor(
 
     val watchedEpisodes: Flow<List<WatchedEpisode>> = dataStore.data.map { preferences ->
         parseWatched(preferences[KEY_WATCHED])
+    }
+
+    val pendingPlayback: Flow<List<PendingPlayback>> = dataStore.data.map { preferences ->
+        parsePending(preferences[KEY_PENDING])
+    }
+
+    val cleanupIssues: Flow<List<CleanupIssue>> = dataStore.data.map { preferences ->
+        parseIssues(preferences[KEY_ISSUES])
     }
 
     val stats: Flow<SmartStorageStats> = dataStore.data.map { preferences ->
@@ -222,6 +232,56 @@ class SmartStorageRepository @Inject constructor(
     }
 
     /**
+     * Replaces the whole issue list after a cleanup pass. Waiting and deleted
+     * files disappear automatically because they are simply not in [entries].
+     */
+    suspend fun recordIssues(entries: List<CleanupIssue>) {
+        dataStore.edit { preferences ->
+            if (entries.isEmpty()) {
+                preferences.remove(KEY_ISSUES)
+            } else {
+                preferences[KEY_ISSUES] = issuesToJson(
+                    entries.sortedByDescending { it.at }.take(MAX_ISSUE_ENTRIES),
+                )
+            }
+        }
+    }
+
+    suspend fun currentIssues(): List<CleanupIssue> = cleanupIssues.first()
+
+    suspend fun removeIssue(folderName: String, fileName: String) {
+        val key = SmartStoragePolicy.key(folderName, fileName)
+        dataStore.edit { preferences ->
+            val current = parseIssues(preferences[KEY_ISSUES])
+            val updated = current.filterNot { issue ->
+                SmartStoragePolicy.key(issue.folderName, issue.fileName) == key
+            }
+            if (updated.size == current.size) return@edit
+            if (updated.isEmpty()) {
+                preferences.remove(KEY_ISSUES)
+            } else {
+                preferences[KEY_ISSUES] = issuesToJson(updated)
+            }
+        }
+    }
+
+    suspend fun removeIssuesForFolder(folderName: String) {
+        val normalized = SmartStoragePolicy.normalizeFolder(folderName)
+        dataStore.edit { preferences ->
+            val current = parseIssues(preferences[KEY_ISSUES])
+            val updated = current.filterNot { issue ->
+                SmartStoragePolicy.normalizeFolder(issue.folderName) == normalized
+            }
+            if (updated.size == current.size) return@edit
+            if (updated.isEmpty()) {
+                preferences.remove(KEY_ISSUES)
+            } else {
+                preferences[KEY_ISSUES] = issuesToJson(updated)
+            }
+        }
+    }
+
+    /**
      * Stores the result of one cleanup pass. Totals are cumulative; the last
      * pass is kept separately so Settings can show when the app last checked.
      */
@@ -327,6 +387,49 @@ class SmartStorageRepository @Inject constructor(
         }.getOrDefault(emptyList())
     }
 
+    private fun parseIssues(raw: String?): List<CleanupIssue> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val folder = item.optString("folder").trim()
+                    val file = item.optString("file").trim()
+                    if (folder.isBlank() || file.isBlank()) continue
+                    val reason = runCatching {
+                        CleanupIssueReason.valueOf(item.optString("reason"))
+                    }.getOrDefault(CleanupIssueReason.DENIED)
+                    add(
+                        CleanupIssue(
+                            folderName = SmartStoragePolicy.normalizeFolder(folder),
+                            fileName = file,
+                            size = item.optLong("size", 0L).coerceAtLeast(0L),
+                            reason = reason,
+                            at = item.optLong("at", 0L),
+                        ),
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun issuesToJson(entries: List<CleanupIssue>): String {
+        val array = JSONArray()
+        entries.forEach { entry ->
+            array.put(
+                JSONObject().apply {
+                    put("folder", entry.folderName)
+                    put("file", entry.fileName)
+                    put("size", entry.size)
+                    put("reason", entry.reason.name)
+                    put("at", entry.at)
+                },
+            )
+        }
+        return array.toString()
+    }
+
     private fun parseKnownDownloads(raw: String?): List<KnownDownload> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching {
@@ -395,11 +498,13 @@ class SmartStorageRepository @Inject constructor(
         const val MAX_WATCHED_ENTRIES = 500
         const val MAX_PENDING_ENTRIES = 50
         const val MAX_KNOWN_DOWNLOADS = 2000
+        const val MAX_ISSUE_ENTRIES = 200
 
         val KEY_ENABLED = booleanPreferencesKey("smart_storage_enabled")
         val KEY_GRACE_DAYS = intPreferencesKey("smart_storage_grace_days")
         val KEY_WATCHED = stringPreferencesKey("smart_storage_watched")
         val KEY_PENDING = stringPreferencesKey("smart_storage_pending")
+        val KEY_ISSUES = stringPreferencesKey("smart_storage_issues")
         val KEY_KNOWN_DOWNLOADS = stringPreferencesKey("smart_storage_known_downloads")
         val KEY_DELETED_COUNT = intPreferencesKey("smart_storage_deleted_count")
         val KEY_RECLAIMED_BYTES = longPreferencesKey("smart_storage_reclaimed_bytes")

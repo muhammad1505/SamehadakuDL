@@ -33,6 +33,7 @@ import app.samehadaku.dl.presentation.queue.QueueScreen
 import app.samehadaku.dl.presentation.search.SearchScreen
 import app.samehadaku.dl.presentation.search.SearchDetailScreen
 import app.samehadaku.dl.presentation.settings.SettingsScreen
+import app.samehadaku.dl.presentation.smartstorage.SmartStorageDetailScreen
 import app.samehadaku.dl.presentation.subscriptions.SubscriptionsScreen
 
 object Routes {
@@ -50,6 +51,7 @@ object Routes {
     const val ABOUT = "about"
     const val LOGS = "logs"
     const val CALENDAR = "calendar"
+    const val SMART_STORAGE = "smart-storage"
 }
 
 /** Tabs cross-fade; every other route is a pushed detail page. */
@@ -303,12 +305,17 @@ fun SamehadakuNavHost(
                 )
             }
 
+            composable(Routes.SMART_STORAGE) {
+                SmartStorageDetailScreen(onBack = { navController.popBackStack() })
+            }
+
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     onTabSelected = ::navigateToTab,
                     onOpenCloudflare = { navController.navigate(Routes.CLOUDFLARE) },
                     onOpenAbout = { navController.navigate(Routes.ABOUT) },
                     onOpenLogs = { navController.navigate(Routes.LOGS) },
+                    onOpenSmartStorage = { navController.navigate(Routes.SMART_STORAGE) },
                 )
             }
         }
