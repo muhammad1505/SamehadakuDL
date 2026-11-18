@@ -23,11 +23,14 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   masing-masing dengan konfirmasi.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
 - Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
-  setelah 90% video diputar, kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh,
-  layar penuh tanpa system bar, rotasi landscape otomatis (plus kunci landscape),
-  subtitle eksternal SRT/VTT/SSA-ASS, cubit untuk zoom dan geser untuk pan, serta
-  mode “Jangan ganggu” selama menonton; pemutar eksternal tetap tersedia dari
-  menu folder.
+  setelah 90% video, playlist episode otomatis, kecepatan 0.5x–2x, mode layar
+  FIT/ZOOM/FILL, siklus decoder Auto/HW/SW, Picture-in-Picture, layar penuh tanpa
+  system bar, gesture kecerahan/volume/scrub, smart screen lock, sleep timer,
+  equalizer + loudness boost, serta mode “Jangan ganggu” selama menonton.
+  Background play memakai MediaSessionService foreground dengan kontrol di
+  notifikasi dan jendela PiP. Subtitle bawaan dan file eksternal SRT/VTT/SSA-ASS
+  digabung dalam satu daftar dengan pemilihan track presisi dan sinkronisasi
+  ±0.1s; pemutar eksternal tetap tersedia dari menu folder.
 - Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
   otomatis setelah masa tenggang 1/3/7/14 hari, atau langsung lewat tombol manual
   dengan konfirmasi. Batas penyimpanan 5/10/20 GB dapat diaktifkan, dan layar
@@ -448,6 +451,41 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Tombol subtitle membuka panel opsi lebih dulu — pilih atau ganti file, lepas
   subtitle, atur ukuran teks dan posisi, atau aktifkan mode gestur — bukan
   langsung membuka pemilih file.
+
+## Rilis 2.7.6
+
+- Pemutar memakai tata letak empat zona: top bar (kembali, judul, decoder,
+  playlist, PiP), transport tengah (±10 detik), bottom bar (kunci, waktu, CC,
+  audio/EQ, rasio, setelan, layar penuh), dan panel kaca 285dp dengan tab
+  Episode, Subtitle, Audio, dan Setelan. Semua tombol pengaturan memakai badge
+  status dan banner aksi yang menjelaskan mode aktif.
+- Gesture pemutar: geser vertikal kiri untuk kecerahan, kanan untuk volume,
+  geser horizontal untuk scrub dengan pratinjau waktu, tap untuk HUD, dan
+  double-tap sisi untuk ±10 detik. Smart screen lock membekukan seluruh sentuhan
+  sampai kapsul “Buka kunci” ditekan.
+- Mesin pemutaran menambahkan siklus decoder Auto/HW/SW, resolusi mengikuti track
+  yang tersedia, pemilihan audio track, EQ (Normal, Cinema Bass, Vocal Boost,
+  Night Mode), loudness boost sampai +150%, sleep timer Off/15/30/60 menit, dan
+  auto-play episode berikutnya dengan hitungan yang bisa dibatalkan.
+- Trek subtitle bawaan dibaca dari video dan digabung dengan file eksternal dalam
+  satu daftar; pemilihan memakai `TrackSelectionOverride` sehingga dua track
+  berbahasa sama tetap bisa dibedakan. Ikon CC disembunyikan bila video tidak
+  punya subtitle sama sekali, dan tab Subtitle tetap menyediakan tombol memuat
+  file SRT/WebVTT/SSA-ASS.
+- Background play dan PiP kini didukung `MediaSessionService` foreground: audio
+  tetap berjalan saat aplikasi di latar belakang, dan notifikasi/PiP punya
+  kontrol putar, jeda, serta seek. Pemutar, dekoder, dan efek audio tetap memakai
+  instance ExoPlayer yang sama.
+- Panel Optimasi Sistem memakai status sebelum/sesudah yang jelas (amber “Belum
+  disetting” dan hijau “Sudah disetting”), badge `PERLU ATUR (n/3)` atau
+  `✓ OPTIMAL (3/3)`, dan tombol “Atur →” menuju Info aplikasi di semua versi
+  Android. Panduan menyesuaikan Android 6–11, 12–13, 14–16+, serta menu khas
+  Xiaomi/Redmi/POCO, Samsung, OPPO/Realme, dan Vivo/iQOO.
+- Autostart bawaan pabrik tidak bisa dibaca Android, jadi kunjungan ke menu OEM
+  dicatat dan aplikasi menampilkan konfirmasi satu ketuk “Sudah mengaktifkan
+  Mulai Otomatis?” saat kembali. Status izin lain diperbarui otomatis saat
+  aplikasi kembali ke depan, dan kartu pengingat hanya muncul kontekstual saat
+  Background play diaktifkan.
 
 ## Penyimpanan dan izin
 

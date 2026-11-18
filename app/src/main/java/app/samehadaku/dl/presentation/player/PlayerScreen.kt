@@ -124,7 +124,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -133,9 +132,7 @@ import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import app.samehadaku.dl.R
@@ -169,25 +166,6 @@ private val ResizeModes = listOf(
     AspectRatioFrameLayout.RESIZE_MODE_FILL to "FILL",
 )
 private val SubtitleSizes = listOf(0.85f to "S", 1f to "M", 1.3f to "L")
-
-/** Decoder order of the top-bar chip: Auto -> Hardware -> Software. */
-private enum class DecoderMode(
-    val label: String,
-    val badge: String,
-    val description: String,
-) {
-    AUTO("Auto", "AUTO", "Pilih dekoder terbaik, fallback otomatis"),
-    HARDWARE("Hardware", "HW", "Hemat baterai & performa tinggi"),
-    SOFTWARE("Software", "SW", "Kompatibel untuk codec berat (HEVC 10-bit / AV1)"),
-    ;
-
-    fun next(): DecoderMode = entries[(ordinal + 1) % entries.size]
-
-    companion object {
-        fun from(value: String): DecoderMode =
-            entries.firstOrNull { it.name == value } ?: AUTO
-    }
-}
 
 private enum class PanelTab(val label: String, val icon: ImageVector) {
     EPISODES("Eps", Icons.AutoMirrored.Rounded.PlaylistPlay),
@@ -264,19 +242,14 @@ fun PlayerScreen(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var decoderMode by remember { mutableStateOf(DecoderMode.from(preferences.decoderMode)) }
-    val exoPlayer = remember(decoderMode) {
-        ExoPlayer.Builder(context, buildRenderers(context, decoderMode)).build().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                    .build(),
-                true,
-            )
-            setHandleAudioBecomingNoisy(true)
-        }
-    }
+    val exoPlayer = remember(decoderMode) { buildPlayer(context, decoderMode) }
     val audioEffects = remember { PlayerAudioEffects() }
+
+    // Hand the player to the foreground media service; this is what keeps audio
+    // alive in the background and lets PiP/the notification drive playback.
+    LaunchedEffect(exoPlayer) {
+        PlaybackEngine.register(context, exoPlayer)
+    }
 
     var speed by remember { mutableFloatStateOf(preferences.speed) }
     var resizeMode by remember { mutableIntStateOf(preferences.resizeMode) }
@@ -812,6 +785,7 @@ fun PlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             audioEffects.release()
+            PlaybackEngine.release(context)
             PlayerPip.inPip = false
         }
     }
@@ -2240,8 +2214,9 @@ private fun ColumnScope.SettingsTab(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Background play menjaga audio tetap berjalan tanpa layanan media terpisah; " +
-                "OEM yang agresif bisa menghentikan proses bila aplikasi dibuang dari memori.",
+            text = "Background play berjalan lewat layanan media foreground dengan kontrol " +
+                "putar/jeda di notifikasi dan jendela PiP. Pada perangkat dengan penghemat " +
+                "agresif, izin baterai di atas tetap diperlukan.",
             color = TextMuted,
             style = MaterialTheme.typography.labelSmall,
         )
@@ -2360,21 +2335,6 @@ private fun BadgedIconButton(
                 .padding(horizontal = 3.dp, vertical = 0.5.dp),
         )
     }
-}
-
-private fun buildRenderers(context: Context, mode: DecoderMode): DefaultRenderersFactory {
-    val factory = DefaultRenderersFactory(context).setEnableDecoderFallback(true)
-    if (mode == DecoderMode.AUTO) return factory
-    val wantHardware = mode == DecoderMode.HARDWARE
-    val selector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunneling ->
-        val all = MediaCodecSelector.DEFAULT.getDecoderInfos(
-            mimeType,
-            requiresSecureDecoder,
-            requiresTunneling,
-        )
-        all.filter { it.hardwareAccelerated == wantHardware }.ifEmpty { all }
-    }
-    return factory.setMediaCodecSelector(selector)
 }
 
 private fun formatTime(ms: Long): String {

@@ -45,8 +45,8 @@ android {
         applicationId = "app.samehadaku.dl"
         minSdk = 26
         targetSdk = 35
-        versionCode = 49
-        versionName = "2.7.5"
+        versionCode = 50
+        versionName = "2.7.6"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -125,6 +125,7 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
 
     implementation(libs.hilt.android)
