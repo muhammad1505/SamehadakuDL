@@ -1,16 +1,20 @@
 package app.samehadaku.dl.data.download
 
 import android.app.RecoverableSecurityException
+import android.Manifest
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.IntentSender
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.documentfile.provider.DocumentFile
 import app.samehadaku.dl.core.EpisodeFiles
@@ -363,6 +367,100 @@ class StorageWriter @Inject constructor(
         }
 
     /**
+     * Document URI the SAF folder picker should open in.
+     *
+     * Opening the picker at the storage root is what nudges users into granting
+     * `Download` itself, which Android 11+ refuses ("folder terlalu sensitif") and which
+     * leaves the app unable to reach the episode folders. Starting at the saved tree, or
+     * else at `Download/SamehadakuDL`, keeps the grant one tap away and inside the app
+     * folder. The picker falls back to its default location when the URI does not exist.
+     */
+    suspend fun pickerInitialUri(): Uri? =
+        withContext(Dispatchers.IO) {
+            val saved = runCatching { settings.currentDownloadTreeUri() }.getOrNull()
+                ?.let { stored -> runCatching { Uri.parse(stored) }.getOrNull() }
+            val savedDocument = if (saved != null && hasFolderAccess()) {
+                runCatching {
+                    DocumentsContract.buildDocumentUriUsingTree(
+                        saved,
+                        DocumentsContract.getTreeDocumentId(saved),
+                    )
+                }.getOrNull()
+            } else {
+                null
+            }
+            savedDocument ?: runCatching {
+                DocumentsContract.buildDocumentUri(
+                    "com.android.externalstorage.documents",
+                    "primary:Download/$APP_FOLDER",
+                )
+            }.getOrNull()
+        }
+
+    /**
+     * Whether [treeUri] really contains the folder being deleted, either directly or one
+     * level down inside `SamehadakuDL`.
+     *
+     * The picker returns whatever the user tapped, so a wrong choice (their whole
+     * Documents tree, another anime folder) used to be saved as the download location and
+     * the delete then stalled with "penyimpanan menolak izin tulis". Checking the folder
+     * first lets the app ask again instead of storing a location that cannot work.
+     */
+    suspend fun treeHoldsFolder(treeUri: Uri, folderName: String): Boolean =
+        withContext(Dispatchers.IO) {
+            if (!isSafeName(folderName)) return@withContext false
+            val tree = runCatching { DocumentFile.fromTreeUri(context, treeUri) }
+                .getOrNull() ?: return@withContext false
+            val holds = treeCollectionDirectories(tree, folderName).isNotEmpty()
+            Log.d(TAG, "tree holds folder=$holds name=$folderName tree=$treeUri")
+            holds
+        }
+
+    /**
+     * Whether Koleksi lists episodes owned by an earlier installation.
+     *
+     * Those rows survive a reinstall but no longer belong to the app, so every delete of
+     * them needs the folder grant. Knowing it up front lets Koleksi offer the one-time
+     * grant on open, instead of waiting for the first delete to fail silently. Rows with
+     * an empty owner count too: some providers redact the column, and treating redaction
+     * as "owned" is exactly what made deletes fail with no explanation.
+     */
+    suspend fun hasUnownedFiles(): Boolean =
+        withContext(Dispatchers.IO) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext false
+            val projection = arrayOf(MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
+            val selection = "${MediaStore.MediaColumns.IS_PENDING}=0 AND " +
+                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
+            val unowned = runCatching {
+                context.contentResolver.query(
+                    mediaFileCollection(),
+                    projection,
+                    selection,
+                    arrayOf("%/$APP_FOLDER/%"),
+                    null,
+                )?.use { cursor ->
+                    val ownerColumn = cursor.getColumnIndex(
+                        MediaStore.MediaColumns.OWNER_PACKAGE_NAME,
+                    )
+                    var found = false
+                    while (cursor.moveToNext()) {
+                        val owner = if (ownerColumn >= 0) cursor.getString(ownerColumn) else null
+                        if (!owner.equals(context.packageName)) {
+                            found = true
+                            break
+                        }
+                    }
+                    found
+                }
+            }.getOrElse { error ->
+                Log.w(TAG, "owner query failed", error)
+                null
+            }
+            Log.d(TAG, "unowned media files=$unowned")
+            unowned == true
+        }
+
+    /**
      * Deletes a collection folder and every file inside it, across all locations.
      *
      * MediaStore refuses silent deletes for rows this installation did not create, so
@@ -687,6 +785,21 @@ class StorageWriter @Inject constructor(
         val gone = ids.size - remaining.size
         if (remaining.isEmpty()) return DeletionResult(deleted = gone)
 
+        // Android 11+ has one sanctioned way to delete rows this app does not own: a single
+        // system dialog for the whole batch. The row-by-row retry below cannot produce it,
+        // so without this the delete ends as "penyimpanan menolak izin tulis".
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val sender = deleteRequestSender(remaining)
+            if (sender != null) {
+                Log.i(TAG, "media delete asks system dialog for ${remaining.size} rows")
+                return DeletionResult(
+                    deleted = gone,
+                    denied = remaining.size,
+                    confirmation = sender,
+                )
+            }
+        }
+
         // Retry what the batch did not touch: some providers raise the confirmation
         // exception only for single-item deletes.
         val single = fallbackDeleteOneByOne(remaining)
@@ -701,6 +814,20 @@ class StorageWriter @Inject constructor(
             denied = single.denied,
             confirmation = single.confirmation,
         )
+    }
+
+    /** System "izinkan hapus" dialog covering a batch of MediaStore rows (Android 11+). */
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun deleteRequestSender(ids: List<Long>): IntentSender? {
+        if (ids.isEmpty()) return null
+        val uris = ids.map { id ->
+            ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id)
+        }
+        return runCatching {
+            MediaStore.createDeleteRequest(context.contentResolver, uris).intentSender
+        }.onFailure { error ->
+            Log.w(TAG, "createDeleteRequest failed", error)
+        }.getOrNull()
     }
 
     /** Retries each row separately, collecting the first confirmation request found. */
@@ -1193,7 +1320,45 @@ class StorageWriter @Inject constructor(
     }
 
     private fun legacyBase(): File =
-        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        legacyPublicBase()
+            ?: context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: context.filesDir
+
+    /**
+     * Public Download folder while Android 10 legacy storage is active.
+     *
+     * The manifest opts into `requestLegacyExternalStorage`, so on Android 10 the app is
+     * treated as a classic storage app: `java.io.File` can read and delete
+     * `Download/SamehadakuDL` directly and MediaStore stops hiding rows written by an
+     * earlier installation. Adding a new <external-path entry> to `file_paths.xml` keeps
+     * sharing/opening those files working through FileProvider.
+     */
+    private fun legacyPublicBase(): File? =
+        if (hasLegacyStorageAccess()) {
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        } else {
+            null
+        }
+
+    /**
+     * Whether the app can touch `Download/SamehadakuDL` with plain File APIs.
+     *
+     * Android 10 only. It needs both the legacy opt-in from the manifest and the runtime
+     * storage permission; when it returns true the delete path no longer needs a SAF
+     * folder pick, so Koleksi can stop asking for one. Android 11+ ignores the flag and
+     * keeps using MediaStore with a system confirmation dialog.
+     */
+    fun hasLegacyStorageAccess(): Boolean {
+        if (Build.VERSION.SDK_INT != Build.VERSION_CODES.Q) return false
+        val legacy = Environment.isExternalStorageLegacy()
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        ) == PackageManager.PERMISSION_GRANTED
+        val access = legacy && granted
+        Log.d(TAG, "legacy storage legacy=$legacy writeGranted=$granted access=$access")
+        return access
+    }
 
     private fun legacyFile(animeSlug: String, fileName: String): File =
         File(legacyBase(), "$APP_FOLDER/$animeSlug/$fileName")
@@ -1201,11 +1366,15 @@ class StorageWriter @Inject constructor(
     private fun legacyUri(animeSlug: String, fileName: String): Uri? {
         val file = legacyFile(animeSlug, fileName)
         if (!file.isFile) return null
-        return FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file,
-        )
+        // A legacy-storage file sits in public Download, which only resolves when
+        // file_paths.xml covers that root; return null instead of throwing when it does not.
+        return runCatching {
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file,
+            )
+        }.getOrNull()
     }
 
     private companion object {

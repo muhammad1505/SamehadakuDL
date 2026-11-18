@@ -210,7 +210,7 @@ fun SettingsScreen(
                                 ?: "Pilih folder di penyimpanan perangkat",
                             selected = state.treeUri != null,
                             badge = if (state.treeUri == null) "Pilih" else "Ganti",
-                            onClick = { folderPicker.launch(null) },
+                            onClick = { folderPicker.launch(state.treeUri?.let(Uri::parse)) },
                         )
                     }
                     Spacer(Modifier.height(10.dp))

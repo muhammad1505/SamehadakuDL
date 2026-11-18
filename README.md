@@ -24,8 +24,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
 - Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
   setelah 90% video, playlist episode otomatis, kecepatan 0.5x–2x, mode layar
-  FIT/ZOOM/FILL, siklus decoder Auto/HW/SW, Picture-in-Picture, layar penuh tanpa
-  system bar, gesture kecerahan/volume/scrub, smart screen lock, sleep timer,
+  FIT/ZOOM/FILL, siklus decoder Auto/HW/SW, Picture-in-Picture, rotasi mengikuti
+  sensor selama menonton, gesture kecerahan/volume/scrub, smart screen lock, sleep timer,
   equalizer + loudness boost, serta mode “Jangan ganggu” selama menonton.
   Background play memakai MediaSessionService foreground dengan kontrol di
   notifikasi dan jendela PiP. Subtitle bawaan dan file eksternal SRT/VTT/SSA-ASS
@@ -486,6 +486,35 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   Mulai Otomatis?” saat kembali. Status izin lain diperbarui otomatis saat
   aplikasi kembali ke depan, dan kartu pengingat hanya muncul kontekstual saat
   Background play diaktifkan.
+
+## Rilis 2.7.7
+
+- Kontrol pemutar kini berupa pill berlabel pendek yang menyatu dengan ikonnya
+  (AUTO/HW/SW, NORM/BASS/VOCL/NITE, FIT/ZOOM/FILL, dan ON/OFF/FILE/HARD untuk
+  subtitle). Ketuk pill langsung beralih — decoder berganti, preset audio berputar,
+  rasio berganti, subtitle hidup/mati — tanpa membuka panel, dan umpan baliknya
+  berupa notifikasi satu baris di bawah judul, bukan kartu di tengah video.
+  Tekan lama pill membuka panel terkait (Audio atau Subtitle) untuk pilihan
+  lengkap.
+- Deteksi softsub dan hardsub: trek teks bawaan dibaca lengkap dengan bahasa,
+  format (SRT/WebVTT/SSA-ASS/TTML), dan status track default. Tab Subtitle
+  menampilkan ringkasan “Softsub • n trek teks terbaca” atau “Hardsub • tidak ada
+  trek teks di file” beserta metadata tiap track, dan file tanpa trek teks ditandai
+  HARD pada pill CC karena teksnya menyatu di gambar.
+- Tombol fullscreen/rotasi dilepas; pemutar memakai orientasi sensor selama
+  dibuka sehingga memutar HP langsung memenuhi layar, lalu orientasi sebelumnya
+  dipulihkan saat pemutar ditutup. Loudness boost memakai bilah geser bergaya
+  seek bar agar seragam dengan kontrol lain.
+- Menghapus episode lama dari instalasi sebelumnya kini benar-benar berjalan.
+  Android 10 memakai legacy storage (`WRITE_EXTERNAL_STORAGE` +
+  `requestLegacyExternalStorage`) sehingga `Download/SamehadakuDL` bisa dibaca dan
+  dihapus lewat File API tanpa pemilih folder, sedangkan Android 11+ meminta satu
+  dialog sistem untuk seluruh batch baris MediaStore, bukan mencoba baris per baris.
+- Koleksi menawarkan izin folder sekali saat dibuka bila masih ada episode milik
+  instalasi lama, jadi penghapusan tidak gagal diam-diam lebih dulu. Pemilih folder
+  terbuka langsung di `Download/SamehadakuDL` (juga dari Pengaturan) dan pilihan
+  folder divalidasi memuat episode yang dituju; folder yang salah tidak lagi
+  disimpan sebagai lokasi unduhan.
 
 ## Penyimpanan dan izin
 

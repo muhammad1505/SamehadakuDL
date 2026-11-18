@@ -59,8 +59,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DoNotDisturbOn
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Forward10
-import androidx.compose.material.icons.rounded.Fullscreen
-import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.HighQuality
@@ -81,8 +79,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -139,6 +135,9 @@ import app.samehadaku.dl.R
 import app.samehadaku.dl.presentation.components.GlassButton
 import app.samehadaku.dl.presentation.components.GlassIconButton
 import app.samehadaku.dl.presentation.components.SystemOptimizationHint
+import app.samehadaku.dl.presentation.components.pressable
+import app.samehadaku.dl.presentation.components.pressableCombined
+import app.samehadaku.dl.presentation.theme.BrandGold
 import app.samehadaku.dl.presentation.theme.BrandMint
 import app.samehadaku.dl.presentation.theme.TextMuted
 import app.samehadaku.dl.presentation.theme.TextPrimary
@@ -191,7 +190,19 @@ private data class SubtitleTrackOption(
     val trackIndex: Int,
     val label: String,
     val id: String?,
-)
+    val language: String? = null,
+    val codec: String? = null,
+    val isDefault: Boolean = false,
+) {
+    /** Short metadata line shown under the track name in the subtitle tab. */
+    val metadata: String
+        get() = listOfNotNull(
+            "Softsub",
+            codec,
+            language,
+            "Bawaan".takeIf { isDefault },
+        ).joinToString(" • ")
+}
 
 private enum class LevelKind { BRIGHTNESS, VOLUME }
 
@@ -219,9 +230,11 @@ private enum class DragAxis { NONE, SEEK, BRIGHTNESS, VOLUME }
  * Controls are split into four zones so nothing overlaps the middle of the
  * picture: a top bar with the back button, title, decoder, playlist and PiP; a
  * centre transport row with ±10s; a bottom bar with lock, time, subtitle, audio,
- * aspect, settings and fullscreen; and a 285dp glass panel on the right with
- * playlist, subtitle, audio and settings tabs. Every settings button carries a
- * short status badge and shows a rich banner describing the mode it switched to.
+ * aspect and settings; and a 285dp glass panel on the right with playlist,
+ * subtitle, audio and settings tabs. The picture always fills the window and
+ * follows the sensor, so there is no fullscreen toggle. A feature that is not in
+ * its default state marks its button with a mint tint and a small dot, and the
+ * banner in the middle of the screen says what the last switch did.
  *
  * Gestures: vertical drag on the left half sets brightness, on the right half
  * sets system volume, horizontal drag scrubs with a time preview, single tap
@@ -285,7 +298,6 @@ fun PlayerScreen(
     var seekPreview by remember { mutableStateOf<SeekPreview?>(null) }
     var scrubbing by remember { mutableStateOf(false) }
     var scrubPosition by remember { mutableLongStateOf(0L) }
-    var fullscreen by remember { mutableStateOf(false) }
     var autoNextCancelled by remember { mutableStateOf(false) }
     var autoNextCountdown by remember { mutableIntStateOf(-1) }
     var sleepOption by remember { mutableStateOf(SleepOption.OFF) }
@@ -387,26 +399,18 @@ fun PlayerScreen(
         decoderMode = next
         preferences.decoderMode = next.name
         controlsVisible = true
-        showBanner(Icons.Rounded.Memory, "Decoder: ${next.label} (${next.badge})", next.description)
+        showBanner(Icons.Rounded.Memory, "Dekoder ${next.label}", next.description)
     }
 
     fun cycleAspect() {
         resizeMode = nextResizeMode(resizeMode)
-        showBanner(
-            Icons.Rounded.AspectRatio,
-            "Rasio: ${resizeLabel(resizeMode)}",
-            when (resizeMode) {
-                AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Video memenuhi layar"
-                AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Penuhi layar tanpa distorsi"
-                else -> "Seluruh video terlihat (letterbox)"
-            },
-        )
+        showBanner(Icons.Rounded.AspectRatio, "Rasio ${resizeLabel(resizeMode)}", "Tahan ikon untuk panel setelan")
     }
 
     fun setEq(preset: EqPreset) {
         eqPreset = preset
         preferences.eqPreset = preset.name
-        showBanner(Icons.Rounded.GraphicEq, "Audio: ${preset.label} (${preset.badge})", preset.description)
+        showBanner(Icons.Rounded.GraphicEq, "Audio ${preset.label}", preset.description)
     }
 
     fun selectAudio(option: AudioOption?) {
@@ -454,8 +458,8 @@ fun PlayerScreen(
             .build()
         showBanner(
             Icons.Rounded.ClosedCaption,
-            "Subtitle: ${option.label}",
-            "Track bawaan video dipilih",
+            "Subtitle ${option.label}",
+            option.metadata,
         )
     }
 
@@ -502,6 +506,33 @@ fun PlayerScreen(
                 "File eksternal tidak lagi ditampilkan"
             },
         )
+    }
+
+    fun cycleEq() {
+        val presets = EqPreset.entries
+        setEq(presets[(presets.indexOf(eqPreset) + 1) % presets.size])
+    }
+
+    fun toggleSubtitles() {
+        if (embeddedSubtitles.isEmpty() && subtitleCues.isEmpty()) {
+            // Hardsub: nothing to toggle, so the click opens the file loader instead.
+            panelTab = PanelTab.SUBTITLE
+            showBanner(
+                Icons.Rounded.ClosedCaption,
+                "Hardsub",
+                "Tidak ada trek teks, muat file subtitle di sini",
+            )
+            return
+        }
+        if (subtitleMode != SubtitleMode.OFF) {
+            disableSubtitles()
+            return
+        }
+        if (subtitleCues.isNotEmpty()) {
+            useExternalSubtitle()
+        } else {
+            selectEmbeddedSubtitle(selectedEmbeddedSubtitle ?: embeddedSubtitles.first())
+        }
     }
 
     fun toggleDnd() {
@@ -757,8 +788,11 @@ fun PlayerScreen(
                                 val option = SubtitleTrackOption(
                                     group = group.mediaTrackGroup,
                                     trackIndex = index,
-                                    label = "$base [Bawaan]",
+                                    label = base,
                                     id = format.id,
+                                    language = subtitleLanguageName(format.language),
+                                    codec = subtitleCodecName(format.sampleMimeType),
+                                    isDefault = group.isTrackSelected(index),
                                 )
                                 subtitles += option
                                 if (group.isTrackSelected(index)) defaultSubtitle = option
@@ -815,19 +849,13 @@ fun PlayerScreen(
         }
     }
 
-    // Fullscreen forces landscape; exiting hands control back to the sensor.
+    // The player follows the sensor; leaving restores whatever the app asked for.
     DisposableEffect(activity) {
         val previous = activity?.requestedOrientation
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
         onDispose {
             activity?.requestedOrientation =
                 previous ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
-    }
-    LaunchedEffect(activity, fullscreen) {
-        activity?.requestedOrientation = if (fullscreen) {
-            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR
         }
     }
 
@@ -1105,17 +1133,17 @@ fun PlayerScreen(
                         )
                     }
                     Spacer(Modifier.width(6.dp))
-                    BadgedIconButton(
+                    StateIconButton(
                         icon = Icons.Rounded.Memory,
-                        contentDescription = "Ganti dekoder (${decoderMode.badge})",
-                        badge = decoderMode.badge,
+                        contentDescription = "Ganti dekoder, sekarang ${decoderMode.label}",
+                        label = decoderMode.badge,
                         active = decoderMode != DecoderMode.AUTO,
                         onClick = ::cycleDecoder,
                     )
-                    BadgedIconButton(
+                    StateIconButton(
                         icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
-                        contentDescription = "Buka playlist episode",
-                        badge = state.entries.size.toString(),
+                        contentDescription = "Buka playlist ${state.entries.size} episode",
+                        label = state.entries.size.toString(),
                         active = panelTab == PanelTab.EPISODES,
                         onClick = { panelTab = PanelTab.EPISODES },
                     )
@@ -1273,29 +1301,34 @@ fun PlayerScreen(
                             maxLines = 1,
                         )
                         Spacer(Modifier.weight(1f))
-                        // No embedded tracks and no external file: the CC icon
-                        // has nothing to control. The tab stays reachable from
-                        // the panel for loading a file later.
-                        if (embeddedSubtitles.isNotEmpty() || subtitleUri != null) {
-                            BadgedIconButton(
-                                icon = Icons.Rounded.ClosedCaption,
-                                contentDescription = "Buka pengaturan subtitle",
-                                badge = "CC",
-                                active = subtitleMode != SubtitleMode.OFF,
-                                onClick = { panelTab = PanelTab.SUBTITLE },
-                            )
-                        }
-                        BadgedIconButton(
-                            icon = Icons.Rounded.GraphicEq,
-                            contentDescription = "Audio dan equalizer",
-                            badge = eqPreset.badge,
-                            active = eqPreset != EqPreset.NORMAL || boostPercent > 100,
-                            onClick = { panelTab = PanelTab.AUDIO },
+                        // Hardsub files carry no text track, so the button has to
+                        // stay available: it is also where an external file loads.
+                        StateIconButton(
+                            icon = Icons.Rounded.ClosedCaption,
+                            contentDescription = "Subtitle, tahan untuk pengaturan",
+                            label = when {
+                                embeddedSubtitles.isEmpty() && subtitleCues.isEmpty() -> "HARD"
+                                subtitleMode == SubtitleMode.OFF -> "OFF"
+                                subtitleMode == SubtitleMode.EXTERNAL -> "FILE"
+                                subtitleMode == SubtitleMode.EMBEDDED -> "ON"
+                                else -> "AUTO"
+                            },
+                            active = subtitleMode != SubtitleMode.OFF,
+                            onClick = ::toggleSubtitles,
+                            onLongClick = { panelTab = PanelTab.SUBTITLE },
                         )
-                        BadgedIconButton(
+                        StateIconButton(
+                            icon = Icons.Rounded.GraphicEq,
+                            contentDescription = "Audio ${eqPreset.label}, tahan untuk panel",
+                            label = eqPreset.badge,
+                            active = eqPreset != EqPreset.NORMAL || boostPercent > 100,
+                            onClick = ::cycleEq,
+                            onLongClick = { panelTab = PanelTab.AUDIO },
+                        )
+                        StateIconButton(
                             icon = Icons.Rounded.AspectRatio,
-                            contentDescription = "Ganti rasio layar (${resizeLabel(resizeMode)})",
-                            badge = resizeLabel(resizeMode),
+                            contentDescription = "Ganti rasio layar, sekarang ${resizeLabel(resizeMode)}",
+                            label = resizeLabel(resizeMode),
                             active = resizeMode != AspectRatioFrameLayout.RESIZE_MODE_FIT,
                             onClick = ::cycleAspect,
                         )
@@ -1306,54 +1339,47 @@ fun PlayerScreen(
                             size = 38.dp,
                             iconSize = 19.dp,
                         )
-                        Spacer(Modifier.width(2.dp))
-                        GlassIconButton(
-                            icon = if (fullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
-                            contentDescription = if (fullscreen) "Keluar layar penuh" else "Layar penuh landscape",
-                            onClick = {
-                                fullscreen = !fullscreen
-                                showBanner(
-                                    if (fullscreen) Icons.Rounded.Fullscreen else Icons.Rounded.FullscreenExit,
-                                    if (fullscreen) "Layar penuh" else "Ikuti rotasi perangkat",
-                                    if (fullscreen) "Landscape dan HUD disembunyikan otomatis" else "Orientasi kembali ke sensor",
-                                )
-                            },
-                            size = 38.dp,
-                            iconSize = 19.dp,
-                        )
                     }
                 }
             }
 
-            // Rich action banner, 1.5s.
+            // Compact one-line notification, 1.5s; never covers the centre of the picture.
             banner?.let { current ->
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
                         .padding(top = 66.dp, start = 16.dp, end = 16.dp)
-                        .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(14.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .widthIn(max = 330.dp)
+                        .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(18.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(current.icon, contentDescription = null, tint = BrandMint, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = current.title,
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = current.message,
-                            color = TextSecondary,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    Icon(
+                        current.icon,
+                        contentDescription = null,
+                        tint = BrandMint,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        text = current.title,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = current.message,
+                        color = TextSecondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
                 }
             }
 
@@ -1814,11 +1840,20 @@ private fun ColumnScope.SubtitleTab(
             .padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("Trek subtitle", color = TextSecondary, style = MaterialTheme.typography.labelSmall)
+        Text(
+            text = if (embedded.isEmpty()) {
+                "Hardsub • tidak ada trek teks di file"
+            } else {
+                "Softsub • ${embedded.size} trek teks terbaca"
+            },
+            color = if (embedded.isEmpty()) BrandGold else BrandMint,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
         if (embedded.isEmpty() && !hasExternal) {
             Text(
-                text = "Tidak ada trek subtitle di video ini. Muat file SRT atau WebVTT " +
-                    "dari penyimpanan untuk menampilkan teks.",
+                text = "Kalau video ini hardsub, teksnya sudah menyatu di gambar. " +
+                    "Muat file SRT, VTT, atau ASS untuk menambah terjemahan lain.",
                 color = TextMuted,
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -1832,7 +1867,7 @@ private fun ColumnScope.SubtitleTab(
         embedded.forEach { option ->
             SubtitleChoiceRow(
                 title = option.label,
-                subtitle = "Trek bawaan video",
+                subtitle = option.metadata,
                 selected = (mode == SubtitleMode.EMBEDDED || mode == SubtitleMode.AUTO) &&
                     sameSubtitleTrack(selectedEmbedded, option),
                 onClick = { onSelectEmbedded(option) },
@@ -2065,15 +2100,16 @@ private fun ColumnScope.AudioTab(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        Slider(
-            value = boost.toFloat(),
-            onValueChange = { onBoost(it.roundToInt()) },
-            valueRange = 100f..150f,
-            colors = SliderDefaults.colors(
-                thumbColor = BrandMint,
-                activeTrackColor = BrandMint,
-                inactiveTrackColor = Color.White.copy(alpha = 0.16f),
-            ),
+        // Same scrubber as the seek bar, so both sliders feel identical.
+        PlayerScrubber(
+            value = (boost - 100).toFloat(),
+            duration = 50f,
+            onScrub = { onBoost(100 + it.roundToInt().coerceIn(0, 50)) },
+            onScrubFinished = {},
+            activeColor = BrandMint,
+            thumbColor = BrandMint,
+            contentDescription = "Loudness boost",
+            stateDescription = "$boost%",
         )
         Text(
             text = "Hingga +150% untuk dialog pelan. Boost di atas 100% menambah gain " +
@@ -2300,39 +2336,59 @@ private fun GridChip(
     }
 }
 
-/** 38dp icon with a tiny 3-4 character status badge underneath. */
+/**
+ * Glass pill holding an icon plus its current mode in 9sp type, so the state is
+ * readable straight from the button without a caption hanging under it.
+ * A long press opens the related sheet for the options a cycle cannot reach.
+ */
 @Composable
-private fun BadgedIconButton(
+private fun StateIconButton(
     icon: ImageVector,
     contentDescription: String,
-    badge: String,
+    label: String,
     active: Boolean,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
-    Box(
-        modifier = Modifier.size(42.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        GlassIconButton(
-            icon = icon,
-            contentDescription = contentDescription,
+    val shape = RoundedCornerShape(17.dp)
+    val gesture = if (onLongClick != null) {
+        Modifier.pressableCombined(
+            pressedScale = 0.94f,
             onClick = onClick,
+            onLongClick = onLongClick,
+        )
+    } else {
+        Modifier.pressable(pressedScale = 0.94f, onClick = onClick)
+    }
+    Row(
+        modifier = gesture
+            .height(34.dp)
+            .clip(shape)
+            .background(
+                if (active) BrandMint.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.06f),
+            )
+            .border(
+                width = 1.dp,
+                color = if (active) BrandMint.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.10f),
+                shape = shape,
+            )
+            .padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
             tint = if (active) BrandMint else Color.White,
-            size = 36.dp,
-            iconSize = 18.dp,
+            modifier = Modifier.size(15.dp),
         )
         Text(
-            text = badge,
-            color = if (active) Color(0xFF04120F) else Color.White.copy(alpha = 0.86f),
-            fontSize = 7.sp,
-            fontWeight = FontWeight.Bold,
+            text = label,
+            color = if (active) BrandMint else Color.White.copy(alpha = 0.92f),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.3.sp,
             maxLines = 1,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 1.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(if (active) BrandMint else Color.White.copy(alpha = 0.18f))
-                .padding(horizontal = 3.dp, vertical = 0.5.dp),
         )
     }
 }
@@ -2360,6 +2416,17 @@ private fun subtitleLanguageName(tag: String?): String? {
     val locale = runCatching { Locale.forLanguageTag(tag) }.getOrNull() ?: return null
     val name = locale.getDisplayLanguage(Locale("id")).takeIf { it.isNotBlank() } ?: return null
     return if (name.equals("Indonesia", ignoreCase = true)) "Bahasa Indonesia" else name
+}
+
+/** Turns an embedded text track's mime type into the short format name shown in the tab. */
+private fun subtitleCodecName(mime: String?): String? = when {
+    mime.isNullOrBlank() -> null
+    mime.contains("subrip", ignoreCase = true) -> "SRT"
+    mime.contains("vtt", ignoreCase = true) -> "VTT"
+    mime.contains("ssa", ignoreCase = true) || mime.contains("ass", ignoreCase = true) -> "ASS"
+    mime.contains("ttml", ignoreCase = true) -> "TTML"
+    mime.contains("cea", ignoreCase = true) -> "CEA"
+    else -> null
 }
 
 private fun sameSubtitleTrack(

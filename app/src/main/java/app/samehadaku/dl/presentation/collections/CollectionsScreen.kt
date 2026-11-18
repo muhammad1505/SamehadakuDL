@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -127,6 +128,11 @@ fun CollectionsScreen(
     val readPermission = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
             Manifest.permission.READ_MEDIA_VIDEO
+        // Android 10 with legacy storage: the storage permission alone lets the app read
+        // and delete Download/SamehadakuDL through File APIs, so the system dialog is the
+        // normal "Izinkan/Tolak" popup instead of the SAF folder picker.
+        Build.VERSION.SDK_INT == Build.VERSION_CODES.Q ->
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
         else -> Manifest.permission.READ_EXTERNAL_STORAGE
     }
     var storageDenied by rememberSaveable { mutableStateOf(false) }
@@ -176,6 +182,13 @@ fun CollectionsScreen(
     // MediaStore at all; letting the user pick the download folder once is the only
     // way to finish the delete there.
     var folderPrompt by remember { mutableStateOf(false) }
+    // Opening the picker at the storage root is what pushed users into granting Download
+    // itself, which is refused on Android 11+ and useless here. Start where the episode
+    // folders live instead.
+    var folderPickerStart by remember { mutableStateOf<Uri?>(null) }
+    LaunchedEffect(folderPrompt) {
+        if (folderPrompt) folderPickerStart = viewModel.pickerInitialUri()
+    }
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
@@ -196,6 +209,12 @@ fun CollectionsScreen(
         viewModel.folderAccessRequests.collect { folderPrompt = true }
     }
 
+    // Old downloads are listed from MediaStore, so the grant can be offered as soon as
+    // Koleksi opens instead of after a delete that silently did nothing.
+    LaunchedEffect(Unit) {
+        viewModel.folderAccessSuggestions.collect { folderPrompt = true }
+    }
+
     LaunchedEffect(state.error) {
         val message = state.error ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
@@ -210,16 +229,24 @@ fun CollectionsScreen(
             title = { Text("Izin folder diperlukan") },
             text = {
                 Text(
-                    "Android ${Build.VERSION.RELEASE} tidak mengizinkan aplikasi menghapus " +
-                        "file dari instalasi sebelumnya tanpa izin folder. Pilih folder " +
-                        "Download/SamehadakuDL satu kali, lalu penghapusan dilanjutkan otomatis.",
+                    if (pendingDelete == null) {
+                        "Episode di Koleksi berasal dari instalasi sebelumnya, jadi Android " +
+                            "perlu izin folder sebelum file itu bisa dihapus. Pemilih sudah " +
+                            "terbuka di Download/SamehadakuDL: ketuk \"Izinkan\" satu kali " +
+                            "supaya hapus episode langsung jalan."
+                    } else {
+                        "Android ${Build.VERSION.RELEASE} tidak mengizinkan aplikasi menghapus " +
+                            "file dari instalasi sebelumnya tanpa izin folder. Pemilih sudah " +
+                            "terbuka di Download/SamehadakuDL: ketuk \"Izinkan\" satu kali, lalu " +
+                            "penghapusan dilanjutkan otomatis."
+                    },
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         folderPrompt = false
-                        folderPicker.launch(null)
+                        folderPicker.launch(folderPickerStart)
                     },
                 ) {
                     Text("Pilih folder", color = BrandPrimary)

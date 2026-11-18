@@ -2,6 +2,7 @@ package app.samehadaku.dl.presentation.collections
 
 import android.content.IntentSender
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.samehadaku.dl.core.SmartStoragePolicy
@@ -80,6 +81,13 @@ class CollectionsViewModel @Inject constructor(
     private val _folderAccessRequests = Channel<Unit>(Channel.BUFFERED)
     val folderAccessRequests = _folderAccessRequests.receiveAsFlow()
 
+    /** Raised on opening Koleksi when old downloads still need the one-time folder grant. */
+    private val _folderAccessSuggestions = Channel<Unit>(Channel.BUFFERED)
+    val folderAccessSuggestions = _folderAccessSuggestions.receiveAsFlow()
+
+    /** Offer the grant at most once per session so a "Batal" is not asked again. */
+    private var offeredFolderAccess = false
+
     /** Last deletion the user asked for; kept so it can be retried after approval. */
     private var pendingDelete: PendingDelete? = null
 
@@ -117,6 +125,7 @@ class CollectionsViewModel @Inject constructor(
                 )
             }
             applyQuery()
+            launch { offerFolderAccess(folders) }
             folders.forEach { folder ->
                 if (folder.name !in _state.value.covers) {
                     launch {
@@ -133,6 +142,24 @@ class CollectionsViewModel @Inject constructor(
     fun onQueryChange(value: String) {
         query.update { value }
         applyQuery()
+    }
+
+    /**
+     * Asks for the folder grant as soon as Koleksi shows episodes from an earlier
+     * installation, instead of waiting for the first delete to fail silently and only
+     * then explaining why. The picker opens straight inside `Download/SamehadakuDL`.
+     */
+    private suspend fun offerFolderAccess(folders: List<StoredFolder>) {
+        if (folders.isEmpty() || offeredFolderAccess) return
+        // Android 10 legacy storage deletes with plain File APIs, so there is nothing to
+        // grant here; asking for a folder would only add a step the user does not need.
+        if (storage.hasLegacyStorageAccess()) return
+        val hasAccess = runCatching { storage.hasFolderAccess() }.getOrDefault(false)
+        if (hasAccess) return
+        val hasUnowned = runCatching { storage.hasUnownedFiles() }.getOrDefault(false)
+        if (!hasUnowned) return
+        offeredFolderAccess = true
+        _folderAccessSuggestions.trySend(Unit)
     }
 
     private fun applyQuery() {
@@ -252,12 +279,38 @@ class CollectionsViewModel @Inject constructor(
         viewModelScope.launch { performDelete(pending) }
     }
 
-    /** Saves the folder picked from the delete prompt, then retries the deletion. */
+    /** Folder the SAF picker should open in for the delete prompt. */
+    suspend fun pickerInitialUri(): Uri? =
+        runCatching { storage.pickerInitialUri() }.getOrNull()
+
+    /** Saves the folder picked from the prompt, then retries any deletion it blocked. */
     fun onFolderPicked(uri: String) {
         viewModelScope.launch {
+            val pending = pendingDelete
+            val treeUri = runCatching { Uri.parse(uri) }.getOrNull()
+            // A wrong pick used to be stored as the download location, after which the
+            // delete failed with "penyimpanan menolak izin tulis". Ask again instead.
+            if (pending != null && treeUri != null) {
+                val holdsFolder = runCatching {
+                    storage.treeHoldsFolder(treeUri, pending.folderName)
+                }.getOrDefault(true)
+                if (!holdsFolder) {
+                    _messages.send(
+                        "Folder itu tidak berisi ${pending.label}. Pilih folder yang memuatnya, " +
+                            "biasanya Download/SamehadakuDL.",
+                    )
+                    _folderAccessRequests.trySend(Unit)
+                    return@launch
+                }
+            }
             runCatching { settings.setDownloadTreeUri(uri) }
-            _messages.send("Izin folder disimpan. Mencoba menghapus lagi…")
-            retryPendingDelete()
+            if (pending == null) {
+                _messages.send("Izin folder disimpan. Hapus episode lama sekarang langsung jalan.")
+                refresh()
+            } else {
+                _messages.send("Izin folder disimpan. Mencoba menghapus lagi…")
+                retryPendingDelete()
+            }
         }
     }
 
@@ -277,14 +330,15 @@ class CollectionsViewModel @Inject constructor(
                 _messages.send("Butuh konfirmasi sistem untuk menghapus ${pending.label}.")
             }
             result.denied > 0 -> {
-                // Android 10 refuses media rows owned by an earlier installation and has
-                // no confirmation intent for them, so a picked folder is the only way to
-                // finish the delete. Keep the request pending until the user answers.
+                // A folder grant is useless on Android 10, where legacy storage deletes
+                // through File APIs: if the system refuses there, the user only needs the
+                // storage permission, not a picker. Asking anyway was a dead end.
                 // The stored URI alone does not prove the grant survived: uninstall,
                 // cleared data or a deleted folder leaves a dead URI behind. Only a
                 // folder pick can fix that, so ask again when access is gone.
-                val canPickFolder = !runCatching { storage.hasFolderAccess() }
-                    .getOrDefault(false)
+                val canPickFolder = !runCatching { storage.hasLegacyStorageAccess() }
+                    .getOrDefault(false) &&
+                    !runCatching { storage.hasFolderAccess() }.getOrDefault(false)
                 pendingDelete = if (canPickFolder) pending else null
                 if (canPickFolder) {
                     _folderAccessRequests.trySend(Unit)
@@ -338,12 +392,13 @@ class CollectionsViewModel @Inject constructor(
 /** What the user asked to remove, kept so it can be retried after a system prompt. */
 private sealed class PendingDelete {
     abstract val label: String
+    abstract val folderName: String
 
-    data class File(val folderName: String, val fileName: String) : PendingDelete() {
+    data class File(override val folderName: String, val fileName: String) : PendingDelete() {
         override val label: String get() = "File $fileName"
     }
 
-    data class Folder(val folderName: String) : PendingDelete() {
+    data class Folder(override val folderName: String) : PendingDelete() {
         override val label: String get() = "Folder ${folderName.replace('-', ' ')}"
     }
 }

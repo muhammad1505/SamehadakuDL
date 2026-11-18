@@ -6,4 +6,8 @@
     <files-path
         name="internal_downloads"
         path="." />
+    <!-- Android 10 legacy storage downloads straight into public Download/SamehadakuDL. -->
+    <external-path
+        name="public_downloads"
+        path="Download/" />
 </paths>
