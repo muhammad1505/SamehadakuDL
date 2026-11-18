@@ -3,6 +3,7 @@ package app.samehadaku.dl
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,6 +30,7 @@ import app.samehadaku.dl.data.smartstorage.SmartStorageScheduler
 import app.samehadaku.dl.presentation.about.UpdateChangelogDialog
 import app.samehadaku.dl.presentation.about.readReleaseNotes
 import app.samehadaku.dl.presentation.navigation.SamehadakuNavHost
+import app.samehadaku.dl.presentation.player.PlayerPip
 import app.samehadaku.dl.presentation.splash.SplashScreen
 import app.samehadaku.dl.presentation.theme.SamehadakuTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -132,6 +134,14 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         sharedUrl = extractSharedUrl(intent)
         pendingRoute = intent.getStringExtra(EXTRA_OPEN_ROUTE)
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        PlayerPip.inPip = isInPictureInPictureMode
     }
 
     /** Extracts the first link from text shared through Android's share sheet. */

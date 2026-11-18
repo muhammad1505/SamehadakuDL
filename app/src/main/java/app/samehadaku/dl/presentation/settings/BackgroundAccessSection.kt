@@ -1,8 +1,11 @@
 package app.samehadaku.dl.presentation.settings
 
-import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,9 +17,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BatterySaver
-import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,229 +35,195 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.samehadaku.dl.core.BackgroundAccess
-import app.samehadaku.dl.core.BackgroundAccessTarget
 import app.samehadaku.dl.presentation.components.StatusPill
-import app.samehadaku.dl.presentation.theme.BrandAccent
-import app.samehadaku.dl.presentation.theme.BrandMint
 import app.samehadaku.dl.presentation.theme.TextMuted
 import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
-import app.samehadaku.dl.presentation.theme.Warning
-import timber.log.Timber
+
+private val OptimizeAmber = Color(0xFFF59E0B)
+private val OptimizeGreen = Color(0xFF10B981)
+private val OptimizeBlue = Color(0xFF2563EB)
 
 /**
- * Compact access panel for background work. Android does not allow an app to grant
- * these exemptions itself, and the relevant screens differ by Android version and
- * OEM, so every row opens the most specific screen that exists and falls back to
- * battery optimization or app info. Rows that are already fine stay hidden unless
- * they still need an action, which keeps the panel short; the OEM guide is collapsed
- * until the user asks for it. Notification permission is intentionally not requested
- * here—the app asks once after the splash, and this panel only opens the system
- * settings for users who dismissed or blocked it.
+ * System optimization panel with an explicit before/after state for each switch.
+ *
+ * All Android versions start at App info (`ACTION_APPLICATION_DETAILS_SETTINGS`)
+ * because the direct battery-optimization dialog can be reset silently by OEM
+ * battery managers, while the App info switches persist. The three counted items
+ * are battery, notifications and autostart; autostart cannot be read by Android,
+ * so the panel asks for a one-tap confirmation after the OEM screen closes.
  */
 @Composable
 internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
     val context = LocalContext.current
     val access = remember(context) { BackgroundAccess(context) }
+    val preferences = remember(context) { OptimizationPreferences(context) }
     var status by remember { mutableStateOf(access.status()) }
+    var autoStartConfirmed by remember { mutableStateOf(preferences.autoStartConfirmed) }
+    var autoStartPrompt by remember { mutableStateOf(false) }
     var showGuide by rememberSaveable { mutableStateOf(false) }
 
-    // Covers returning from the system battery/autostart/notification screens.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    fun refresh() {
         status = access.status()
+        autoStartConfirmed = preferences.autoStartConfirmed
     }
 
-    val appInfoMode = access.prefersAppInfoForBackground()
-    // Only checks the system can actually report are counted, so the summary
-    // never implies that autostart (unreadable by design) is still off.
-    val checks = listOfNotNull(
-        status.batteryOptimizationIgnored,
-        status.backgroundRestricted?.let { !it },
-        status.dataSaverRestricted?.let { !it },
-        status.notificationsEnabled,
-    )
-    val readyCount = checks.count { it }
-    val totalCount = checks.size
-    val allReady = readyCount == totalCount
-    val tint = if (allReady) BrandMint else Warning
-    val autoStartLabel = access.autoStartLabel()
-    val autoStartSubtitle = if (autoStartLabel == "Info aplikasi") {
-        "Buka Info aplikasi → Baterai."
-    } else {
-        "Buka pengaturan $autoStartLabel."
+    fun startSettings(intent: Intent, message: String) {
+        val started = runCatching {
+            context.startActivity(Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.isSuccess
+        onMessage(if (started) message else "Pengaturan tidak bisa dibuka di perangkat ini.")
     }
+
+    fun openAppInfo(message: String) = startSettings(
+        access.appDetailsIntent(),
+        message,
+    )
+
+    fun openNotificationSettings() = startSettings(
+        access.notificationSettingsIntent(),
+        "Buka pengaturan notifikasi Samehadaku DL.",
+    )
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        refresh()
+        // Returning from the OEM autostart screen: ask the one question Android
+        // cannot answer itself.
+        if (preferences.autoStartPending) autoStartPrompt = true
+    }
+
+    val readyCount = listOf(
+        status.batteryOptimizationIgnored,
+        status.notificationsEnabled,
+        autoStartConfirmed,
+    ).count { it }
+    val allReady = readyCount == 3
+    val tint = if (allReady) OptimizeGreen else OptimizeAmber
+    val autoStartLabel = access.autoStartLabel()
+
     SettingSection(
-        title = "Latar belakang & autostart",
-        subtitle = if (appInfoMode) {
-            "Izinkan latar belakang dan autostart"
-        } else {
-            "Agar cek episode baru tidak tertunda"
-        },
+        title = "Optimasi sistem",
+        subtitle = "Agar cek episode, unduhan, dan audio latar tidak ditunda",
         icon = Icons.Rounded.BatterySaver,
         tint = tint,
-        badge = "$readyCount/$totalCount siap",
+        badge = if (allReady) "✓ OPTIMAL (3/3)" else "PERLU ATUR ($readyCount/3)",
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Status izin sistem",
-                    color = TextPrimary,
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    text = if (allReady) {
-                        "Semua status yang bisa dibaca sudah siap."
-                    } else {
-                        "$readyCount dari $totalCount siap. Baris berlabel " +
-                            "“Belum” masih perlu diatur."
-                    },
-                    color = TextMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            StatusPill(
-                text = if (allReady) "Siap" else "Belum lengkap",
-                color = tint,
-            )
-        }
         Text(
-            text = "Periksa ulang",
-            color = BrandAccent,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier
-                .clickable {
-                    status = access.status()
-                    onMessage("Status izin diperbarui.")
-                }
-                .clip(RoundedCornerShape(10.dp))
-                .padding(vertical = 4.dp),
+            text = "Pengaturan ini tidak dipaksakan saat aplikasi pertama dibuka. " +
+                "Aktifkan saat memakai cek episode otomatis, unduhan latar, atau " +
+                "background play. Semua versi Android memakai Info aplikasi sebagai " +
+                "titik awal agar pengaturan bertahan.",
+            color = TextMuted,
+            style = MaterialTheme.typography.bodySmall,
         )
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(4.dp))
 
-        if (appInfoMode) {
-            AccessRow(
-                title = "Izin latar belakang",
-                subtitle = if (status.batteryOptimizationIgnored) {
-                    "Sudah dikecualikan dari optimasi baterai."
-                } else {
-                    "Belum diizinkan; buka Info aplikasi → Baterai."
-                },
-                badge = if (status.batteryOptimizationIgnored) "Sudah" else "Belum",
-                ready = status.batteryOptimizationIgnored,
-                onClick = {
-                    launchTargets(context, access.batteryTargets(), onMessage)
-                    status = access.status()
-                },
-            )
+        OptimizationRow(
+            icon = Icons.Rounded.BatterySaver,
+            title = "Baterai tanpa batas",
+            ready = status.batteryOptimizationIgnored,
+            notReady = "Baterai masih dibatasi sistem",
+            readyText = "Aktivitas latar tidak dibatasi",
+            onConfigure = { openAppInfo("Buka Info aplikasi → Baterai / Penggunaan baterai.") },
+            onRecheck = {
+                refresh()
+                onMessage(
+                    if (status.batteryOptimizationIgnored) {
+                        "Baterai sudah tanpa batas."
+                    } else {
+                        "Baterai masih dibatasi; ikuti panduan di bawah."
+                    },
+                )
+            },
+        )
 
-            AccessRow(
-                title = "Autostart",
-                subtitle = "Diatur manual di Info aplikasi; status tidak bisa dibaca otomatis.",
-                badge = "Manual",
-                badgeColor = TextSecondary,
-                onClick = {
-                    launchTargets(context, access.autoStartTargets(), onMessage)
-                    status = access.status()
-                },
-            )
-        } else {
-            AccessRow(
-                title = "Optimasi baterai",
-                subtitle = if (status.batteryOptimizationIgnored) {
-                    "Sudah dikecualikan; cek tidak mudah ditunda."
-                } else {
-                    "Pilih aplikasi ini di daftar, lalu “Jangan optimalkan”."
-                },
-                badge = if (status.batteryOptimizationIgnored) "Sudah" else "Belum",
-                ready = status.batteryOptimizationIgnored,
-                onClick = {
-                    launchTargets(context, access.batteryTargets(), onMessage)
-                    status = access.status()
-                },
-            )
+        OptimizationRow(
+            icon = Icons.Rounded.NotificationsActive,
+            title = "Notifikasi",
+            ready = status.notificationsEnabled,
+            notReady = if (status.notificationPermissionRequired) {
+                "Izin notifikasi belum diberikan"
+            } else {
+                "Notifikasi diblokir di pengaturan"
+            },
+            readyText = "Episode baru dan unduhan bisa diberitahukan",
+            onConfigure = { openNotificationSettings() },
+            onRecheck = {
+                refresh()
+                onMessage(
+                    if (status.notificationsEnabled) {
+                        "Notifikasi sudah aktif."
+                    } else {
+                        "Notifikasi masih diblokir."
+                    },
+                )
+            },
+        )
 
-            AccessRow(
-                title = "Autostart",
-                subtitle = autoStartSubtitle,
-                badge = "Tidak terbaca",
-                badgeColor = TextSecondary,
-                onClick = {
-                    launchTargets(context, access.autoStartTargets(), onMessage)
-                    status = access.status()
+        OptimizationRow(
+            icon = Icons.Rounded.RocketLaunch,
+            title = "Mulai otomatis (Autostart)",
+            ready = autoStartConfirmed,
+            notReady = "$autoStartLabel belum dikonfirmasi",
+            readyText = "Mulai otomatis sudah dikonfirmasi",
+            onConfigure = {
+                preferences.autoStartPending = true
+                autoStartPrompt = false
+                openAppInfo("Buka Info aplikasi → Autostart / Mulai otomatis.")
+            },
+            onRecheck = {
+                autoStartPrompt = true
+                onMessage("Konfirmasi ulang apakah Autostart sudah aktif.")
+            },
+        )
+
+        if (autoStartPrompt) {
+            Spacer(Modifier.height(6.dp))
+            AutostartConfirmation(
+                onConfirm = {
+                    preferences.autoStartConfirmed = true
+                    preferences.autoStartPending = false
+                    autoStartConfirmed = true
+                    autoStartPrompt = false
+                    onMessage("Autostart dikonfirmasi aktif.")
+                },
+                onDismiss = {
+                    preferences.autoStartPending = false
+                    autoStartPrompt = false
+                    onMessage("Konfirmasi autostart ditunda.")
                 },
             )
         }
 
         if (status.backgroundRestricted == true) {
-            AccessRow(
-                title = "Batasan latar belakang",
-                subtitle = "Aktivitas dibatasi sistem; atur lewat Info aplikasi.",
-                badge = "Dibatasi",
-                ready = false,
-                onClick = {
-                    launchTargets(
-                        context = context,
-                        targets = listOf(
-                            BackgroundAccessTarget(
-                                label = "info aplikasi",
-                                intent = access.appDetailsIntent(),
-                            ),
-                        ),
-                        onMessage = onMessage,
-                    )
-                },
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Sistem juga menandai aktivitas latar dibatasi. Buka Info " +
+                    "aplikasi → Baterai untuk melepasnya.",
+                color = OptimizeAmber,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
-
         if (status.dataSaverRestricted == true) {
-            AccessRow(
-                title = "Hemat data",
-                subtitle = "Data latar belakang dibatasi; cek otomatis bisa tertunda.",
-                badge = "Aktif",
-                ready = false,
-                onClick = {
-                    launchTargets(context, access.dataSaverTargets(), onMessage)
-                    status = access.status()
-                },
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Hemat data membatasi data latar; cek episode otomatis bisa tertunda.",
+                color = OptimizeAmber,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
 
-        if (!status.notificationsEnabled) {
-            AccessRow(
-                title = "Notifikasi",
-                subtitle = if (status.notificationPermissionRequired) {
-                    "Izin belum diberikan; buka pengaturan notifikasi."
-                } else {
-                    "Notifikasi diblokir; buka pengaturan notifikasi."
-                },
-                badge = "Diblokir",
-                ready = false,
-                onClick = {
-                    launchTargets(
-                        context = context,
-                        targets = listOf(
-                            BackgroundAccessTarget(
-                                label = "pengaturan notifikasi",
-                                intent = access.notificationSettingsIntent(),
-                            ),
-                        ),
-                        onMessage = onMessage,
-                    )
-                    status = access.status()
-                },
-            )
-        }
-
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -262,7 +233,7 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Panduan autostart",
+                text = "Panduan sesuai versi Android & perangkat",
                 color = TextSecondary,
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.weight(1f),
@@ -276,14 +247,20 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
         }
         if (showGuide) {
             Text(
-                text = access.guide(),
+                text = access.androidVersionGuide(),
                 color = TextMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Android tetap bisa menunda pemeriksaan saat Doze; aplikasi " +
-                    "menjalankannya lagi saat dibuka.",
+                text = access.oemGuide(),
+                color = TextMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Autostart bawaan pabrik tidak bisa dibaca Android. Status hijau " +
+                    "muncul setelah kamu menekan “Ya, Sudah” pada konfirmasi.",
                 color = TextMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -292,75 +269,139 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
 }
 
 @Composable
-private fun AccessRow(
+private fun OptimizationRow(
+    icon: ImageVector,
     title: String,
-    subtitle: String,
-    badge: String? = null,
-    badgeColor: Color? = null,
-    ready: Boolean = true,
-    onClick: () -> Unit,
+    ready: Boolean,
+    notReady: String,
+    readyText: String,
+    onConfigure: () -> Unit,
+    onRecheck: () -> Unit,
 ) {
+    val tint = if (ready) OptimizeGreen else OptimizeAmber
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(tint.copy(alpha = 0.13f))
+                .border(1.dp, tint.copy(alpha = 0.32f), RoundedCornerShape(11.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (ready) Icons.Rounded.Check else icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 color = TextPrimary,
                 style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = subtitle,
-                color = TextMuted,
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                        append(if (ready) "Sudah disetting" else "Belum disetting")
+                    }
+                    append(" · ")
+                    append(if (ready) readyText else notReady)
+                },
+                color = tint,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        if (badge != null) {
-            Spacer(Modifier.width(8.dp))
-            StatusPill(
-                text = badge,
-                color = badgeColor ?: if (ready) BrandMint else Warning,
-            )
+        Spacer(Modifier.width(8.dp))
+        if (ready) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .clickable(onClick = onRecheck),
+            ) {
+                StatusPill(text = "✓ Aktif", color = OptimizeGreen)
+            }
+        } else {
+            SolidActionButton(text = "Atur →", onClick = onConfigure)
         }
-        Spacer(Modifier.width(4.dp))
-        Icon(
-            imageVector = Icons.Rounded.ChevronRight,
-            contentDescription = null,
-            tint = TextMuted,
-            modifier = Modifier.size(18.dp),
-        )
     }
 }
 
-/**
- * Starts the first target that the ROM accepts. `startActivity` is used instead
- * of resolving components first so Android 11 package visibility does not hide
- * an OEM settings activity that actually exists.
- */
-private fun launchTargets(
-    context: Context,
-    targets: List<BackgroundAccessTarget>,
-    onMessage: (String) -> Unit,
+@Composable
+private fun AutostartConfirmation(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    for (target in targets) {
-        val started = runCatching {
-            context.startActivity(
-                Intent(target.intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(OptimizeGreen.copy(alpha = 0.08f))
+            .border(1.dp, OptimizeGreen.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = "Sudah mengaktifkan Mulai Otomatis?",
+            color = TextPrimary,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "Android tidak bisa membaca sakelar pabrik. Konfirmasi sekali agar " +
+                "status visual di atas akurat.",
+            color = TextMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SolidActionButton(
+                text = "Ya, Sudah ✓",
+                onClick = onConfirm,
+                color = OptimizeGreen,
             )
-        }.isSuccess
-        if (started) {
-            Timber.i("Membuka pengaturan %s", target.label)
-            onMessage("Membuka ${target.label}…")
-            return
+            Text(
+                text = "Nanti",
+                color = TextSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onDismiss)
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+            )
         }
     }
-    Timber.w("Tidak ada pengaturan latar belakang yang bisa dibuka")
-    onMessage(
-        "Pengaturan tidak tersedia di perangkat ini. Buka Info aplikasi secara manual.",
-    )
+}
+
+@Composable
+private fun SolidActionButton(
+    text: String,
+    onClick: () -> Unit,
+    color: Color = OptimizeBlue,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(color)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
 }

@@ -29,9 +29,30 @@ internal class PlayerPreferences(context: Context) {
         get() = preferences.getFloat(KEY_SUBTITLE_BOTTOM, 0f).coerceIn(0f, MAX_SUBTITLE_BOTTOM)
         set(value) = preferences.edit().putFloat(KEY_SUBTITLE_BOTTOM, value).apply()
 
+    var subtitleSyncMs: Long
+        get() = preferences.getLong(KEY_SUBTITLE_SYNC, 0L).coerceIn(-MAX_SUBTITLE_SYNC, MAX_SUBTITLE_SYNC)
+        set(value) = preferences.edit().putLong(KEY_SUBTITLE_SYNC, value).apply()
+
+    var decoderMode: String
+        get() = preferences.getString(KEY_DECODER, "AUTO").orEmpty()
+        set(value) = preferences.edit().putString(KEY_DECODER, value).apply()
+
+    var eqPreset: String
+        get() = preferences.getString(KEY_EQ_PRESET, "NORMAL").orEmpty()
+        set(value) = preferences.edit().putString(KEY_EQ_PRESET, value).apply()
+
+    var loudnessBoost: Int
+        get() = preferences.getInt(KEY_LOUDNESS, 100).coerceIn(100, 150)
+        set(value) = preferences.edit().putInt(KEY_LOUDNESS, value).apply()
+
+    var backgroundPlay: Boolean
+        get() = preferences.getBoolean(KEY_BACKGROUND_PLAY, false)
+        set(value) = preferences.edit().putBoolean(KEY_BACKGROUND_PLAY, value).apply()
+
     private companion object {
-        const val MIN_SPEED = 0.75f
+        const val MIN_SPEED = 0.5f
         const val MAX_SPEED = 2f
+        const val MAX_SUBTITLE_SYNC = 5_000L
         const val MIN_SUBTITLE_SIZE = 0.6f
         const val MAX_SUBTITLE_SIZE = 2.5f
         const val MAX_SUBTITLE_BOTTOM = 0.45f
@@ -39,5 +60,10 @@ internal class PlayerPreferences(context: Context) {
         const val KEY_SPEED = "speed"
         const val KEY_SUBTITLE_SIZE = "subtitle_size"
         const val KEY_SUBTITLE_BOTTOM = "subtitle_bottom"
+        const val KEY_SUBTITLE_SYNC = "subtitle_sync"
+        const val KEY_DECODER = "decoder_mode"
+        const val KEY_EQ_PRESET = "eq_preset"
+        const val KEY_LOUDNESS = "loudness_boost"
+        const val KEY_BACKGROUND_PLAY = "background_play"
     }
 }

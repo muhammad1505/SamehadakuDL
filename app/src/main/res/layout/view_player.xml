@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    TextureView instead of the default SurfaceView: pinch-zoom and pan are applied
-    as view transforms on the video surface, which SurfaceView does not reliably
-    support on every device. The controller is off because the player draws its
-    own Compose controls.
+    TextureView instead of the default SurfaceView so the video composes cleanly
+    with the player's own overlays and Picture-in-Picture. The controller is off
+    because the player draws its own Compose controls and gestures.
 -->
 <androidx.media3.ui.PlayerView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"

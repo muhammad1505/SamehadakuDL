@@ -117,9 +117,10 @@ class BackgroundAccess(context: Context) {
      * reads the result back through PowerManager.
      */
     fun batteryTargets(): List<BackgroundAccessTarget> = buildList {
-        if (legacyColorOsAppInfo) {
-            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
-        }
+        // App info is the one screen every ROM has, and it is the path the
+        // settings panel documents. The battery-list and OEM screens stay as
+        // fallbacks for ROMs that hide battery usage inside another app.
+        add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             add(
                 BackgroundAccessTarget(
@@ -129,9 +130,6 @@ class BackgroundAccess(context: Context) {
             )
         }
         addAll(oemBatteryTargets())
-        if (!legacyColorOsAppInfo) {
-            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
-        }
     }
 
     /**
@@ -141,9 +139,9 @@ class BackgroundAccess(context: Context) {
      * that is where its autostart switch actually lives.
      */
     fun autoStartTargets(): List<BackgroundAccessTarget> = buildList {
-        if (legacyColorOsAppInfo) {
-            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
-        }
+        // All Android versions start at App info; the brand-specific guide
+        // explains which submenu (Autostart, Battery usage, ...) comes next.
+        add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
         addAll(oemAutoStartTargets())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             add(
@@ -152,9 +150,6 @@ class BackgroundAccess(context: Context) {
                     intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
                 ),
             )
-        }
-        if (!legacyColorOsAppInfo) {
-            add(BackgroundAccessTarget("info aplikasi", appDetailsIntent()))
         }
     }
 
@@ -214,53 +209,56 @@ class BackgroundAccess(context: Context) {
         else -> "Info aplikasi"
     }
 
-    /** Short OEM-specific steps, with a general fallback for other devices. */
-    fun guide(): String = when {
-        legacyColorOsAppInfo ->
-            "Buka Info aplikasi Samehadaku DL → Baterai, lalu izinkan aktivitas " +
-                "latar belakang. Di halaman Info aplikasi yang sama, buka Autostart/" +
-                "Manajemen peluncuran otomatis dan izinkan Samehadaku DL."
+    /**
+     * Steps that depend on the Android version. App info is the common entry
+     * point on purpose: the direct "ignore optimizations" dialog can be reset
+     * by OEM battery managers, while the App info switches are permanent.
+     */
+    fun androidVersionGuide(): String = when {
+        Build.VERSION.SDK_INT >= 34 ->
+            "Android 14–16+: buka Info aplikasi → Penggunaan baterai aplikasi → " +
+                "Tidak dibatasi. Periksa juga izin notifikasi, lalu aktifkan Autostart OEM."
 
-        matches("xiaomi", "redmi", "poco") ->
-            "Di MIUI/HyperOS buka Keamanan → Autostart, aktifkan Samehadaku DL, " +
-                "lalu pilih Baterai → Tanpa batasan."
-
-        matches("huawei", "honor") ->
-            "Buka Pengelola Telepon → Peluncuran aplikasi, matikan pengelolaan otomatis " +
-                "untuk Samehadaku DL, lalu izinkan aktivitas latar belakang."
-
-        matches("oppo", "realme", "oneplus") ->
-            "Buka Baterai → Optimasi baterai → Samehadaku DL → Jangan optimalkan. " +
-                "Aktifkan juga Izinkan aktivitas latar belakang dan Auto-start."
-
-        matches("vivo", "iqoo") ->
-            "Buka iManager → Pengelolaan aplikasi → Autostart, aktifkan Samehadaku DL, " +
-                "lalu izinkan latar belakang daya tinggi."
-
-        matches("samsung") ->
-            "Buka Perawatan perangkat → Baterai → Batas penggunaan latar belakang, " +
-                "lalu tambahkan Samehadaku DL ke aplikasi yang tidak pernah tidur."
-
-        matches("asus") ->
-            "Buka Mobile Manager → PowerMaster → Auto-start Manager, " +
-                "izinkan Samehadaku DL berjalan di latar belakang."
-
-        matches("infinix", "tecno", "itel") ->
-            "Buka Phone Master → Autostart, izinkan Samehadaku DL, lalu aktifkan " +
-                "Power Marathon untuk aktivitas latar belakang."
-
-        matches("nokia", "hmd") ->
-            "Buka Power Saver → Exception list, lalu tambahkan Samehadaku DL."
-
-        matches("meizu") ->
-            "Buka Keamanan → Izin → Autostart, lalu izinkan Samehadaku DL."
-
-        matches("letv") ->
-            "Buka Letv Safe → Autoboot, lalu izinkan Samehadaku DL."
+        Build.VERSION.SDK_INT >= 31 ->
+            "Android 12–13: buka Info aplikasi → Penggunaan baterai aplikasi → Tidak dibatasi."
 
         else ->
-            "Buka Info aplikasi → Baterai → Jangan optimalkan/Tanpa batasan. Jika " +
-                "perangkat punya pengelola autostart, izinkan Samehadaku DL di sana."
+            "Android 6–11: buka Info aplikasi → Baterai/Daya → izinkan aktivitas " +
+                "latar belakang, lalu pilih Jangan optimalkan."
+    }
+
+    /** Brand-specific menu names shown after App info is open. */
+    fun oemGuide(): String = when {
+        matches("xiaomi", "redmi", "poco") ->
+            "Xiaomi/Redmi/POCO (MIUI/HyperOS): Penghemat Baterai → Tidak Dibatasi, " +
+                "lalu aktifkan Mulai Otomatis (Autostart)."
+
+        matches("samsung") ->
+            "Samsung (One UI): Baterai → Tidak Dibatasi agar tidak masuk Deep Sleeping Apps."
+
+        matches("oppo", "realme") ->
+            "OPPO/Realme (ColorOS): Penggunaan Baterai → Izinkan Aktivitas Latar " +
+                "Belakang dan Peluncuran Otomatis."
+
+        matches("vivo", "iqoo") ->
+            "Vivo/iQOO (FuntouchOS): Baterai → Penggunaan Daya Latar Belakang Tinggi."
+
+        matches("oneplus") ->
+            "OnePlus (OxygenOS): Baterai → Tidak Dibatasi, lalu izinkan peluncuran otomatis."
+
+        matches("huawei", "honor") ->
+            "Huawei/Honor: Baterai → Peluncuran aplikasi, izinkan Samehadaku DL " +
+                "berjalan otomatis di latar belakang."
+
+        matches("asus") ->
+            "ASUS (Mobile Manager): PowerMaster → Auto-start Manager, izinkan Samehadaku DL."
+
+        matches("infinix", "tecno", "itel") ->
+            "Infinix/Tecno/itel: Baterai → Penggunaan daya latar belakang tinggi, " +
+                "lalu izinkan Autostart."
+
+        else ->
+            "Perangkat lain/Stock Android: Baterai → Tidak Dibatasi atau Jangan Optimalkan."
     }
 
     private fun oemBatteryTargets(): List<BackgroundAccessTarget> = buildList {
