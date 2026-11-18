@@ -20,9 +20,12 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Aksi terpisah untuk membersihkan riwayat (file tetap ada) dan menghapus file permanen,
   masing-masing dengan konfirmasi.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
+- Pemutar internal Media3/ExoPlayer dengan resume posisi tonton dan tanda tonton
+  otomatis setelah 90% video diputar; pemutar eksternal tetap tersedia dari menu folder.
 - Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
   otomatis setelah masa tenggang 1/3/7/14 hari, atau langsung lewat tombol manual
-  dengan konfirmasi.
+  dengan konfirmasi. Batas penyimpanan 5/10/20 GB dapat diaktifkan, dan layar
+  “Kelola episode” menampilkan alasan file yang tertahan agar bisa ditindaklanjuti.
 - Panel latar belakang & autostart yang menyesuaikan Android dan OEM agar cek episode
   otomatis tidak mudah ditunda.
 - Sesi Cloudflare dengan WebView verifikasi, reset sesi, dan verifikasi ulang otomatis.
@@ -325,6 +328,26 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   yang tidak bisa ditandai tonton bisa diperiksa langsung dari ponsel.
 - Penghapusan dari folder SAF pilihan kini juga menangani file di dalam subfolder
   `SamehadakuDL`, bukan hanya folder anime di level teratas.
+
+## Rilis 2.7.0
+
+- Menambahkan pemutar internal berbasis Media3/ExoPlayer sebagai cara default membuka
+  episode dari Koleksi. Posisi tonton disimpan dan dilanjutkan otomatis, dan episode
+  ditandai tonton setelah 90% video benar-benar diputar. Menu folder tetap menyediakan
+  “Putar dengan aplikasi lain”.
+- Menghitung waktu tonton pemutar eksternal per sesi dan mengakumulasikannya, sehingga
+  jeda panjang atau menonton dalam dua kesempatan tidak menghapus progres. Hanya episode
+  terakhir yang dilacak, dan sesi yang jauh melebihi durasi video diabaikan.
+- Menambahkan layar “Kelola episode” untuk melihat tanda tonton, jatuh tempo, playback
+  yang sedang dilacak, serta file yang tertahan karena ukuran berubah, menunggu
+  konfirmasi penyimpanan, atau ditolak. Setiap file bisa dihapus atau dibatalkan
+  satu per satu.
+- Menampilkan notifikasi hasil pembersihan latar belakang dengan ringkasan jumlah file,
+  ruang yang kembali, dan file yang tertahan. Menyentuh notifikasi membuka layar Smart
+  Storage; mengaktifkan fitur juga langsung memicu pemeriksaan susulan.
+- Menambahkan batas penyimpanan opsional (tanpa batas, 5, 10, atau 20 GB). Jika total
+  episode tonton melebihi batas, episode tertua dihapus lebih awal; default tetap
+  tanpa batas.
 
 ## Penyimpanan dan izin
 
