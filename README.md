@@ -395,10 +395,11 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Panel “Latar belakang & autostart” kini menampilkan ringkasan “x/y siap” dan status
   per baris (“Sudah”/“Belum”) yang dibaca ulang setiap kembali ke layar ini, ditambah
   tombol “Periksa ulang”, sehingga jelas apakah pengecualian baterai sudah disetel.
-- Mengembalikan izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` untuk alur yang dimulai
-  pengguna: mengetuk baris optimasi baterai kembali membuka dialog sistem “Jangan
-  optimalkan” yang hasilnya bisa dibaca ulang. Daftar optimasi dan Info aplikasi tetap
-  menjadi cadangan bila ROM tidak menyediakan dialog tersebut.
+- Pengecualian baterai disetel manual oleh pengguna: baris “Optimasi baterai”
+  membuka daftar optimasi sistem, lalu pengguna memilih Samehadaku DL dan “Jangan
+  optimalkan”. Aplikasi tidak memakai izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
+  yang dibatasi Google Play dan memicu peringatan Play Protect pada APK sideload,
+  serta tidak pernah meminta pengecualian otomatis.
 - Baris Autostart kini berlabel “Tidak terbaca” karena Android tidak menyediakan API
   untuk membaca status autostart; pengguna tetap diarahkan ke pengelola OEM terkait.
 - Menyesuaikan alur Realme/Oppo ColorOS lama agar tetap membuka Info aplikasi,
@@ -406,15 +407,6 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Pemutar internal menambahkan kontrol kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh,
   penyembunyian system bar selama pemutaran, serta pesan kegagalan pemutaran yang
   menyediakan tombol “Coba lagi” tanpa harus keluar dari video.
-
-## Rilis 2.7.4
-
-- Menghapus izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` yang membuat Play Protect
-  menandai APK sideload sebagai berbahaya. Pengecualian baterai kini disetel manual
-  oleh pengguna dari daftar optimasi sistem, sementara status “Sudah”/“Belum” tetap
-  dibaca ulang otomatis.
-- Memperjelas baris optimasi baterai: pengguna diarahkan memilih aplikasi ini di
-  daftar lalu menekan “Jangan optimalkan”.
 
 ## Penyimpanan dan izin
 
