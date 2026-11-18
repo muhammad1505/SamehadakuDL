@@ -364,18 +364,6 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Mencatat jadwal pembersihan Smart Storage hanya ketika WorkManager benar-benar
   memasang ulang jadwalnya.
 
-## Rilis 2.7.3
-
-- Memastikan notifikasi hasil unduhan benar-benar menggantikan notifikasi progres:
-  kartu progres dihapus lebih dulu, lalu kartu selesai dipasang, sehingga keduanya
-  tidak pernah tampil bersamaan.
-- Menghapus laporan selesai dari sesi sebelumnya saat sesi unduhan baru dimulai.
-- Membedakan status panel latar belakang: izin latar belakang menampilkan
-  Aman/Batasi berdasarkan status sistem, sedangkan Autostart diberi label Manual
-  karena Android tidak menyediakan cara membacanya otomatis.
-- Menyesuaikan alur Realme/Oppo ColorOS lama agar tetap membuka Info aplikasi,
-  dengan baris izin latar belakang dan autostart yang terpisah.
-
 ## Rilis 2.7.2
 
 - Menyatukan notifikasi unduhan menjadi satu alur dengan satu ID: progres, dijeda,
@@ -398,8 +386,12 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   latar belakang dan autostart berada di sana. Perangkat lain tetap memakai layar
   baterai atau pengelola autostart OEM yang sesuai.
 
-## Rilis 2.7.4
+## Rilis 2.7.3
 
+- Memastikan notifikasi hasil unduhan benar-benar menggantikan notifikasi progres:
+  kartu progres dihapus lebih dulu, lalu kartu selesai dipasang, sehingga keduanya
+  tidak pernah tampil bersamaan.
+- Menghapus laporan selesai dari sesi sebelumnya saat sesi unduhan baru dimulai.
 - Panel “Latar belakang & autostart” kini menampilkan ringkasan “x/y siap” dan status
   per baris (“Sudah”/“Belum”) yang dibaca ulang setiap kembali ke layar ini, ditambah
   tombol “Periksa ulang”, sehingga jelas apakah pengecualian baterai sudah disetel.
@@ -409,6 +401,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   menjadi cadangan bila ROM tidak menyediakan dialog tersebut.
 - Baris Autostart kini berlabel “Tidak terbaca” karena Android tidak menyediakan API
   untuk membaca status autostart; pengguna tetap diarahkan ke pengelola OEM terkait.
+- Menyesuaikan alur Realme/Oppo ColorOS lama agar tetap membuka Info aplikasi,
+  dengan baris izin latar belakang dan autostart yang terpisah.
 - Pemutar internal menambahkan kontrol kecepatan 0.75x–2x, mode layar Pas/Zoom/Penuh,
   penyembunyian system bar selama pemutaran, serta pesan kegagalan pemutaran yang
   menyediakan tombol “Coba lagi” tanpa harus keluar dari video.
