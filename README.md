@@ -25,7 +25,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
   setelah 90% video, playlist episode otomatis, kecepatan 0.5x–2x, mode layar
   FIT/ZOOM/FILL, siklus decoder Auto/HW/SW, Picture-in-Picture, pemutar langsung
-  terbuka dalam landscape lalu rotasi mengikuti sensor dan kunci rotasi sistem, gesture
+  terbuka singkat dalam landscape lalu rotasi mengikuti arah HP (portrait maupun
+  landscape) dan kunci rotasi sistem, gesture
   kecerahan/volume/scrub, smart screen lock,
   sleep timer, equalizer + loudness boost, serta mode “Jangan ganggu” selama menonton.
   Background play memakai MediaSessionService foreground dengan kontrol di
@@ -541,6 +542,16 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   dan rasio PiP ekstrem dijepit ke rentang yang didukung Android.
 - Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
   notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
+
+## Rilis 2.7.11
+
+- Rotasi pemutar sekarang sepenuhnya mengikuti pengguna. Landscape hanya dipakai
+  sebagai pembuka singkat (±1,5 detik) saat episode diputar, lalu orientasi
+  diserahkan ke sensor dan kunci rotasi sistem: memutar HP ke tegak langsung
+  membuat pemutar portrait, memutar ke samping kembali penuh landscape, berulang
+  sebanyak yang diinginkan tanpa menutup pemutar. Sebelumnya pemutar bertahan
+  landscape selama HP belum pernah diputar ke samping, sehingga HP yang sejak awal
+  dipegang tegak tidak pernah bisa portrait.
 
 ## Rilis 2.7.10
 

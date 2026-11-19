@@ -9,7 +9,6 @@ import android.content.res.Configuration
 import android.media.AudioManager
 import android.net.Uri
 import android.view.LayoutInflater
-import android.view.OrientationEventListener
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -226,6 +225,9 @@ private data class AudioOption(
 )
 
 private enum class DragAxis { NONE, SEEK, BRIGHTNESS, VOLUME }
+
+/** How long the landscape entrance holds before rotation follows the sensor. */
+private const val LANDSCAPE_START_MS = 1_500L
 
 /**
  * Full-screen internal player.
@@ -947,50 +949,34 @@ fun PlayerScreen(
         }
     }
 
-    // Playback is a cinematic surface: the player opens in landscape instead of
-    // waiting for the phone to be turned. A phone held upright keeps the whole
-    // app upright with USER, which is why the old request never produced the
-    // landscape start the user expects. Once the phone has been watched in
-    // landscape and is then turned upright again, rotation goes back to USER so
-    // the sensor and the system rotation lock decide (portrait video, episode
-    // list, or a device whose rotation is locked). SENSOR used to ignore that
-    // lock for the whole session.
-    var landscapeStartDone by rememberSaveable { mutableStateOf(false) }
+    // Playback is a cinematic surface, so the player opens in landscape instead
+    // of waiting for the phone to be turned. That entrance is deliberately
+    // short-lived: after a moment rotation goes back to USER, which follows the
+    // sensor in both directions (portrait <-> landscape) and still honours the
+    // system rotation lock. The player therefore adapts to however the user is
+    // holding the phone instead of pinning one orientation for the session.
+    var rotationHandedOff by rememberSaveable { mutableStateOf(false) }
     DisposableEffect(activity) {
         val previous = activity?.requestedOrientation
-        if (landscapeStartDone) {
-            // Theme/locale recreations must not snap a portrait session back
-            // into landscape; only the first open gets the cinematic start.
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
-        } else {
-            landscapeStartDone = true
-            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        // A theme/locale recreation during the entrance must not restart it;
+        // once handed off, USER (already set on this activity) stays in charge.
+        if (!rotationHandedOff) {
+            activity?.requestedOrientation =
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
-        val rotationWatcher = object : OrientationEventListener(context) {
-            private var watchedLandscape = false
-
-            override fun onOrientationChanged(angle: Int) {
-                if (angle == OrientationEventListener.ORIENTATION_UNKNOWN) return
-                val heldLandscape = angle in 45..135 || angle in 225..315
-                when {
-                    heldLandscape -> watchedLandscape = true
-                    // Only hand over after the user actually watched in
-                    // landscape, so a phone lying in portrait keeps the
-                    // landscape start instead of snapping back immediately.
-                    watchedLandscape -> {
-                        activity?.requestedOrientation =
-                            ActivityInfo.SCREEN_ORIENTATION_USER
-                        disable()
-                    }
-                }
-            }
-        }
-        if (rotationWatcher.canDetectOrientation()) rotationWatcher.enable()
         onDispose {
-            rotationWatcher.disable()
             activity?.requestedOrientation =
                 previous ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
+    }
+
+    LaunchedEffect(activity) {
+        if (rotationHandedOff) return@LaunchedEffect
+        // Long enough to read as a landscape start, short enough that a phone
+        // held upright returns to portrait almost immediately.
+        delay(LANDSCAPE_START_MS)
+        rotationHandedOff = true
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
     }
 
     val orientation = LocalConfiguration.current.orientation
