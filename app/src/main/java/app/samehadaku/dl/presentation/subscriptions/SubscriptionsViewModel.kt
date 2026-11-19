@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.samehadaku.dl.core.SessionStore
 import app.samehadaku.dl.core.UrlUtils
+import app.samehadaku.dl.data.autocheck.AutoCheckGate
 import app.samehadaku.dl.data.download.DownloadQueue
 import app.samehadaku.dl.data.network.NeedsVerificationException
 import app.samehadaku.dl.data.repository.AnimeCoverRepository
@@ -204,6 +205,15 @@ class SubscriptionsViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            // A background worker may be checking the same subscriptions right
+            // now. Running both would double every request; let the foreground
+            // action bow out and tell the user instead.
+            if (!AutoCheckGate.tryEnter()) {
+                _state.update {
+                    it.copy(message = "Pemeriksaan lain sedang berjalan. Tunggu sampai selesai.")
+                }
+                return@launch
+            }
             _state.update {
                 it.copy(
                     checking = true,
@@ -225,6 +235,9 @@ class SubscriptionsViewModel @Inject constructor(
                         )
                     }
                 }
+                // This check already covered the interval, so returning to the
+                // app must not immediately enqueue the same work again.
+                settings.setLastAutoCheckAt(System.currentTimeMillis())
                 val resolved = resolveQuality(result)
                 val hasNewEpisodes = result.checks.isNotEmpty()
                 _state.update {
@@ -261,6 +274,8 @@ class SubscriptionsViewModel @Inject constructor(
                         message = error.message ?: "Gagal memeriksa langganan.",
                     )
                 }
+            } finally {
+                AutoCheckGate.exit()
             }
         }
     }

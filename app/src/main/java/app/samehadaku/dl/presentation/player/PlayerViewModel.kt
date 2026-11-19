@@ -250,7 +250,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private companion object {
-        const val POSITION_SAVE_INTERVAL_MS = 5_000L
+        const val POSITION_SAVE_INTERVAL_MS = 10_000L
         const val WATCHED_RATIO = 0.9
 
         /** Downloads are named `<episode-slug>_<format>_<resolution>.ext`. */

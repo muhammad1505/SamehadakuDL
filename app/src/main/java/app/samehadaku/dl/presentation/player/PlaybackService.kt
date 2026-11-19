@@ -25,7 +25,7 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(this).apply {
-                setSmallIcon(R.drawable.ic_stat_download)
+                setSmallIcon(R.drawable.ic_stat_player)
             },
         )
         val player = PlaybackEngine.playerForService(this)

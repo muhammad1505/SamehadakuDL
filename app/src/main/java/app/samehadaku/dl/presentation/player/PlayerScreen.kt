@@ -371,9 +371,11 @@ fun PlayerScreen(
         subtitleCues = emptyList()
         subtitleMode = SubtitleMode.AUTO
         selectedEmbeddedSubtitle = null
-        // The old media item's text override cannot apply to the next file.
+        selectedAudio = null
+        // The old media item's track overrides cannot apply to the next file.
         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
             .build()
         controlsVisible = true
@@ -393,8 +395,14 @@ fun PlayerScreen(
         // so the new player picks the embedded track again.
         if (subtitleMode == SubtitleMode.EMBEDDED) {
             subtitleMode = SubtitleMode.AUTO
-            selectedEmbeddedSubtitle = null
         }
+        // Track groups belong to the old player, so the lists start empty on the
+        // replacement instead of offering stale selections.
+        selectedEmbeddedSubtitle = null
+        selectedAudio = null
+        audioOptions = emptyList()
+        embeddedSubtitles = emptyList()
+        videoHeights = emptyList()
         val next = decoderMode.next()
         decoderMode = next
         preferences.decoderMode = next.name
@@ -640,6 +648,14 @@ fun PlayerScreen(
         autoNextCancelled = false
         exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
         exoPlayer.prepare()
+        // The video quality cap is part of the player's track parameters, so a
+        // decoder switch builds a fresh player without it. Reapply after the new
+        // media item is in place to keep the chosen resolution.
+        if (qualityHeight > 0) {
+            exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters.buildUpon()
+                .setMaxVideoSize(Int.MAX_VALUE, qualityHeight)
+                .build()
+        }
         if (resume > 0L) exoPlayer.seekTo(resume)
         // Switching decoder while paused must not start the video again.
         exoPlayer.playWhenReady = pendingPlayWhenReady ?: true
@@ -715,18 +731,33 @@ fun PlayerScreen(
 
     LaunchedEffect(exoPlayer) {
         while (true) {
-            durationMs = exoPlayer.duration.coerceAtLeast(0L)
-            bufferedMs = exoPlayer.bufferedPosition.coerceAtLeast(0L)
-            if (!scrubbing) positionMs = exoPlayer.currentPosition
-            if (exoPlayer.isPlaying) {
+            val playing = exoPlayer.isPlaying
+            val visible = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) ||
+                PlayerPip.inPip
+            // The screen can stay composed while the app is in the background
+            // with background play, or while the screen is off. Updating the HUD
+            // three times a second there only wakes the main thread; positions are
+            // still saved below so resuming stays accurate.
+            if (visible) {
+                durationMs = exoPlayer.duration.coerceAtLeast(0L)
+                bufferedMs = exoPlayer.bufferedPosition.coerceAtLeast(0L)
+                if (!scrubbing) positionMs = exoPlayer.currentPosition
+            }
+            if (playing) {
                 viewModel.onPosition(
                     positionMs = exoPlayer.currentPosition,
-                    durationMs = durationMs,
+                    durationMs = exoPlayer.duration.coerceAtLeast(0L),
                 )
             }
-            // Subtitles need a finer clock; without them a slower poll keeps
-            // the whole screen from recomposing ten times a second.
-            delay(if (subtitleCues.isNotEmpty()) 100 else 300)
+            // Subtitles need a finer clock while the video is on screen; nothing
+            // needs ten updates per second once it is hidden.
+            delay(
+                when {
+                    !visible -> 1_000L
+                    subtitleCues.isNotEmpty() -> 100L
+                    else -> 300L
+                },
+            )
         }
     }
 
@@ -884,10 +915,14 @@ fun PlayerScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         viewModel.onStop(exoPlayer.currentPosition)
         // Background play keeps audio running; without it the video pauses as
-        // soon as the app leaves the foreground.
-        if (!backgroundPlay) exoPlayer.pause()
-        dnd.release()
-        dndActive = false
+        // soon as the app leaves the foreground. Picture-in-Picture also reports
+        // ON_STOP on some ROMs while its window is still visible, so keep playing
+        // there regardless of the background setting.
+        if (!backgroundPlay && !PlayerPip.inPip) exoPlayer.pause()
+        if (!PlayerPip.inPip) {
+            dnd.release()
+            dndActive = false
+        }
     }
 
     // Sleep timer: Off -> 15 -> 30 -> 60 minutes.
@@ -942,13 +977,16 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
                     (LayoutInflater.from(ctx).inflate(R.layout.view_player, null) as PlayerView).apply {
-                        setKeepScreenOn(true)
                         player = exoPlayer
                     }
                 },
                 update = { playerView ->
                     playerView.player = exoPlayer
                     playerView.resizeMode = resizeMode
+                    // Only hold the display awake while something is actually
+                    // moving. The unconditional keepScreenOn flag kept the panel
+                    // lit after a pause or when the episode had ended.
+                    playerView.keepScreenOn = isPlaying || buffering
                 },
             )
         }
@@ -1090,8 +1128,10 @@ fun PlayerScreen(
                 )
             }
 
-            // Zone 1: top bar, at most three icons on the right.
-            if (controlsVisible && state.uri != null && !ended && !locked) {
+            // Zone 1: top bar, at most three icons on the right. It stays on the
+            // end card too so back/playlist/PiP remain reachable with the system
+            // bars hidden.
+            if (controlsVisible && state.uri != null && !locked) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1299,8 +1339,12 @@ fun PlayerScreen(
                             color = Color.White,
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            // Let the time shrink on narrow screens instead of
+                            // pushing the four pills and the settings button
+                            // outside the row.
+                            modifier = Modifier.weight(1f),
                         )
-                        Spacer(Modifier.weight(1f))
                         // Hardsub files carry no text track, so the button has to
                         // stay available: it is also where an external file loads.
                         StateIconButton(
@@ -1406,28 +1450,37 @@ fun PlayerScreen(
                             style = MaterialTheme.typography.labelMedium,
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GlassButton(
-                            text = "Putar ulang",
-                            icon = Icons.Rounded.Replay,
-                            onClick = ::replay,
-                            height = 38.dp,
-                        )
-                        if (state.hasNext) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GlassButton(
-                                text = "Putar sekarang",
-                                icon = Icons.Rounded.SkipNext,
-                                onClick = { openEntry(state.index + 1) },
-                                tint = BrandMint,
+                                text = "Putar ulang",
+                                icon = Icons.Rounded.Replay,
+                                onClick = ::replay,
                                 height = 38.dp,
                             )
+                            if (state.hasNext) {
+                                GlassButton(
+                                    text = "Putar sekarang",
+                                    icon = Icons.Rounded.SkipNext,
+                                    onClick = { openEntry(state.index + 1) },
+                                    tint = BrandMint,
+                                    height = 38.dp,
+                                )
+                            }
+                        }
+                        if (state.hasNext) {
+                            // Kept on its own line so the three actions never
+                            // run past the card on a 320dp-wide phone.
                             GlassButton(
                                 text = "Batal",
                                 onClick = {
                                     autoNextCancelled = true
                                     autoNextCountdown = -1
                                 },
-                                height = 38.dp,
+                                height = 32.dp,
                             )
                         }
                     }

@@ -487,6 +487,30 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   aplikasi kembali ke depan, dan kartu pengingat hanya muncul kontekstual saat
   Background play diaktifkan.
 
+## Rilis 2.7.8
+
+- Cek episode otomatis tidak lagi berjalan ganda. Pemicu saat aplikasi dibuat
+  dihapus (cek saat kembali ke depan sudah cukup), antrean “Cek sekarang”
+  memakai `KEEP` sehingga tidak membatalkan cek yang sedang berjalan, dan worker
+  periodik serta manual berbagi satu gerbang proses. Pemeriksaan kedua langsung
+  selesai tanpa mengulang gelombang “Detect episodes”. Tombol “Periksa” di
+  Langganan memakai gerbang yang sama dan mencatat waktu cek, jadi kembali ke
+  aplikasi tidak langsung memicu pemeriksaan yang sama lagi.
+- Saat perangkat offline atau DNS gagal, waktu percobaan tetap dicatat. Membuka
+  aplikasi berulang kali tidak lagi memicu deretan percobaan DNS baru; WorkManager
+  periodik tetap mencoba lagi sesuai interval, dan tombol “Cek sekarang” tersedia
+  setelah koneksi kembali.
+- Pemutar lebih hemat baterai: layar tidak lagi terus menyala saat video dijeda
+  atau sudah berakhir (layar hanya ditahan selama putar atau buffering singkat),
+  dan UI pemutar berhenti memperbarui posisi tiga kali per detik saat aplikasi
+  berada di latar belakang. Posisi tonton disimpan tiap 10 detik, bukan 5 detik.
+- Audio latar lebih andal: ExoPlayer memegang wake lock lokal hanya selama
+  pemutaran, sehingga layar mati tidak menghentikan dekode file yang sudah
+  diunduh. Masuk PiP tidak lagi dijeda oleh `ON_STOP` pada ROM yang memanggilnya,
+  dan rasio PiP ekstrem dijepit ke rentang yang didukung Android.
+- Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
+  notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
+
 ## Rilis 2.7.7
 
 - Kontrol pemutar kini berupa pill berlabel pendek yang menyatu dengan ikonnya

@@ -51,6 +51,15 @@ class AutoCheckWorker(
         val settings = entry.settings()
         if (!settings.currentAutoCheckEnabled()) return Result.success()
 
+        // The periodic worker and the one-off resume/manual worker are separate
+        // WorkManager chains, so both can start at once. Let the first one do the
+        // real check and make the duplicate leave the timestamp and notifications
+        // to it instead of repeating every request.
+        if (!AutoCheckGate.tryEnter()) {
+            Timber.d("Auto check already running; duplicate request skipped")
+            return Result.success()
+        }
+
         // Cloudflare cookies live in DataStore; restore them for a cold process.
         runCatching { entry.cloudflareSession().restore() }
 
@@ -78,8 +87,12 @@ class AutoCheckWorker(
             entry.notifier().notifyVerificationNeeded()
             Result.success()
         } catch (offline: NetworkUnavailableException) {
-            // The check aborted because no known host could be resolved. Leave the
-            // last-check timestamp alone so the next run/app open retries sooner.
+            // Count the attempt even when no host could be resolved. Leaving the
+            // old timestamp in place made every app resume enqueue another check,
+            // which repeated the DNS timeouts and drained the battery while the
+            // phone was offline. Periodic work still retries on its own schedule
+            // and the user can press "Cek sekarang" after reconnecting.
+            settings.setLastAutoCheckAt(System.currentTimeMillis())
             Timber.w("Auto check skipped: %s", offline.message)
             Result.success()
         } catch (error: Exception) {
@@ -87,6 +100,8 @@ class AutoCheckWorker(
             // catches setup errors. Do not retry aggressively in the background.
             Timber.w(error, "Auto check failed")
             Result.success()
+        } finally {
+            AutoCheckGate.exit()
         }
     }
 

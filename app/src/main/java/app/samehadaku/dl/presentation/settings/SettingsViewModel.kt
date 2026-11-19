@@ -309,7 +309,11 @@ class SettingsViewModel @Inject constructor(
 
     fun runAutoCheckNow() {
         autoCheckScheduler.runNow()
-        _state.update { it.copy(message = "Cek episode baru dijalankan di latar belakang.") }
+        _state.update {
+            it.copy(
+                message = "Cek episode diminta. Pemeriksaan yang sedang berjalan tidak diulang.",
+            )
+        }
     }
 
     /** Re-reads the persisted session when the screen becomes visible again. */

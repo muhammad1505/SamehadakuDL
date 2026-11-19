@@ -51,8 +51,8 @@ class SamehadakuApp : Application() {
             // Smart Storage cleanup is separate from the network check: it only
             // touches files the user opted in to remove.
             runCatching { smartStorageScheduler.sync() }
-            // Some OEMs freeze WorkManager; catch up when the user opens the app.
-            runCatching { autoCheckScheduler.runNowIfDue() }
+            // The due check runs from MainActivity's ON_RESUME. Doing it here as
+            // well made a cold start enqueue the same check twice.
         }
     }
 }

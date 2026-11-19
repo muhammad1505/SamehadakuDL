@@ -119,6 +119,7 @@ internal object PlaybackEngine {
     }
 }
 
+@OptIn(UnstableApi::class)
 internal fun buildPlayer(context: Context, mode: DecoderMode): ExoPlayer =
     ExoPlayer.Builder(context, buildRenderers(context, mode)).build().apply {
         setAudioAttributes(
@@ -129,6 +130,10 @@ internal fun buildPlayer(context: Context, mode: DecoderMode): ExoPlayer =
             true,
         )
         setHandleAudioBecomingNoisy(true)
+        // The files are local, so a local wake lock is enough to keep background
+        // audio decoding while the screen is off. It is only held during playback
+        // and is released on pause/stop.
+        setWakeMode(C.WAKE_MODE_LOCAL)
     }
 
 @OptIn(UnstableApi::class)

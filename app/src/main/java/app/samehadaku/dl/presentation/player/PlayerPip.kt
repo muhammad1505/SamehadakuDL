@@ -25,9 +25,16 @@ internal object PlayerPip {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (target.isInPictureInPictureMode) return
         val ratio = aspectRatio.takeIf { it.isFinite() && it > 0f } ?: (16f / 9f)
+        // Android rejects PiP aspect ratios outside 0.418..2.39. A vertical clip
+        // or an ultrawide file would otherwise make enterPictureInPictureMode
+        // throw and the PiP button would silently do nothing.
+        val clamped = ratio.coerceIn(MIN_ASPECT_RATIO, MAX_ASPECT_RATIO)
         val params = PictureInPictureParams.Builder()
-            .setAspectRatio(Rational((ratio * 1000).toInt(), 1000))
+            .setAspectRatio(Rational((clamped * 1000).toInt(), 1000))
             .build()
         runCatching { target.enterPictureInPictureMode(params) }
     }
+
+    private const val MIN_ASPECT_RATIO = 0.42f
+    private const val MAX_ASPECT_RATIO = 2.39f
 }

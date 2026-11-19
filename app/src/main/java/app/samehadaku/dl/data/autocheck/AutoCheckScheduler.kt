@@ -71,9 +71,16 @@ class AutoCheckScheduler @Inject constructor(
     }
 
     /**
-     * One-off run used by the "Cek sekarang" button; replaces a pending manual run.
-     * Expedited so the check starts immediately instead of waiting for a maintenance
-     * window, which is why it previously looked like nothing happened until later.
+     * One-off run used by the "Cek sekarang" button and the due check on resume.
+     * KEEP is deliberate: a resume and a manual tap can land together, and
+     * REPLACE used to cancel the running worker only to start the same check
+     * again. That is what produced two waves of "Detect episodes" in the log and
+     * wasted bandwidth/battery. Finished work does not block a fresh run, so the
+     * button still starts a new check afterwards.
+     *
+     * Expedited so the check starts immediately instead of waiting for a
+     * maintenance window; if the quota is exhausted WorkManager falls back to a
+     * normal request instead of dropping the check.
      */
     fun runNow() {
         val request = OneTimeWorkRequestBuilder<AutoCheckWorker>()
@@ -82,7 +89,7 @@ class AutoCheckScheduler @Inject constructor(
             .addTag(NOW_TAG)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
-        workManager.enqueueUniqueWork(NOW_WORK, ExistingWorkPolicy.REPLACE, request)
+        workManager.enqueueUniqueWork(NOW_WORK, ExistingWorkPolicy.KEEP, request)
     }
 
     /**
