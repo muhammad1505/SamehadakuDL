@@ -457,6 +457,11 @@ fun SettingsScreen(
                 } else {
                     "belum pernah"
                 }
+                val lastSucceeded = if (state.lastAutoCheckSuccessAt > 0L) {
+                    shortDateTime(state.lastAutoCheckSuccessAt)
+                } else {
+                    "belum pernah"
+                }
                 SettingSection(
                     title = "Cek otomatis",
                     subtitle = "Episode baru dari anime yang diikuti",
@@ -526,10 +531,12 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.height(9.dp))
                         Caption(
-                            "Terakhir dicek: $lastChecked. Pemeriksaan juga dijalankan saat " +
-                                "aplikasi dibuka bila jadwalnya sudah lewat, jadi episode baru " +
-                                "cepat terlihat. Jika cek sering tertunda, atur izin di panel " +
-                                "“Latar belakang & autostart” di bawah.",
+                            "Terakhir dicoba: $lastChecked. Terakhir berhasil: " +
+                                "$lastSucceeded. Percobaan offline tetap dicatat agar tidak " +
+                                "diulang setiap aplikasi dibuka; pemeriksaan juga dijalankan " +
+                                "saat aplikasi dibuka bila jadwalnya sudah lewat. Jika cek " +
+                                "sering tertunda, atur izin di panel “Latar belakang & " +
+                                "autostart” di bawah.",
                         )
                     } else {
                         Caption(

@@ -65,7 +65,9 @@ class AutoCheckWorker(
 
         return try {
             val result = entry.checkSubscriptions().invoke()
-            settings.setLastAutoCheckAt(System.currentTimeMillis())
+            val now = System.currentTimeMillis()
+            settings.setLastAutoCheckAt(now)
+            settings.setLastAutoCheckSuccessAt(now)
             if (result.checks.isEmpty()) return Result.success()
 
             val quality = resolveQuality(entry, result)
@@ -97,7 +99,10 @@ class AutoCheckWorker(
             Result.success()
         } catch (error: Exception) {
             // Per-anime failures are already collected by the use case; this only
-            // catches setup errors. Do not retry aggressively in the background.
+            // catches setup errors. Record the attempt so opening the app again
+            // does not immediately repeat the same failing setup. Do not retry
+            // aggressively in the background.
+            settings.setLastAutoCheckAt(System.currentTimeMillis())
             Timber.w(error, "Auto check failed")
             Result.success()
         } finally {

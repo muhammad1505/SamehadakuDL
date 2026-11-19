@@ -237,7 +237,9 @@ class SubscriptionsViewModel @Inject constructor(
                 }
                 // This check already covered the interval, so returning to the
                 // app must not immediately enqueue the same work again.
-                settings.setLastAutoCheckAt(System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                settings.setLastAutoCheckAt(now)
+                settings.setLastAutoCheckSuccessAt(now)
                 val resolved = resolveQuality(result)
                 val hasNewEpisodes = result.checks.isNotEmpty()
                 _state.update {
@@ -257,6 +259,10 @@ class SubscriptionsViewModel @Inject constructor(
                     )
                 }
             } catch (verification: NeedsVerificationException) {
+                // The check reached Cloudflare but not the episode list. Record
+                // only the attempt so opening the app again waits for the normal
+                // interval instead of repeating the same blocked request.
+                settings.setLastAutoCheckAt(System.currentTimeMillis())
                 sessionStore.pendingVerificationUrl = verification.pageUrl
                 _state.update {
                     it.copy(
@@ -267,6 +273,7 @@ class SubscriptionsViewModel @Inject constructor(
                     )
                 }
             } catch (error: Exception) {
+                settings.setLastAutoCheckAt(System.currentTimeMillis())
                 _state.update {
                     it.copy(
                         checking = false,

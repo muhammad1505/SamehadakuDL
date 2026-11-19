@@ -205,16 +205,20 @@ fun readReleaseNotes(context: android.content.Context): List<ReleaseNote> {
     val markdown = runCatching {
         context.assets.open("changelog.md").bufferedReader().use { it.readText() }
     }.getOrElse { "## Rilis ${BuildConfig.VERSION_NAME}\n- Perbaikan dan penyempurnaan aplikasi." }
-    val headers = Regex("(?m)^## Rilis\\s+(.+?)\\s*$").findAll(markdown).toList()
-    return headers.mapIndexed { index, header ->
+    // Stop each release section at the next level-two heading, otherwise the
+    // bullet lists from documentation sections (storage, background access, ...)
+    // are appended to the last release note.
+    val headings = Regex("(?m)^##\\s+.+?\\s*$").findAll(markdown).toList()
+    return headings.mapIndexedNotNull { index, header ->
+        if (!header.value.startsWith("## Rilis")) return@mapIndexedNotNull null
         val start = header.range.last + 1
-        val end = headers.getOrNull(index + 1)?.range?.first ?: markdown.length
+        val end = headings.getOrNull(index + 1)?.range?.first ?: markdown.length
         val changes = markdown.substring(start, end)
             .lineSequence()
             .map { it.trim() }
             .filter { it.startsWith("- ") }
             .map { it.removePrefix("- ").trim() }
             .toList()
-        ReleaseNote(header.groupValues[1].trim(), changes)
+        ReleaseNote(header.value.removePrefix("## Rilis").trim(), changes)
     }.reversed()
 }

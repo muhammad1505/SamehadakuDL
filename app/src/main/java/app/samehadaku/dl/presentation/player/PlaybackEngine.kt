@@ -37,7 +37,8 @@ internal enum class DecoderMode(
  * ExoPlayer stays owned by the screen so decoder switching, equalizer session
  * tracking and track selection keep their direct API. The service wraps the same
  * player in a MediaSession, which promotes playback to a foreground media
- * service (reliable background audio) and gives PiP/notification controls a
+ * service (reliable background audio while the app is at home or the screen is
+ * off, not after the task is swiped away) and gives PiP/notification controls a
  * session to drive.
  */
 internal object PlaybackEngine {
@@ -115,7 +116,7 @@ internal object PlaybackEngine {
             engineCreatedPlayer = null
             runCatching { placeholder.release() }
         }
-        Timber.d("PlaybackService berhenti")
+        Timber.i("Pemutaran latar dihentikan")
     }
 }
 

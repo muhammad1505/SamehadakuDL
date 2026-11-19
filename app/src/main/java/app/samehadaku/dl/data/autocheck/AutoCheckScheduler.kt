@@ -103,9 +103,7 @@ class AutoCheckScheduler @Inject constructor(
             .getOrDefault(DEFAULT_INTERVAL_MINUTES)
             .coerceAtLeast(MIN_INTERVAL_MINUTES)
         val lastCheck = runCatching { settings.currentLastAutoCheckAt() }.getOrDefault(0L)
-        val intervalMillis = TimeUnit.MINUTES.toMillis(minutes.toLong())
-        val due = lastCheck <= 0L || System.currentTimeMillis() - lastCheck >= intervalMillis
-        if (due) runNow()
+        if (isAutoCheckDue(lastCheck, System.currentTimeMillis(), minutes)) runNow()
     }
 
     private fun intervalTag(minutes: Int) = "auto-check-${minutes}m"
@@ -116,7 +114,7 @@ class AutoCheckScheduler @Inject constructor(
         private const val TAG = "auto-check"
         private const val NOW_TAG = "auto-check-now"
         private const val DEFAULT_INTERVAL_MINUTES = 60
-        private const val MIN_INTERVAL_MINUTES = 15
+        private const val MIN_INTERVAL_MINUTES = MIN_AUTO_CHECK_MINUTES
         private const val MAX_INTERVAL_MINUTES = 24 * 60
     }
 }

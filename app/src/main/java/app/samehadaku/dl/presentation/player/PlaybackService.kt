@@ -13,9 +13,13 @@ import app.samehadaku.dl.R
  *
  * The service keeps the same ExoPlayer instance that the player screen draws, so
  * decoder switching, the equalizer and track overrides stay untouched. Wrapping
- * it in a MediaSession is what makes background playback survive the activity
- * going away and gives the Picture-in-Picture window and the media notification
- * working play/pause/seek controls.
+ * it in a MediaSession is what makes background playback survive the app going
+ * to the background (home or screen off) and gives the Picture-in-Picture window
+ * and the media notification working play/pause/seek controls.
+ *
+ * The screen still owns the player. Swiping the task away destroys the activity
+ * and therefore stops playback; [onTaskRemoved] pauses and stops the service so
+ * no orphan notification or silent audio is left behind.
  */
 class PlaybackService : MediaSessionService() {
 
@@ -39,10 +43,14 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
         mediaSession
 
-    /** Swiping the app away keeps audio going while a video is still playing. */
+    /**
+     * Swiping the app away is an explicit stop, not a request for audio to keep
+     * playing without a screen or task. Pause first so playback stops even if the
+     * activity is slow to be destroyed, then stop the foreground service.
+     */
     override fun onTaskRemoved(rootIntent: Intent?) {
-        val player = mediaSession?.player
-        if (player == null || !player.playWhenReady) stopSelf()
+        mediaSession?.player?.pause()
+        stopSelf()
     }
 
     override fun onDestroy() {

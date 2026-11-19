@@ -60,6 +60,23 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Verify release metadata
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n 's/^[[:space:]]*versionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -1)"
+          test -n "$VERSION"
+          if ! grep -q "^## Rilis ${VERSION}$" README.md; then
+            echo "README.md belum punya bagian ## Rilis ${VERSION}."
+            exit 1
+          fi
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [ "$VERSION" != "$TAG_VERSION" ]; then
+              echo "versionName ($VERSION) tidak cocok dengan tag ($TAG_VERSION)."
+              exit 1
+            fi
+          fi
+
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}

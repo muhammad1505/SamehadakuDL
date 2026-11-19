@@ -2,6 +2,8 @@ package app.samehadaku.dl.presentation.player
 
 import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Rational
 import androidx.compose.runtime.getValue
@@ -20,21 +22,23 @@ internal object PlayerPip {
     var aspectRatio by mutableFloatStateOf(16f / 9f)
     var inPip by mutableStateOf(false)
 
-    fun enter(activity: Activity?) {
-        val target = activity ?: return
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        if (target.isInPictureInPictureMode) return
-        val ratio = aspectRatio.takeIf { it.isFinite() && it > 0f } ?: (16f / 9f)
-        // Android rejects PiP aspect ratios outside 0.418..2.39. A vertical clip
-        // or an ultrawide file would otherwise make enterPictureInPictureMode
-        // throw and the PiP button would silently do nothing.
-        val clamped = ratio.coerceIn(MIN_ASPECT_RATIO, MAX_ASPECT_RATIO)
+    fun isSupported(context: Context): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+
+    /**
+     * Returns false when PiP is unavailable or the system rejected the request,
+     * so the player can show an explanation instead of a button that does
+     * nothing.
+     */
+    fun enter(activity: Activity?): Boolean {
+        val target = activity ?: return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        if (target.isInPictureInPictureMode) return true
+        val clamped = clampPipAspectRatio(aspectRatio)
         val params = PictureInPictureParams.Builder()
             .setAspectRatio(Rational((clamped * 1000).toInt(), 1000))
             .build()
-        runCatching { target.enterPictureInPictureMode(params) }
+        return runCatching { target.enterPictureInPictureMode(params) }.getOrDefault(false)
     }
-
-    private const val MIN_ASPECT_RATIO = 0.42f
-    private const val MAX_ASPECT_RATIO = 2.39f
 }

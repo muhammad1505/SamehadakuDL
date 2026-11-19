@@ -25,10 +25,11 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
   setelah 90% video, playlist episode otomatis, kecepatan 0.5x–2x, mode layar
   FIT/ZOOM/FILL, siklus decoder Auto/HW/SW, Picture-in-Picture, rotasi mengikuti
-  sensor selama menonton, gesture kecerahan/volume/scrub, smart screen lock, sleep timer,
-  equalizer + loudness boost, serta mode “Jangan ganggu” selama menonton.
+  kunci rotasi sistem selama menonton, gesture kecerahan/volume/scrub, smart screen lock,
+  sleep timer, equalizer + loudness boost, serta mode “Jangan ganggu” selama menonton.
   Background play memakai MediaSessionService foreground dengan kontrol di
-  notifikasi dan jendela PiP. Subtitle bawaan dan file eksternal SRT/VTT/SSA-ASS
+  notifikasi dan jendela PiP, lalu berhenti saat aplikasi digeser keluar dari Recents.
+  Subtitle bawaan dan file eksternal SRT/VTT/SSA-ASS
   digabung dalam satu daftar dengan pemilihan track presisi dan sinkronisasi
   ±0.1s; pemutar eksternal tetap tersedia dari menu folder.
 - Smart Storage opsional: menandai episode yang sudah ditonton dan menghapus videonya
@@ -487,30 +488,6 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   aplikasi kembali ke depan, dan kartu pengingat hanya muncul kontekstual saat
   Background play diaktifkan.
 
-## Rilis 2.7.8
-
-- Cek episode otomatis tidak lagi berjalan ganda. Pemicu saat aplikasi dibuat
-  dihapus (cek saat kembali ke depan sudah cukup), antrean “Cek sekarang”
-  memakai `KEEP` sehingga tidak membatalkan cek yang sedang berjalan, dan worker
-  periodik serta manual berbagi satu gerbang proses. Pemeriksaan kedua langsung
-  selesai tanpa mengulang gelombang “Detect episodes”. Tombol “Periksa” di
-  Langganan memakai gerbang yang sama dan mencatat waktu cek, jadi kembali ke
-  aplikasi tidak langsung memicu pemeriksaan yang sama lagi.
-- Saat perangkat offline atau DNS gagal, waktu percobaan tetap dicatat. Membuka
-  aplikasi berulang kali tidak lagi memicu deretan percobaan DNS baru; WorkManager
-  periodik tetap mencoba lagi sesuai interval, dan tombol “Cek sekarang” tersedia
-  setelah koneksi kembali.
-- Pemutar lebih hemat baterai: layar tidak lagi terus menyala saat video dijeda
-  atau sudah berakhir (layar hanya ditahan selama putar atau buffering singkat),
-  dan UI pemutar berhenti memperbarui posisi tiga kali per detik saat aplikasi
-  berada di latar belakang. Posisi tonton disimpan tiap 10 detik, bukan 5 detik.
-- Audio latar lebih andal: ExoPlayer memegang wake lock lokal hanya selama
-  pemutaran, sehingga layar mati tidak menghentikan dekode file yang sudah
-  diunduh. Masuk PiP tidak lagi dijeda oleh `ON_STOP` pada ROM yang memanggilnya,
-  dan rasio PiP ekstrem dijepit ke rentang yang didukung Android.
-- Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
-  notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
-
 ## Rilis 2.7.7
 
 - Kontrol pemutar kini berupa pill berlabel pendek yang menyatu dengan ikonnya
@@ -540,6 +517,78 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   folder divalidasi memuat episode yang dituju; folder yang salah tidak lagi
   disimpan sebagai lokasi unduhan.
 
+## Rilis 2.7.8
+
+- Cek episode otomatis tidak lagi berjalan ganda. Pemicu saat aplikasi dibuat
+  dihapus (cek saat kembali ke depan sudah cukup), antrean “Cek sekarang”
+  memakai `KEEP` sehingga tidak membatalkan cek yang sedang berjalan, dan worker
+  periodik serta manual berbagi satu gerbang proses. Pemeriksaan kedua langsung
+  selesai tanpa mengulang gelombang “Detect episodes”. Tombol “Periksa” di
+  Langganan memakai gerbang yang sama dan mencatat waktu cek, jadi kembali ke
+  aplikasi tidak langsung memicu pemeriksaan yang sama lagi.
+- Saat perangkat offline atau DNS gagal, waktu percobaan tetap dicatat. Membuka
+  aplikasi berulang kali tidak lagi memicu deretan percobaan DNS baru; WorkManager
+  periodik tetap mencoba lagi sesuai interval, dan tombol “Cek sekarang” tersedia
+  setelah koneksi kembali.
+- Pemutar lebih hemat baterai: layar tidak lagi terus menyala saat video dijeda
+  atau sudah berakhir (layar hanya ditahan selama putar atau buffering singkat),
+  dan UI pemutar berhenti memperbarui posisi tiga kali per detik saat aplikasi
+  berada di latar belakang. Posisi tonton disimpan tiap 10 detik, bukan 5 detik.
+- Audio latar lebih andal: ExoPlayer memegang wake lock lokal hanya selama
+  pemutaran, sehingga layar mati tidak menghentikan dekode file yang sudah
+  diunduh. Masuk PiP tidak lagi dijeda oleh `ON_STOP` pada ROM yang memanggilnya,
+  dan rasio PiP ekstrem dijepit ke rentang yang didukung Android.
+- Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
+  notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
+
+## Rilis 2.7.9
+
+- “Jangan ganggu” sekarang dipulihkan otomatis saat aplikasi dibuka lagi setelah
+  proses mati atau force-stop ketika menonton, sehingga filter prioritas tidak
+  tertinggal aktif. Filter tetap menyala selama video hanya dijeda di pemutar,
+  dan dilepas saat pemutar atau aplikasi benar-benar ditinggalkan. Jika pengguna
+  mengubah mode jangan ganggu sendiri, pilihan pengguna tidak ditimpa. Aktivitas
+  yang dibuat ulang karena perubahan tema atau bahasa juga tidak melepas filter,
+  karena pemutaran masih berjalan.
+- Orientasi pemutar mengikuti kunci rotasi sistem. Dengan auto-rotate aktif layar
+  mengikuti sensor; dengan auto-rotate mati pemutar tidak memutar sendiri seperti
+  versi sebelumnya.
+- Arti background play dibuat konsisten dan didokumentasikan: audio tetap berjalan
+  saat aplikasi di rumah atau layar mati bila opsi aktif, sedangkan menggeser
+  aplikasi keluar dari Recents selalu menghentikan pemutaran dan notifikasi media.
+  Teks bantuan di panel Setelan pemutar ikut diperbarui.
+- Waktu “Terakhir dicoba” dan “Terakhir berhasil” dipisahkan. Percobaan yang
+  offline, gagal, atau berhenti di verifikasi Cloudflare hanya memperbarui waktu
+  percobaan, sehingga membuka aplikasi tidak mengulang pemeriksaan yang sama
+  terus-menerus, sementara waktu berhasil tetap menunjukkan cek terakhir yang
+  benar-benar sampai ke daftar episode.
+- Pada Realme/Oppo ColorOS lama (Android 10 ke bawah), baterai kini meminta
+  konfirmasi manual setelah pengguna kembali dari Info aplikasi, sama seperti
+  autostart. Status 3/3 tidak lagi terus kuning ketika sakelar aktivitas latar
+  pabrik sudah aktif tetapi tidak terbaca oleh status baterai Android.
+- Pemutar otomatis mencoba dekoder software satu kali ketika dekoder perangkat
+  gagal membuka video, lalu melanjutkan dari posisi terakhir, termasuk posisi
+  resume yang tersimpan bila kegagalan terjadi sebelum video mulai. Jika tetap
+  gagal, pesan kesalahan menjelaskan masalah file, izin, jaringan, atau format
+  beserta kode Media3-nya, bukan hanya pesan sistem yang samar. Pilihan audio dan
+  subtitle dari pemutar lama ikut direset karena treknya sudah dilepas bersama
+  pemutar itu, dan episode berikutnya kembali memakai dekoder pilihan pengguna.
+- Target sentuh tombol pemutar, pill, dan chip dinaikkan ke minimal 48dp. Banner
+  tips sekali muncul untuk memberi tahu bahwa menekan lama pill CC atau Audio
+  membuka opsi lengkap, sehingga kontrol lanjutan lebih mudah ditemukan.
+- Tombol Picture-in-Picture disembunyikan bila perangkat tidak mendukungnya, dan
+  kegagalan membuka mode kecil sekarang menampilkan banner penjelasan. Rasio
+  jendela tetap dijepit ke rentang yang diterima Android, termasuk video vertikal
+  dan metadata ukuran yang rusak.
+- Pesan log layanan pemutaran tidak lagi menyiratkan bahwa audio terus berbunyi
+  setelah aplikasi digeser keluar; pesan berhenti sekarang bersifat informasional.
+  Komentar dan dokumentasi pemutar juga diselaraskan dengan perilaku sebenarnya.
+- CI memeriksa bahwa tag rilis cocok dengan `versionName` dan README memiliki
+  bagian `## Rilis x.y.z` sebelum APK ditandatangani. Unit test baru menjaga
+  perhitungan jadwal cek otomatis, gerbang cek tunggal, dan penjepitan rasio PiP.
+  Changelog di aplikasi berhenti pada judul bagian berikutnya sehingga catatan
+  rilis tidak lagi mencampur daftar dari bagian Penyimpanan atau Smart Storage.
+
 ## Penyimpanan dan izin
 
 Koleksi memakai tiga sumber:
@@ -565,26 +614,27 @@ perangkat masuk Doze atau OEM membatasi aktivitas latar belakang. Panel
 “Latar belakang & autostart” di Pengaturan dibuat ringkas: setiap baris bisa
 diketuk dan langsung membuka layar pengaturan yang sesuai.
 
-- Ringkasan “Status izin sistem” menghitung hanya status yang bisa dibaca Android
-  (baterai, pembatasan latar belakang, hemat data, notifikasi) dan menandai setiap
-  baris dengan “Sudah” atau “Belum”. Status dibaca ulang saat kembali dari pengaturan
-  sistem, dan tombol “Periksa ulang” memperbaruinya tanpa meninggalkan layar.
-- Baris “Optimasi baterai” menunjukkan apakah aplikasi sudah dikecualikan. Saat belum,
-  mengetuknya membuka daftar optimasi baterai sistem; pengguna memilih Samehadaku DL
-  lalu “Jangan optimalkan”. Aplikasi tidak memakai izin
+- Ringkasan “Status izin sistem” menghitung tiga hal yang menentukan pekerjaan
+  latar: baterai, notifikasi, dan autostart. Dua di antaranya bisa dibaca Android;
+  autostart dan sakelar aktivitas latar ColorOS lama dilengkapi konfirmasi manual.
+  Status dibaca ulang saat kembali dari pengaturan sistem, dan tombol “Periksa
+  ulang” memperbaruinya tanpa meninggalkan layar.
+- Baris “Baterai tanpa batas” menunjukkan apakah aplikasi sudah dikecualikan dari
+  optimasi baterai. Mengetuknya membuka Info aplikasi → Baterai/Penggunaan baterai,
+  karena dialog pengecualian langsung membutuhkan izin
   `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` yang dibatasi Google Play dan memicu
-  peringatan Play Protect pada APK sideload, serta tidak pernah meminta pengecualian
-  otomatis. Info aplikasi tetap menjadi cadangan bila daftar tidak tersedia.
-- Baris “Autostart” diberi label “Tidak terbaca” karena Android tidak menyediakan cara
-  membacanya otomatis, lalu membuka pengelola autostart OEM yang terdeteksi—MIUI/HyperOS,
-  ColorOS/Realme/OPPO, OxygenOS, iManager, Device Care, Mobile Manager,
-  Phone Master, dan lainnya—dengan fallback ke optimasi baterai dan Info aplikasi
-  bila komponen tidak tersedia. Intent dicoba satu per satu agar tetap bekerja
-  pada Android 11+ yang membatasi visibilitas paket.
-- Pada Realme/Oppo dengan ColorOS lama (Android 10 ke bawah), kedua baris digabung
-  menjadi “Izin latar belakang & autostart” yang langsung membuka Info aplikasi.
-  Di sana pengguna mengizinkan aktivitas latar belakang lewat Baterai dan
-  mengaktifkan Autostart, sesuai susunan menu perangkat tersebut.
+  peringatan Play Protect pada APK sideload. Aplikasi tidak pernah meminta
+  pengecualian secara otomatis.
+- Baris “Autostart” diberi label “Tidak terbaca” karena Android tidak menyediakan
+  cara membacanya otomatis, lalu membuka Info aplikasi yang menjadi titik awal
+  menu pabrik; panduan OEM menjelaskan nama submenu yang harus dicari. Setelah
+  kembali, aplikasi menampilkan konfirmasi satu ketuk “Sudah mengaktifkan Mulai
+  Otomatis?”. Status hanya berubah hijau setelah dikonfirmasi.
+- Pada Realme/Oppo dengan ColorOS lama (Android 10 ke bawah), baris baterai juga
+  meminta konfirmasi manual setelah pengguna kembali dari Info aplikasi. ColorOS
+  menyimpan sakelar “Izinkan aktivitas latar belakang” terpisah dari status
+  optimasi baterai Android, sehingga tanpa konfirmasi hitungan 3/3 bisa terus
+  berwarna kuning meskipun izinnya sudah aktif.
 - Baris pembatasan latar belakang dan hemat data hanya muncul saat sistem
   benar-benar membatasi aplikasi, sehingga panel tidak penuh status yang sudah
   aman.

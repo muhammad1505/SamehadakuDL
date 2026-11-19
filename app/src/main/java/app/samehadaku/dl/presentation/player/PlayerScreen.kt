@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -251,6 +252,7 @@ fun PlayerScreen(
     val view = LocalView.current
     val activity = remember(context) { context.findActivity() }
     val preferences = remember(context) { PlayerPreferences(context) }
+    val pipSupported = remember(context) { PlayerPip.isSupported(context) }
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -275,6 +277,7 @@ fun PlayerScreen(
     var subtitleSyncMs by remember { mutableLongStateOf(preferences.subtitleSyncMs) }
 
     var playerError by remember { mutableStateOf<String?>(null) }
+    var decoderFallbackTried by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(false) }
     var ended by remember { mutableStateOf(false) }
@@ -327,7 +330,7 @@ fun PlayerScreen(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val dnd = remember(context) { DoNotDisturb(context) }
-    var dndActive by remember { mutableStateOf(false) }
+    var dndActive by remember { mutableStateOf(dnd.isActive()) }
     var dndPending by remember { mutableStateOf(false) }
     var dndGranted by remember { mutableStateOf(dnd.hasAccess()) }
 
@@ -365,6 +368,13 @@ fun PlayerScreen(
         if (index !in state.entries.indices || index == state.index) return
         ended = false
         autoNextCancelled = false
+        // A pending decoder fallback belongs to the episode being left.
+        pendingResumeMs = -1L
+        pendingPlayWhenReady = null
+        // An automatic software fallback covers only the file that failed; the
+        // next episode starts with the decoder the user picked again.
+        val chosen = DecoderMode.from(preferences.decoderMode)
+        if (decoderMode != chosen) decoderMode = chosen
         viewModel.playIndex(index, exoPlayer.currentPosition)
         subtitleUri = null
         subtitleLabel = null
@@ -388,9 +398,12 @@ fun PlayerScreen(
         exoPlayer.play()
     }
 
-    fun cycleDecoder() {
-        pendingResumeMs = exoPlayer.currentPosition
-        pendingPlayWhenReady = exoPlayer.playWhenReady
+    /**
+     * Track groups and overrides belong to a single ExoPlayer instance. After a
+     * decoder switch the replacement must start from its own embedded defaults
+     * instead of selections that point at the player that was just released.
+     */
+    fun resetTrackStateForNewPlayer() {
         // The override holds a TrackGroup from the old player; default to Auto
         // so the new player picks the embedded track again.
         if (subtitleMode == SubtitleMode.EMBEDDED) {
@@ -403,6 +416,12 @@ fun PlayerScreen(
         audioOptions = emptyList()
         embeddedSubtitles = emptyList()
         videoHeights = emptyList()
+    }
+
+    fun cycleDecoder() {
+        pendingResumeMs = exoPlayer.currentPosition
+        pendingPlayWhenReady = exoPlayer.playWhenReady
+        resetTrackStateForNewPlayer()
         val next = decoderMode.next()
         decoderMode = next
         preferences.decoderMode = next.name
@@ -616,6 +635,20 @@ fun PlayerScreen(
         }
     }
 
+    // Tell first-time viewers about the long press once; the pills look like
+    // plain cycle buttons otherwise.
+    LaunchedEffect(Unit) {
+        if (!preferences.longPressHintSeen) {
+            delay(900)
+            showBanner(
+                Icons.Rounded.Settings,
+                "Tips kontrol",
+                "Tahan pill CC atau Audio untuk opsi lengkap",
+            )
+            preferences.longPressHintSeen = true
+        }
+    }
+
     // Preferences persist so the next episode keeps the chosen look and sound.
     LaunchedEffect(resizeMode) { preferences.resizeMode = resizeMode }
     LaunchedEffect(exoPlayer, speed) {
@@ -643,6 +676,7 @@ fun PlayerScreen(
         }
         pendingResumeMs = -1L
         playerError = null
+        decoderFallbackTried = false
         ended = false
         buffering = true
         autoNextCancelled = false
@@ -775,7 +809,35 @@ fun PlayerScreen(
 
             override fun onPlayerError(error: PlaybackException) {
                 Timber.w(error, "Pemutar internal gagal memutar video")
-                playerError = error.localizedMessage ?: "Video gagal diputar."
+                // Hardware decoders on older phones reject some HEVC/AV1 files.
+                // Try the software decoder once automatically instead of making
+                // the user discover the decoder pill after the video fails.
+                if (decoderMode != DecoderMode.SOFTWARE &&
+                    !decoderFallbackTried &&
+                    error.isDecoderError()
+                ) {
+                    decoderFallbackTried = true
+                    // Keep -1 when the failure happened before the resume seek, so
+                    // the replacement still starts at the saved position instead
+                    // of the beginning.
+                    pendingResumeMs = exoPlayer.currentPosition.takeIf { it > 0L } ?: -1L
+                    pendingPlayWhenReady = exoPlayer.playWhenReady
+                    playerError = null
+                    // Selections from the failed player are stale now; the
+                    // replacement starts from its own embedded tracks.
+                    resetTrackStateForNewPlayer()
+                    decoderMode = DecoderMode.SOFTWARE
+                    // Do not persist the automatic fallback: closing the player
+                    // returns to the user's chosen decoder.
+                    controlsVisible = true
+                    showBanner(
+                        Icons.Rounded.Memory,
+                        "Dekoder software",
+                        "Dekoder perangkat gagal; video dicoba ulang otomatis",
+                    )
+                    return
+                }
+                playerError = playbackErrorMessage(error)
             }
 
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
@@ -841,7 +903,9 @@ fun PlayerScreen(
         }
         exoPlayer.addListener(listener)
         onDispose {
-            viewModel.onStop(exoPlayer.currentPosition)
+            // A rebuilt player for the next episode must not save the previous
+            // file's position under the new one.
+            if (loadedUri == state.uri) viewModel.onStop(exoPlayer.currentPosition)
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
@@ -880,10 +944,12 @@ fun PlayerScreen(
         }
     }
 
-    // The player follows the sensor; leaving restores whatever the app asked for.
+    // Respect the system rotation lock: USER follows the sensor when auto-rotate
+    // is on and keeps the user's locked orientation when it is off. SENSOR used
+    // to rotate the player even when the rest of the phone was locked.
     DisposableEffect(activity) {
         val previous = activity?.requestedOrientation
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
         onDispose {
             activity?.requestedOrientation =
                 previous ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -900,15 +966,33 @@ fun PlayerScreen(
         }
     }
 
-    DisposableEffect(dnd) {
-        onDispose { dnd.release() }
+    DisposableEffect(dnd, activity) {
+        onDispose {
+            // Theme, locale or font-size changes recreate the activity while the
+            // video keeps playing. Releasing here would silently drop the filter
+            // the user enabled, so only release when the screen really goes away.
+            if (activity?.isChangingConfigurations != true) dnd.release()
+        }
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         dndGranted = dnd.hasAccess()
-        if (dndPending && dndGranted) {
-            dndPending = false
-            dndActive = dnd.activate()
+        when {
+            dndPending && dndGranted -> {
+                dndPending = false
+                dndActive = dnd.activate()
+            }
+            dndPending -> {
+                // Back from the system screen without granting access; do not
+                // keep the request queued for an unrelated later resume.
+                dndPending = false
+                dndActive = dnd.isActive()
+            }
+            else -> {
+                // After a recreation the stored filter is still applied; read it
+                // back instead of showing the toggle as off.
+                dndActive = dnd.isActive()
+            }
         }
     }
 
@@ -919,7 +1003,7 @@ fun PlayerScreen(
         // ON_STOP on some ROMs while its window is still visible, so keep playing
         // there regardless of the background setting.
         if (!backgroundPlay && !PlayerPip.inPip) exoPlayer.pause()
-        if (!PlayerPip.inPip) {
+        if (!PlayerPip.inPip && activity?.isChangingConfigurations != true) {
             dnd.release()
             dndActive = false
         }
@@ -1147,6 +1231,7 @@ fun PlayerScreen(
                         onClick = ::leave,
                         size = 38.dp,
                         iconSize = 20.dp,
+                        touchSize = 48.dp,
                     )
                     Spacer(Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -1187,13 +1272,24 @@ fun PlayerScreen(
                         active = panelTab == PanelTab.EPISODES,
                         onClick = { panelTab = PanelTab.EPISODES },
                     )
-                    GlassIconButton(
-                        icon = Icons.Rounded.PictureInPictureAlt,
-                        contentDescription = "Kecilkan ke Picture-in-Picture",
-                        onClick = { PlayerPip.enter(activity) },
-                        size = 38.dp,
-                        iconSize = 19.dp,
-                    )
+                    if (pipSupported) {
+                        GlassIconButton(
+                            icon = Icons.Rounded.PictureInPictureAlt,
+                            contentDescription = "Kecilkan ke Picture-in-Picture",
+                            onClick = {
+                                if (!PlayerPip.enter(activity)) {
+                                    showBanner(
+                                        Icons.Rounded.PictureInPictureAlt,
+                                        "PiP tidak bisa dibuka",
+                                        "Perangkat atau pengaturan sistem menolak mode kecil",
+                                    )
+                                }
+                            },
+                            size = 38.dp,
+                            iconSize = 19.dp,
+                            touchSize = 48.dp,
+                        )
+                    }
                 }
             }
 
@@ -1210,6 +1306,7 @@ fun PlayerScreen(
                         onClick = { seekTo(exoPlayer.currentPosition - SEEK_STEP_MS) },
                         size = 44.dp,
                         iconSize = 24.dp,
+                        touchSize = 48.dp,
                     )
                     GlassIconButton(
                         icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
@@ -1229,6 +1326,7 @@ fun PlayerScreen(
                         onClick = { seekTo(exoPlayer.currentPosition + SEEK_STEP_MS) },
                         size = 44.dp,
                         iconSize = 24.dp,
+                        touchSize = 48.dp,
                     )
                 }
             }
@@ -1331,6 +1429,7 @@ fun PlayerScreen(
                             onClick = ::toggleLock,
                             size = 36.dp,
                             iconSize = 18.dp,
+                            touchSize = 48.dp,
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
@@ -1382,6 +1481,7 @@ fun PlayerScreen(
                             onClick = { panelTab = PanelTab.SETTINGS },
                             size = 38.dp,
                             iconSize = 19.dp,
+                            touchSize = 48.dp,
                         )
                     }
                 }
@@ -1459,7 +1559,7 @@ fun PlayerScreen(
                                 text = "Putar ulang",
                                 icon = Icons.Rounded.Replay,
                                 onClick = ::replay,
-                                height = 38.dp,
+                                height = 48.dp,
                             )
                             if (state.hasNext) {
                                 GlassButton(
@@ -1467,7 +1567,7 @@ fun PlayerScreen(
                                     icon = Icons.Rounded.SkipNext,
                                     onClick = { openEntry(state.index + 1) },
                                     tint = BrandMint,
-                                    height = 38.dp,
+                                    height = 48.dp,
                                 )
                             }
                         }
@@ -1480,7 +1580,7 @@ fun PlayerScreen(
                                     autoNextCancelled = true
                                     autoNextCountdown = -1
                                 },
-                                height = 32.dp,
+                                height = 48.dp,
                             )
                         }
                     }
@@ -1539,7 +1639,7 @@ fun PlayerScreen(
                             controlsVisible = true
                         },
                         tint = BrandMint,
-                        height = 44.dp,
+                        height = 48.dp,
                         modifier = Modifier.align(Alignment.Center),
                     )
                 }
@@ -1745,6 +1845,7 @@ private fun BoxScope.PlayerSidePanel(
                     onClick = onClose,
                     size = 34.dp,
                     iconSize = 18.dp,
+                    touchSize = 48.dp,
                 )
             }
             Row(
@@ -1804,7 +1905,7 @@ private fun ColumnScope.EpisodesTab(
             icon = Icons.Rounded.SkipPrevious,
             enabled = state.hasPrevious,
             onClick = { onOpen(state.index - 1) },
-            height = 36.dp,
+            height = 48.dp,
             modifier = Modifier.weight(1f),
         )
         GlassButton(
@@ -1812,7 +1913,7 @@ private fun ColumnScope.EpisodesTab(
             icon = Icons.Rounded.SkipNext,
             enabled = state.hasNext,
             onClick = { onOpen(state.index + 1) },
-            height = 36.dp,
+            height = 48.dp,
             modifier = Modifier.weight(1f),
         )
     }
@@ -1942,7 +2043,7 @@ private fun ColumnScope.SubtitleTab(
             },
             icon = Icons.Rounded.FolderOpen,
             onClick = onPickFile,
-            height = 42.dp,
+            height = 48.dp,
             modifier = Modifier.fillMaxWidth(),
         )
         if (hasExternal) {
@@ -1950,7 +2051,7 @@ private fun ColumnScope.SubtitleTab(
                 text = "Lepas file subtitle",
                 icon = Icons.Rounded.Close,
                 onClick = onRemove,
-                height = 38.dp,
+                height = 48.dp,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -1980,7 +2081,7 @@ private fun ColumnScope.SubtitleTab(
                 GlassButton(
                     text = "−0.1s",
                     onClick = { onSync(-100L) },
-                    height = 36.dp,
+                    height = 48.dp,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -1994,14 +2095,14 @@ private fun ColumnScope.SubtitleTab(
                 GlassButton(
                     text = "+0.1s",
                     onClick = { onSync(100L) },
-                    height = 36.dp,
+                    height = 48.dp,
                     modifier = Modifier.weight(1f),
                 )
             }
             GlassButton(
                 text = "Reset sinkronisasi",
                 onClick = onSyncReset,
-                height = 36.dp,
+                height = 48.dp,
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
@@ -2303,9 +2404,11 @@ private fun ColumnScope.SettingsTab(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Background play berjalan lewat layanan media foreground dengan kontrol " +
-                "putar/jeda di notifikasi dan jendela PiP. Pada perangkat dengan penghemat " +
-                "agresif, izin baterai di atas tetap diperlukan.",
+            text = "Background play berjalan lewat layanan media foreground saat aplikasi " +
+                "di rumah atau layar mati; menggeser aplikasi keluar dari Recents " +
+                "menghentikan pemutaran. Tekan lama pill CC/Audio di bar bawah untuk " +
+                "membuka opsi lengkap. Pada perangkat dengan penghemat agresif, izin " +
+                "baterai di atas tetap diperlukan.",
             color = TextMuted,
             style = MaterialTheme.typography.labelSmall,
         )
@@ -2368,24 +2471,33 @@ private fun GridChip(
 ) {
     Box(
         modifier = modifier
-            .height(34.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(if (selected) BrandMint.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.05f))
-            .border(
-                1.dp,
-                if (selected) BrandMint.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f),
-                RoundedCornerShape(9.dp),
-            )
+            .defaultMinSize(minHeight = 48.dp)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text,
-            color = if (selected) BrandMint else TextPrimary,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            maxLines = 1,
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(
+                    if (selected) BrandMint.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.05f),
+                )
+                .border(
+                    1.dp,
+                    if (selected) BrandMint.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f),
+                    RoundedCornerShape(9.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = text,
+                color = if (selected) BrandMint else TextPrimary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+            )
+        }
     }
 }
 
@@ -2413,37 +2525,78 @@ private fun StateIconButton(
     } else {
         Modifier.pressable(pressedScale = 0.94f, onClick = onClick)
     }
-    Row(
-        modifier = gesture
-            .height(34.dp)
-            .clip(shape)
-            .background(
-                if (active) BrandMint.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.06f),
-            )
-            .border(
-                width = 1.dp,
-                color = if (active) BrandMint.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.10f),
-                shape = shape,
-            )
-            .padding(horizontal = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    Box(
+        modifier = gesture.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = if (active) BrandMint else Color.White,
-            modifier = Modifier.size(15.dp),
-        )
-        Text(
-            text = label,
-            color = if (active) BrandMint else Color.White.copy(alpha = 0.92f),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.3.sp,
-            maxLines = 1,
-        )
+        Row(
+            modifier = Modifier
+                .height(34.dp)
+                .clip(shape)
+                .background(
+                    if (active) BrandMint.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.06f),
+                )
+                .border(
+                    width = 1.dp,
+                    color = if (active) BrandMint.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.10f),
+                    shape = shape,
+                )
+                .padding(horizontal = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = if (active) BrandMint else Color.White,
+                modifier = Modifier.size(15.dp),
+            )
+            Text(
+                text = label,
+                color = if (active) BrandMint else Color.White.copy(alpha = 0.92f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.3.sp,
+                maxLines = 1,
+            )
+        }
     }
+}
+
+/** Video codec failures that a software retry can plausibly fix. */
+private fun PlaybackException.isDecoderError(): Boolean = when (errorCode) {
+    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+    PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+    PlaybackException.ERROR_CODE_DECODING_FAILED,
+    PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+    PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED -> true
+
+    else -> false
+}
+
+/** Short Indonesian explanation plus the Media3 code for logs and support. */
+private fun playbackErrorMessage(error: PlaybackException): String {
+    val base = when (error.errorCode) {
+        PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+            "File video tidak ditemukan. Mungkin sudah dipindahkan atau dihapus."
+        PlaybackException.ERROR_CODE_IO_NO_PERMISSION ->
+            "File video tidak bisa dibuka. Periksa izin penyimpanan aplikasi."
+        PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+            "Sumber video menolak permintaan. Coba buka ulang dari Koleksi."
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+            "Koneksi terputus saat memuat video. Periksa jaringan lalu coba lagi."
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+        PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+        PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+        PlaybackException.ERROR_CODE_DECODING_FAILED,
+        PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
+        PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED ->
+            "Dekoder tidak mendukung format audio/video ini, termasuk mode software."
+        else -> "Video gagal diputar."
+    }
+    return "$base (${error.errorCodeName})"
 }
 
 private fun formatTime(ms: Long): String {

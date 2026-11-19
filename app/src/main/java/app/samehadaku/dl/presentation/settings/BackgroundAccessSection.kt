@@ -61,7 +61,8 @@ private val OptimizeBlue = Color(0xFF2563EB)
  * because the direct battery-optimization dialog can be reset silently by OEM
  * battery managers, while the App info switches persist. The three counted items
  * are battery, notifications and autostart; autostart cannot be read by Android,
- * so the panel asks for a one-tap confirmation after the OEM screen closes.
+ * and legacy ColorOS also hides its background-activity switch, so both ask for
+ * a one-tap confirmation after the OEM screen closes.
  */
 @Composable
 internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
@@ -71,11 +72,15 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
     var status by remember { mutableStateOf(access.status()) }
     var autoStartConfirmed by remember { mutableStateOf(preferences.autoStartConfirmed) }
     var autoStartPrompt by remember { mutableStateOf(false) }
+    var batteryConfirmed by remember { mutableStateOf(preferences.batteryConfirmed) }
+    var batteryPrompt by remember { mutableStateOf(false) }
     var showGuide by rememberSaveable { mutableStateOf(false) }
+    val legacyBatteryConfirmation = access.prefersAppInfoForBackground()
 
     fun refresh() {
         status = access.status()
         autoStartConfirmed = preferences.autoStartConfirmed
+        batteryConfirmed = preferences.batteryConfirmed
     }
 
     fun startSettings(intent: Intent, message: String) {
@@ -97,13 +102,22 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         refresh()
-        // Returning from the OEM autostart screen: ask the one question Android
-        // cannot answer itself.
+        // Returning from the OEM screens: ask the one question Android cannot
+        // answer itself. Legacy ColorOS needs this for the battery switch too.
         if (preferences.autoStartPending) autoStartPrompt = true
+        if (preferences.batteryPending) {
+            if (status.batteryOptimizationIgnored) {
+                preferences.batteryPending = false
+            } else {
+                batteryPrompt = true
+            }
+        }
     }
 
+    val batteryReady = status.batteryOptimizationIgnored ||
+        (legacyBatteryConfirmation && batteryConfirmed)
     val readyCount = listOf(
-        status.batteryOptimizationIgnored,
+        batteryReady,
         status.notificationsEnabled,
         autoStartConfirmed,
     ).count { it }
@@ -131,19 +145,34 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
         OptimizationRow(
             icon = Icons.Rounded.BatterySaver,
             title = "Baterai tanpa batas",
-            ready = status.batteryOptimizationIgnored,
+            ready = batteryReady,
             notReady = "Baterai masih dibatasi sistem",
-            readyText = "Aktivitas latar tidak dibatasi",
-            onConfigure = { openAppInfo("Buka Info aplikasi → Baterai / Penggunaan baterai.") },
+            readyText = if (status.batteryOptimizationIgnored) {
+                "Aktivitas latar tidak dibatasi"
+            } else {
+                "Dikonfirmasi manual (ColorOS)"
+            },
+            onConfigure = {
+                if (legacyBatteryConfirmation && !status.batteryOptimizationIgnored) {
+                    preferences.batteryPending = true
+                    batteryPrompt = false
+                }
+                openAppInfo("Buka Info aplikasi → Baterai / Penggunaan baterai.")
+            },
             onRecheck = {
                 refresh()
-                onMessage(
-                    if (status.batteryOptimizationIgnored) {
-                        "Baterai sudah tanpa batas."
-                    } else {
-                        "Baterai masih dibatasi; ikuti panduan di bawah."
-                    },
-                )
+                when {
+                    status.batteryOptimizationIgnored -> {
+                        onMessage("Baterai sudah tanpa batas.")
+                    }
+                    legacyBatteryConfirmation -> {
+                        batteryPrompt = true
+                        onMessage("Konfirmasi apakah aktivitas latar belakang sudah diizinkan.")
+                    }
+                    else -> {
+                        onMessage("Baterai masih dibatasi; ikuti panduan di bawah.")
+                    }
+                }
             },
         )
 
@@ -187,9 +216,33 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
             },
         )
 
+        if (batteryPrompt) {
+            Spacer(Modifier.height(6.dp))
+            ManualConfirmation(
+                title = "Aktivitas latar belakang sudah diizinkan?",
+                message = "ColorOS lama menyimpan izin ini terpisah dari status baterai Android. " +
+                    "Konfirmasi sekali agar hitungan 3/3 tidak terus berwarna kuning.",
+                onConfirm = {
+                    preferences.batteryConfirmed = true
+                    preferences.batteryPending = false
+                    refresh()
+                    batteryPrompt = false
+                    onMessage("Izin aktivitas latar belakang dikonfirmasi aktif.")
+                },
+                onDismiss = {
+                    preferences.batteryPending = false
+                    batteryPrompt = false
+                    onMessage("Konfirmasi izin baterai ditunda.")
+                },
+            )
+        }
+
         if (autoStartPrompt) {
             Spacer(Modifier.height(6.dp))
-            AutostartConfirmation(
+            ManualConfirmation(
+                title = "Sudah mengaktifkan Mulai Otomatis?",
+                message = "Android tidak bisa membaca sakelar pabrik. Konfirmasi sekali agar " +
+                    "status visual di atas akurat.",
                 onConfirm = {
                     preferences.autoStartConfirmed = true
                     preferences.autoStartPending = false
@@ -260,7 +313,10 @@ internal fun BackgroundAccessSection(onMessage: (String) -> Unit) {
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "Autostart bawaan pabrik tidak bisa dibaca Android. Status hijau " +
-                    "muncul setelah kamu menekan “Ya, Sudah” pada konfirmasi.",
+                    "muncul setelah kamu menekan “Ya, Sudah” pada konfirmasi. Di " +
+                    "Realme/Oppo ColorOS lama, izin aktivitas latar belakang juga " +
+                    "dikonfirmasi manual karena sakelarnya tidak tercermin di status " +
+                    "baterai Android.",
                 color = TextMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -336,7 +392,9 @@ private fun OptimizationRow(
 }
 
 @Composable
-private fun AutostartConfirmation(
+private fun ManualConfirmation(
+    title: String,
+    message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -349,14 +407,13 @@ private fun AutostartConfirmation(
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(
-            text = "Sudah mengaktifkan Mulai Otomatis?",
+            text = title,
             color = TextPrimary,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "Android tidak bisa membaca sakelar pabrik. Konfirmasi sekali agar " +
-                "status visual di atas akurat.",
+            text = message,
             color = TextMuted,
             style = MaterialTheme.typography.bodySmall,
         )

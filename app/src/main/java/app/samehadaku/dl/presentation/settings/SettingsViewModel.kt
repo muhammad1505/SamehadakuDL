@@ -31,6 +31,7 @@ data class SettingsUiState(
     val autoCheckIntervalMinutes: Int = 60,
     val failedRetryEnabled: Boolean = true,
     val lastAutoCheckAt: Long = 0L,
+    val lastAutoCheckSuccessAt: Long = 0L,
     val smartStorageEnabled: Boolean = false,
     val smartStorageGraceDays: Int = 3,
     val smartStorageLimitGb: Int = 0,
@@ -83,9 +84,10 @@ class SettingsViewModel @Inject constructor(
                 },
                 settings.failedRetryEnabled,
                 settings.lastAutoCheckAt,
-            ) { values, retryEnabled, lastCheck ->
-                Triple(values, retryEnabled, lastCheck)
-            }.collect { (values, retryEnabled, lastCheck) ->
+                settings.lastAutoCheckSuccessAt,
+            ) { values, retryEnabled, lastCheck, lastSuccess ->
+                SettingsCheckValues(values, retryEnabled, lastCheck, lastSuccess)
+            }.collect { (values, retryEnabled, lastCheck, lastSuccess) ->
                 _state.update {
                     it.copy(
                         treeUri = values.treeUri,
@@ -95,6 +97,7 @@ class SettingsViewModel @Inject constructor(
                         autoCheckIntervalMinutes = values.autoMinutes,
                         failedRetryEnabled = retryEnabled,
                         lastAutoCheckAt = lastCheck,
+                        lastAutoCheckSuccessAt = lastSuccess,
                         loading = false,
                     )
                 }
@@ -345,6 +348,13 @@ class SettingsViewModel @Inject constructor(
         val downgrade: Boolean,
         val autoEnabled: Boolean,
         val autoMinutes: Int,
+    )
+
+    private data class SettingsCheckValues(
+        val values: SettingsValues,
+        val retryEnabled: Boolean,
+        val lastCheckAt: Long,
+        val lastSuccessAt: Long,
     )
 
     private fun intervalLabel(minutes: Int): String =

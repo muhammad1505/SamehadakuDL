@@ -73,6 +73,15 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_LAST_AUTO_CHECK_AT] ?: 0L
     }
 
+    /**
+     * Last check that actually reached the site. [lastAutoCheckAt] also moves
+     * when the device is offline or Cloudflare blocks the request, which is the
+     * right value for scheduling, but it is not a successful check.
+     */
+    val lastAutoCheckSuccessAt: Flow<Long> = dataStore.data.map { preferences ->
+        preferences[KEY_LAST_AUTO_CHECK_SUCCESS_AT] ?: 0L
+    }
+
     /** Automatic retry of downloads that failed because a host link was dead. */
     val failedRetryEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[KEY_FAILED_RETRY_ENABLED] ?: true
@@ -157,6 +166,10 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { it[KEY_LAST_AUTO_CHECK_AT] = epochMillis }
     }
 
+    suspend fun setLastAutoCheckSuccessAt(epochMillis: Long) {
+        dataStore.edit { it[KEY_LAST_AUTO_CHECK_SUCCESS_AT] = epochMillis }
+    }
+
     suspend fun setFailedRetryEnabled(enabled: Boolean) {
         dataStore.edit { it[KEY_FAILED_RETRY_ENABLED] = enabled }
     }
@@ -168,6 +181,8 @@ class SettingsRepository @Inject constructor(
     suspend fun currentAutoCheckIntervalMinutes(): Int = autoCheckIntervalMinutes.first()
 
     suspend fun currentLastAutoCheckAt(): Long = lastAutoCheckAt.first()
+
+    suspend fun currentLastAutoCheckSuccessAt(): Long = lastAutoCheckSuccessAt.first()
 
     private fun parseQualityPreference(raw: String?): QualityPreference? {
         if (raw.isNullOrBlank()) return null
@@ -214,6 +229,7 @@ class SettingsRepository @Inject constructor(
         val KEY_AUTO_CHECK_INTERVAL_MINUTES = intPreferencesKey("auto_check_interval_minutes")
         val KEY_AUTO_CHECK_INTERVAL_HOURS = intPreferencesKey("auto_check_interval_hours")
         val KEY_LAST_AUTO_CHECK_AT = longPreferencesKey("last_auto_check_at")
+        val KEY_LAST_AUTO_CHECK_SUCCESS_AT = longPreferencesKey("last_auto_check_success_at")
         val KEY_FAILED_RETRY_ENABLED = booleanPreferencesKey("failed_retry_enabled")
     }
 }

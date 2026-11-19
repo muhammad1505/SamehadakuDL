@@ -8,6 +8,7 @@ import app.samehadaku.dl.data.autocheck.AutoCheckScheduler
 import app.samehadaku.dl.data.network.CloudflareSession
 import app.samehadaku.dl.data.smartstorage.SmartStorageScheduler
 import app.samehadaku.dl.domain.usecase.AutoRetryFailedUseCase
+import app.samehadaku.dl.presentation.player.DoNotDisturb
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +43,8 @@ class SamehadakuApp : Application() {
             Timber.plant(Timber.DebugTree())
             WebView.setWebContentsDebuggingEnabled(true)
         }
+        // A crash during a movie must not leave the phone in priority-only mode.
+        runCatching { DoNotDisturb.restoreIfNeeded(this) }
         appScope.launch {
             runCatching { cloudflareSession.restore() }
             // Failed links are often re-uploaded later; retry them on every app start.

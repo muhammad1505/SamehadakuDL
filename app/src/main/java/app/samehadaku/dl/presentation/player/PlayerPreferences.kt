@@ -49,6 +49,10 @@ internal class PlayerPreferences(context: Context) {
         get() = preferences.getBoolean(KEY_BACKGROUND_PLAY, false)
         set(value) = preferences.edit().putBoolean(KEY_BACKGROUND_PLAY, value).apply()
 
+    var longPressHintSeen: Boolean
+        get() = preferences.getBoolean(KEY_LONG_PRESS_HINT, false)
+        set(value) = preferences.edit().putBoolean(KEY_LONG_PRESS_HINT, value).apply()
+
     private companion object {
         const val MIN_SPEED = 0.5f
         const val MAX_SPEED = 2f
@@ -65,5 +69,6 @@ internal class PlayerPreferences(context: Context) {
         const val KEY_EQ_PRESET = "eq_preset"
         const val KEY_LOUDNESS = "loudness_boost"
         const val KEY_BACKGROUND_PLAY = "background_play"
+        const val KEY_LONG_PRESS_HINT = "long_press_hint_seen"
     }
 }
