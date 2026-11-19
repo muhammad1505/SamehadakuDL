@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.media.AudioManager
 import android.net.Uri
 import android.view.LayoutInflater
+import android.view.OrientationEventListener
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -92,6 +93,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -232,8 +234,9 @@ private enum class DragAxis { NONE, SEEK, BRIGHTNESS, VOLUME }
  * picture: a top bar with the back button, title, decoder, playlist and PiP; a
  * centre transport row with ±10s; a bottom bar with lock, time, subtitle, audio,
  * aspect and settings; and a 285dp glass panel on the right with playlist,
- * subtitle, audio and settings tabs. The picture always fills the window and
- * follows the sensor, so there is no fullscreen toggle. A feature that is not in
+ * subtitle, audio and settings tabs. The picture always fills the window, opens
+ * in landscape and then follows the sensor, so there is no fullscreen toggle. A
+ * feature that is not in
  * its default state marks its button with a mint tint and a small dot, and the
  * banner in the middle of the screen says what the last switch did.
  *
@@ -944,13 +947,47 @@ fun PlayerScreen(
         }
     }
 
-    // Respect the system rotation lock: USER follows the sensor when auto-rotate
-    // is on and keeps the user's locked orientation when it is off. SENSOR used
-    // to rotate the player even when the rest of the phone was locked.
+    // Playback is a cinematic surface: the player opens in landscape instead of
+    // waiting for the phone to be turned. A phone held upright keeps the whole
+    // app upright with USER, which is why the old request never produced the
+    // landscape start the user expects. Once the phone has been watched in
+    // landscape and is then turned upright again, rotation goes back to USER so
+    // the sensor and the system rotation lock decide (portrait video, episode
+    // list, or a device whose rotation is locked). SENSOR used to ignore that
+    // lock for the whole session.
+    var landscapeStartDone by rememberSaveable { mutableStateOf(false) }
     DisposableEffect(activity) {
         val previous = activity?.requestedOrientation
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        if (landscapeStartDone) {
+            // Theme/locale recreations must not snap a portrait session back
+            // into landscape; only the first open gets the cinematic start.
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        } else {
+            landscapeStartDone = true
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        val rotationWatcher = object : OrientationEventListener(context) {
+            private var watchedLandscape = false
+
+            override fun onOrientationChanged(angle: Int) {
+                if (angle == OrientationEventListener.ORIENTATION_UNKNOWN) return
+                val heldLandscape = angle in 45..135 || angle in 225..315
+                when {
+                    heldLandscape -> watchedLandscape = true
+                    // Only hand over after the user actually watched in
+                    // landscape, so a phone lying in portrait keeps the
+                    // landscape start instead of snapping back immediately.
+                    watchedLandscape -> {
+                        activity?.requestedOrientation =
+                            ActivityInfo.SCREEN_ORIENTATION_USER
+                        disable()
+                    }
+                }
+            }
+        }
+        if (rotationWatcher.canDetectOrientation()) rotationWatcher.enable()
         onDispose {
+            rotationWatcher.disable()
             activity?.requestedOrientation =
                 previous ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
