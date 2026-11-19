@@ -11,8 +11,14 @@ class PlayerPipMathTest {
     }
 
     @Test
-    fun `vertical video is clamped to the minimum`() {
-        assertEquals(MIN_PIP_ASPECT_RATIO, clampPipAspectRatio(9f / 16f), 0.0001f)
+    fun `portrait video inside the supported range is kept`() {
+        // 9:16 is taller than widescreen but still above Android's 0.42 floor,
+        // so PiP must accept it instead of shrinking it to the minimum.
+        assertEquals(9f / 16f, clampPipAspectRatio(9f / 16f), 0.0001f)
+    }
+
+    @Test
+    fun `extremely tall video is clamped to the minimum`() {
         assertEquals(MIN_PIP_ASPECT_RATIO, clampPipAspectRatio(0.1f), 0.0001f)
     }
 
