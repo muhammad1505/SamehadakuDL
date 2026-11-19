@@ -26,7 +26,7 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   setelah 90% video, playlist episode otomatis, kecepatan 0.5x–2x, mode layar
   FIT/ZOOM/FILL, siklus decoder Auto/HW/SW, Picture-in-Picture, pemutar langsung
   terbuka singkat dalam landscape lalu rotasi mengikuti arah HP (portrait maupun
-  landscape) dan kunci rotasi sistem, gesture
+  landscape) walau auto-rotate HP dimatikan, gesture
   kecerahan/volume/scrub, smart screen lock,
   sleep timer, equalizer + loudness boost, serta mode “Jangan ganggu” selama menonton.
   Background play memakai MediaSessionService foreground dengan kontrol di
@@ -542,6 +542,15 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   dan rasio PiP ekstrem dijepit ke rentang yang didukung Android.
 - Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
   notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
+
+## Rilis 2.7.12
+
+- Rotasi pemutar kembali mengikuti arah HP seperti 2.7.7, termasuk pada HP yang
+  auto-rotate-nya dimatikan. Landscape tetap jadi pembuka singkat saat episode
+  diputar, lalu orientasi memakai sensor murni sehingga HP yang diputar tegak
+  langsung portrait dan diputar menyamping kembali landscape. Aturan 2.7.9 yang
+  menyerahkan orientasi ke kunci rotasi sistem membuat pemutar diam di satu
+  orientasi pada HP dengan auto-rotate mati.
 
 ## Rilis 2.7.11
 

@@ -951,19 +951,21 @@ fun PlayerScreen(
 
     // Playback is a cinematic surface, so the player opens in landscape instead
     // of waiting for the phone to be turned. That entrance is deliberately
-    // short-lived: after a moment rotation goes back to USER, which follows the
-    // sensor in both directions (portrait <-> landscape) and still honours the
-    // system rotation lock. The player therefore adapts to however the user is
-    // holding the phone instead of pinning one orientation for the session.
+    // short-lived: after a moment the player follows the sensor in both
+    // directions (portrait <-> landscape) however the phone is held. SENSOR is
+    // what 2.7.7 did and it keeps working when the device auto-rotate switch is
+    // off; USER was tried in 2.7.9 and left such phones stuck in one
+    // orientation for the whole session.
     var rotationHandedOff by rememberSaveable { mutableStateOf(false) }
     DisposableEffect(activity) {
         val previous = activity?.requestedOrientation
-        // A theme/locale recreation during the entrance must not restart it;
-        // once handed off, USER (already set on this activity) stays in charge.
-        if (!rotationHandedOff) {
-            activity?.requestedOrientation =
+        // A theme/locale recreation during the entrance must not restart it.
+        activity?.requestedOrientation =
+            if (rotationHandedOff) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR
+            } else {
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        }
+            }
         onDispose {
             activity?.requestedOrientation =
                 previous ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -976,7 +978,7 @@ fun PlayerScreen(
         // held upright returns to portrait almost immediately.
         delay(LANDSCAPE_START_MS)
         rotationHandedOff = true
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
     }
 
     val orientation = LocalConfiguration.current.orientation
