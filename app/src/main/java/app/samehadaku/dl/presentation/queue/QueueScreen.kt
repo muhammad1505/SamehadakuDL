@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.History
@@ -111,9 +112,11 @@ import app.samehadaku.dl.presentation.theme.TextPrimary
 import app.samehadaku.dl.presentation.theme.TextSecondary
 import app.samehadaku.dl.presentation.theme.Warning
 import app.samehadaku.dl.presentation.theme.titleAccent
+import app.samehadaku.dl.presentation.util.dateGroupLabel
 import app.samehadaku.dl.presentation.util.formatBytes
 import app.samehadaku.dl.presentation.util.formatSpeed
 import app.samehadaku.dl.presentation.util.prettyName
+import app.samehadaku.dl.presentation.util.shortDateTime
 import app.samehadaku.dl.presentation.util.stateLabel
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -123,6 +126,7 @@ import kotlinx.coroutines.launch
 fun QueueScreen(
     onTabSelected: (AppTab) -> Unit,
     onBrowse: () -> Unit,
+    onPlay: (folderName: String, fileName: String) -> Unit,
     viewModel: QueueViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -131,6 +135,11 @@ fun QueueScreen(
     val scope = rememberCoroutineScope()
     var confirmClearHistory by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<DownloadTask?>(null) }
+    // A long history reads as dated sections instead of one endless list, and the
+    // date is taken from when the download finished (created time while running).
+    val groups = remember(state.tasks) {
+        state.tasks.groupBy { dateGroupLabel(it.finishedAt ?: it.createdAt) }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.messages.collect { message ->
@@ -313,43 +322,58 @@ fun QueueScreen(
                         }
                     }
                 } else {
-                    items(state.tasks, key = { it.id }) { task ->
-                        QueueTaskCard(
-                            task = task,
-                            cover = state.covers[task.animeSlug],
-                            // New cards fade in and the list reflows smoothly whenever
-                            // the filter tab or the search query changes the result set.
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = tween(durationMillis = 240),
-                                placementSpec = spring(
-                                    stiffness = Spring.StiffnessMediumLow,
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    groups.forEach { (dateLabel, dayTasks) ->
+                        item(key = "date-$dateLabel") {
+                            DownloadDateHeader(label = dateLabel, count = dayTasks.size)
+                        }
+                        items(dayTasks, key = { it.id }) { task ->
+                            QueueTaskCard(
+                                task = task,
+                                cover = state.covers[task.animeSlug],
+                                // New cards fade in and the list reflows smoothly whenever
+                                // the filter tab or the search query changes the result set.
+                                modifier = Modifier.animateItem(
+                                    fadeInSpec = tween(durationMillis = 240),
+                                    placementSpec = spring(
+                                        stiffness = Spring.StiffnessMediumLow,
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                    ),
+                                    fadeOutSpec = tween(durationMillis = 160),
                                 ),
-                                fadeOutSpec = tween(durationMillis = 160),
-                            ),
-                            onPause = { viewModel.pause(task.id) },
-                            onResume = { viewModel.resume(task.id) },
-                            onCancel = { viewModel.cancel(task.id) },
-                            onRetry = { viewModel.retry(task.id) },
-                            onOpen = { viewModel.open(task) },
-                            onShare = { viewModel.share(task) },
-                            onDeleteFile = { pendingDelete = task },
-                            onRemove = { viewModel.remove(task.id) },
-                            onOpenEpisode = {
-                                val opened = runCatching {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse(task.episodeUrl)),
-                                    )
-                                }.isSuccess
-                                if (!opened) {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            "Tidak ada browser untuk membuka halaman episode",
-                                        )
+                                onPause = { viewModel.pause(task.id) },
+                                onResume = { viewModel.resume(task.id) },
+                                onCancel = { viewModel.cancel(task.id) },
+                                onRetry = { viewModel.retry(task.id) },
+                                onOpen = {
+                                    // Finished files belong to the internal player, the
+                                    // same one Koleksi opens; the external viewer is
+                                    // still reachable for a file without a local name.
+                                    val fileName = task.fileName
+                                    if (fileName.isNullOrBlank()) {
+                                        viewModel.open(task)
+                                    } else {
+                                        onPlay(task.animeSlug, fileName)
                                     }
-                                }
-                            },
-                        )
+                                },
+                                onShare = { viewModel.share(task) },
+                                onDeleteFile = { pendingDelete = task },
+                                onRemove = { viewModel.remove(task.id) },
+                                onOpenEpisode = {
+                                    val opened = runCatching {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(task.episodeUrl)),
+                                        )
+                                    }.isSuccess
+                                    if (!opened) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                "Tidak ada browser untuk membuka halaman episode",
+                                            )
+                                        }
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -559,6 +583,36 @@ private data class TaskStyle(
     val color: Color,
     val icon: ImageVector,
 )
+
+/** Date rule between download sections; the line makes the day break obvious. */
+@Composable
+private fun DownloadDateHeader(label: String, count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = label,
+            color = TextSecondary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(Color.White.copy(alpha = 0.10f)),
+        )
+        Text(
+            text = if (count == 1) "1 episode" else "$count episode",
+            color = TextMuted,
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
 
 private fun styleFor(state: DownloadState): TaskStyle = when (state) {
     DownloadState.DONE -> TaskStyle(BrandMint, Icons.Rounded.CheckCircle)
@@ -803,6 +857,11 @@ private fun QueueTaskCard(
                 icon = Icons.Rounded.Download,
                 text = "${task.format.label} • ${task.resolution.uppercase()}",
                 color = accent,
+            )
+            InfoChip(
+                icon = Icons.Rounded.Event,
+                text = shortDateTime(task.finishedAt ?: task.createdAt),
+                color = TextSecondary,
             )
             task.currentHost?.let { host ->
                 InfoChip(icon = Icons.Rounded.Wifi, text = host.label, color = TextSecondary)

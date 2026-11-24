@@ -571,16 +571,20 @@ fun PlayerScreen(
         when {
             dndActive -> {
                 dnd.release()
+                // Turning it off by hand also clears the memory, so the next
+                // playback does not turn the filter on behind the user's back.
+                dnd.wanted = false
                 dndActive = false
                 showBanner(Icons.Rounded.DoNotDisturbOn, "Jangan ganggu: mati", "Notifikasi kembali normal")
             }
             dnd.hasAccess() -> {
                 dndActive = dnd.activate()
+                dnd.wanted = dndActive
                 dndGranted = dndActive
                 showBanner(
                     Icons.Rounded.DoNotDisturbOn,
                     if (dndActive) "Cinema DND aktif" else "Jangan ganggu gagal aktif",
-                    "Notifikasi melayang ditahan selama menonton",
+                    "Notifikasi, pesan, dan panggilan ditahan; alarm tetap berbunyi",
                 )
             }
             else -> {
@@ -666,6 +670,30 @@ fun PlayerScreen(
     LaunchedEffect(eqPreset, boostPercent) {
         preferences.loudnessBoost = boostPercent
         audioEffects.apply(eqPreset, boostPercent)
+    }
+
+    // The audio session id can arrive late (or be missed by the deprecated
+    // callback), so retry while playing instead of leaving EQ/loudness detached.
+    LaunchedEffect(exoPlayer, isPlaying) {
+        if (!isPlaying) return@LaunchedEffect
+        while (true) {
+            audioEffects.attach(exoPlayer.audioSessionId)
+            delay(2_000L)
+        }
+    }
+
+    // Some devices ship no equalizer in their audio HAL; say so once instead of
+    // letting the preset pills look broken.
+    LaunchedEffect(eqPreset, isPlaying) {
+        if (eqPreset == EqPreset.NORMAL || !isPlaying) return@LaunchedEffect
+        delay(3_000L)
+        if (!audioEffects.hasEqualizer) {
+            showBanner(
+                Icons.Rounded.GraphicEq,
+                "Equalizer tidak tersedia",
+                "Perangkat ini tidak menyediakan efek EQ; boost volume tetap berjalan",
+            )
+        }
     }
     LaunchedEffect(backgroundPlay) { preferences.backgroundPlay = backgroundPlay }
 
@@ -809,6 +837,11 @@ fun PlayerScreen(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
                 ended = playbackState == Player.STATE_ENDED
+                // The audio session exists once playback is ready; attaching here
+                // covers devices whose session-id callback arrives too early.
+                if (playbackState == Player.STATE_READY) {
+                    audioEffects.attach(exoPlayer.audioSessionId)
+                }
                 if (ended) viewModel.onPlaybackEnded()
             }
 
@@ -1028,9 +1061,28 @@ fun PlayerScreen(
         // ON_STOP on some ROMs while its window is still visible, so keep playing
         // there regardless of the background setting.
         if (!backgroundPlay && !PlayerPip.inPip) exoPlayer.pause()
-        if (!PlayerPip.inPip && activity?.isChangingConfigurations != true) {
+        // Cinema DND follows playback, not the window: while background audio or
+        // PiP keeps running the filter stays on, and it is restored as soon as
+        // the video is really paused.
+        val keepsPlaying = backgroundPlay || PlayerPip.inPip
+        if (!keepsPlaying && activity?.isChangingConfigurations != true) {
             dnd.release()
             dndActive = false
+        }
+    }
+
+    // The filter is remembered across player sessions: leaving restores the phone
+    // for other apps, but the next episode turns Cinema DND on again instead of
+    // making the user hunt for the toggle every time.
+    LaunchedEffect(Unit) {
+        if (dndActive || !dnd.wanted || !dnd.hasAccess()) return@LaunchedEffect
+        dndActive = dnd.activate()
+        if (dndActive) {
+            showBanner(
+                Icons.Rounded.DoNotDisturbOn,
+                "Cinema DND aktif",
+                "Notifikasi ditahan seperti tontonan sebelumnya",
+            )
         }
     }
 
@@ -1296,6 +1348,17 @@ fun PlayerScreen(
                         label = state.entries.size.toString(),
                         active = panelTab == PanelTab.EPISODES,
                         onClick = { panelTab = PanelTab.EPISODES },
+                    )
+                    StateIconButton(
+                        icon = Icons.Rounded.DoNotDisturbOn,
+                        contentDescription = if (dndActive) {
+                            "Jangan ganggu aktif, ketuk untuk mematikan"
+                        } else {
+                            "Aktifkan jangan ganggu"
+                        },
+                        label = if (dndActive) "DND" else "OFF",
+                        active = dndActive,
+                        onClick = ::toggleDnd,
                     )
                     if (pipSupported) {
                         GlassIconButton(

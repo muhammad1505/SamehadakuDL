@@ -22,9 +22,10 @@ import timber.log.Timber
  * "leaving": the stored filter is re-read through [isActive] so the toggle keeps
  * showing the state that is actually applied.
  *
- * The filter used is "prioritas", not "total senyap": total silence also mutes
- * media on many devices, so enabling it left the video playing without sound.
- * Priority keeps notifications quiet while the movie's audio stays audible.
+ * The filter used is "alarm saja": "prioritas" still lets WhatsApp and other
+ * conversation notifications through, which is exactly the interruption the
+ * cinema mode is meant to silence. Alarms keep ringing and media is unaffected,
+ * so the movie's audio stays audible.
  */
 internal class DoNotDisturb(private val context: Context) {
 
@@ -33,6 +34,15 @@ internal class DoNotDisturb(private val context: Context) {
 
     private val preferences =
         context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+
+    /**
+     * User intent for the next playback. Leaving the player restores the phone,
+     * but this flag makes the filter come back on by itself next time instead of
+     * asking for a manual toggle on every episode.
+     */
+    var wanted: Boolean
+        get() = preferences.getBoolean(KEY_WANTED, false)
+        set(value) = preferences.edit().putBoolean(KEY_WANTED, value).apply()
 
     fun hasAccess(): Boolean = manager?.isNotificationPolicyAccessGranted == true
 
@@ -44,7 +54,7 @@ internal class DoNotDisturb(private val context: Context) {
     fun isActive(): Boolean {
         if (preferences.getInt(KEY_PREVIOUS_FILTER, NO_FILTER) == NO_FILTER) return false
         val current = runCatching { manager?.currentInterruptionFilter }.getOrNull()
-        return current == NotificationManager.INTERRUPTION_FILTER_PRIORITY
+        return current == APPLIED_FILTER
     }
 
     /** Opens the system screen where the user grants notification-policy access. */
@@ -65,7 +75,7 @@ internal class DoNotDisturb(private val context: Context) {
             preferences.edit().putInt(KEY_PREVIOUS_FILTER, restorableFilter(current)).apply()
         }
         val activated = runCatching {
-            nm.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_PRIORITY)
+            nm.setInterruptionFilter(APPLIED_FILTER)
         }.isSuccess
         if (!activated) preferences.edit().remove(KEY_PREVIOUS_FILTER).apply()
         return activated
@@ -79,7 +89,7 @@ internal class DoNotDisturb(private val context: Context) {
         // If the user changed DND themselves while watching, do not overwrite
         // that choice when the player closes.
         val current = runCatching { nm.currentInterruptionFilter }.getOrNull()
-        if (current != null && current != NotificationManager.INTERRUPTION_FILTER_PRIORITY) {
+        if (current != null && current != APPLIED_FILTER) {
             preferences.edit().remove(KEY_PREVIOUS_FILTER).apply()
             return
         }
@@ -99,7 +109,14 @@ internal class DoNotDisturb(private val context: Context) {
     companion object {
         private const val PREFERENCES = "player_dnd"
         private const val KEY_PREVIOUS_FILTER = "previous_filter"
+        private const val KEY_WANTED = "wanted"
         private const val NO_FILTER = -1
+
+        /**
+         * Alarms-only blocks calls and messages (including WhatsApp) while alarms
+         * still ring; media playback is never part of the interruption filter.
+         */
+        private const val APPLIED_FILTER = NotificationManager.INTERRUPTION_FILTER_ALARMS
 
         /**
          * `INTERRUPTION_FILTER_UNKNOWN` is only reported before the notification
@@ -127,7 +144,7 @@ internal class DoNotDisturb(private val context: Context) {
 
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
             val current = runCatching { manager.currentInterruptionFilter }.getOrNull()
-            if (current != null && current != NotificationManager.INTERRUPTION_FILTER_PRIORITY) {
+            if (current != null && current != APPLIED_FILTER) {
                 // The user changed DND themselves, or the system reset it: the
                 // stored filter is stale and must not override that choice.
                 prefs.edit().remove(KEY_PREVIOUS_FILTER).apply()

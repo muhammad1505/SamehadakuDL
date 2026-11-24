@@ -31,6 +31,9 @@ internal class PlayerAudioEffects {
     private var currentPreset = EqPreset.NORMAL
     private var currentBoost = 100
 
+    /** True once the platform provided an equalizer for the current session. */
+    val hasEqualizer: Boolean get() = equalizer != null
+
     /** Attaches the effects to ExoPlayer's audio session, ignoring repeats. */
     fun attach(id: Int) {
         if (id == C.AUDIO_SESSION_ID_UNSET || id == 0 || id == sessionId) return

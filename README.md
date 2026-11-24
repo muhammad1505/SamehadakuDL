@@ -543,6 +543,24 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
   notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
 
+## Rilis 2.7.13
+
+- Menekan tombol putar di tab Unduhan sekarang membuka pemutar internal seperti
+  Koleksi, bukan lagi menyerahkan file ke aplikasi lain.
+- Daftar unduhan diberi pemisah tanggal bergaris (“Hari ini”, “22 Nov 2026”, …)
+  lengkap dengan jumlah episode per hari, dan setiap kartu menampilkan tanggal
+  unduhan selesai agar riwayat mudah dibaca.
+- Cinema DND kini memakai filter “alarm saja”, sehingga notifikasi WhatsApp,
+  pesan, dan panggilan tidak lagi muncul saat menonton; alarm tetap berbunyi dan
+  audio video tidak terpengaruh.
+- DND bertahan selama pemutaran latar berjalan (sebelumnya dilepas begitu
+  aplikasi ke latar), dan pilihan DND diingat: episode berikutnya mengaktifkannya
+  kembali otomatis tanpa perlu membuka panel. Mematikan manual menghapus memori
+  itu. Ikon DND juga tersedia langsung di bar atas pemutar.
+- Equalizer dan loudness boost lebih andal: efek dipasang ulang saat pemutar siap
+  dan selama pemutaran, sehingga preset tidak lagi diam-diam tidak aktif, dan
+  perangkat tanpa EQ memberi tahu pengguna alih-alih tampak rusak.
+
 ## Rilis 2.7.12
 
 - Rotasi pemutar kembali mengikuti arah HP seperti 2.7.7, termasuk pada HP yang

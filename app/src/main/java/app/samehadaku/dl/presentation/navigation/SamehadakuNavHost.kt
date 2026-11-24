@@ -289,6 +289,9 @@ fun SamehadakuNavHost(
                 QueueScreen(
                     onTabSelected = ::navigateToTab,
                     onBrowse = { navigateToTab(AppTab.HOME) },
+                    onPlay = { folderName, fileName ->
+                        navController.navigate(Routes.player(folderName, fileName))
+                    },
                 )
             }
 
