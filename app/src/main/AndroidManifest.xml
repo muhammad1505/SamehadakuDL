@@ -64,6 +64,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!--
+                Video files opened with "Buka dengan" land here, so the app can be
+                chosen as the default video player. Android owns that choice; the
+                Settings entry only opens the system screen for it.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
         </activity>
 
         <service

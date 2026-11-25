@@ -296,6 +296,8 @@ fun PlayerScreen(
 
     var controlsVisible by remember { mutableStateOf(true) }
     var locked by remember { mutableStateOf(false) }
+    // Tapping the time switches between "pos / durasi" and "sisa waktu / durasi".
+    var showRemaining by remember { mutableStateOf(false) }
     var unlockVisible by remember { mutableStateOf(false) }
     var unlockToken by remember { mutableIntStateOf(0) }
     var panelTab by remember { mutableStateOf<PanelTab?>(null) }
@@ -1520,17 +1522,24 @@ fun PlayerScreen(
                             touchSize = 48.dp,
                         )
                         Spacer(Modifier.width(8.dp))
+                        val currentMs = if (scrubbing) scrubPosition else positionMs
+                        val remainingMs = (durationMs - currentMs).coerceAtLeast(0L)
                         Text(
-                            text = "${formatTime(if (scrubbing) scrubPosition else positionMs)} / " +
-                                formatTime(durationMs),
-                            color = Color.White,
+                            text = if (showRemaining && durationMs > 0L) {
+                                "-${formatTime(remainingMs)} / ${formatTime(durationMs)}"
+                            } else {
+                                "${formatTime(currentMs)} / ${formatTime(durationMs)}"
+                            },
+                            color = if (showRemaining) BrandMint else Color.White,
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // Let the time shrink on narrow screens instead of
                             // pushing the four pills and the settings button
-                            // outside the row.
-                            modifier = Modifier.weight(1f),
+                            // outside the row. Tapping it shows the remaining time.
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { showRemaining = !showRemaining },
                         )
                         // Hardsub files carry no text track, so the button has to
                         // stay available: it is also where an external file loads.

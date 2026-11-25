@@ -70,6 +70,11 @@ class PlayerViewModel @Inject constructor(
     private val folderName: String = savedStateHandle.get<String>("folder").orEmpty()
     private val fileName: String = savedStateHandle.get<String>("file").orEmpty()
 
+    /** Set when the player was opened from another app through "Buka dengan". */
+    private val sourceUri: String = savedStateHandle.get<String>("uri").orEmpty()
+
+    private val externalSource: Boolean get() = sourceUri.isNotBlank()
+
     private val _state = MutableStateFlow(
         PlayerUiState(folderLabel = prettyName(folderName)),
     )
@@ -86,6 +91,10 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun prepare() {
+        if (externalSource) {
+            prepareExternal(sourceUri)
+            return
+        }
         if (folderName.isBlank() || fileName.isBlank()) {
             _state.update { it.copy(loading = false, error = "Episode tidak dikenal.") }
             return
@@ -115,6 +124,52 @@ class PlayerViewModel @Inject constructor(
             it.copy(loading = false, entries = entries, index = startIndex)
         }
     }
+
+    /**
+     * Plays a single video handed over by another app. There is no folder playlist
+     * and no Smart Storage ownership, but the resume position still works so an
+     * interrupted external video continues where it stopped.
+     */
+    private suspend fun prepareExternal(rawUri: String) {
+        val uri = runCatching { Uri.parse(rawUri) }.getOrNull()
+        if (uri == null) {
+            _state.update { it.copy(loading = false, error = "Video tidak bisa dibuka.") }
+            return
+        }
+        val entry = withContext(Dispatchers.IO) {
+            val name = displayName(uri).orEmpty().ifBlank { "Video" }
+            PlayerEntry(
+                fileName = name,
+                title = episodeTitle(name),
+                uri = uri,
+                size = resolveSize(uri),
+                resumeMs = resumeFor(name),
+            )
+        }
+        knownPositions[entry.fileName.lowercase()] = entry.resumeMs
+        _state.update {
+            it.copy(
+                loading = false,
+                folderLabel = "Dibuka dari aplikasi lain",
+                entries = listOf(entry),
+                index = 0,
+            )
+        }
+    }
+
+    private fun displayName(uri: Uri): String? = runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use null
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else null
+        }
+    }.getOrNull()
 
     /**
      * Plays every video file in the same folder, ordered by episode number. The
@@ -224,9 +279,13 @@ class PlayerViewModel @Inject constructor(
         completed = true
         knownPositions[entry.fileName.lowercase()] = 0L
         positions.clearInBackground(folderName, entry.fileName)
-        // App-lifetime write: the user can leave the screen the moment the video
-        // ends, so this must not depend on viewModelScope staying alive.
-        smartStorage.markWatchedInBackground(folderName, entry.fileName, entry.size)
+        // Smart Storage only owns files this app downloaded into a collection
+        // folder; a video opened from another app must never enter that registry.
+        if (!externalSource) {
+            // App-lifetime write: the user can leave the screen the moment the video
+            // ends, so this must not depend on viewModelScope staying alive.
+            smartStorage.markWatchedInBackground(folderName, entry.fileName, entry.size)
+        }
         Timber.d("Smart Storage: %s selesai diputar di pemutar internal", entry.fileName)
     }
 

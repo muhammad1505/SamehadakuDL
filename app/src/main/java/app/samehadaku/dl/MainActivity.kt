@@ -56,11 +56,13 @@ class MainActivity : ComponentActivity() {
 
     private var sharedUrl by mutableStateOf<String?>(null)
     private var pendingRoute by mutableStateOf<String?>(null)
+    private var externalVideoUri by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         sharedUrl = extractSharedUrl(intent)
         pendingRoute = intent?.getStringExtra(EXTRA_OPEN_ROUTE)
+        externalVideoUri = extractVideoUri(intent)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -111,6 +113,8 @@ class MainActivity : ComponentActivity() {
                             onSharedUrlConsumed = { sharedUrl = null },
                             pendingRoute = pendingRoute,
                             onPendingRouteConsumed = { pendingRoute = null },
+                            externalVideoUri = externalVideoUri,
+                            onExternalVideoConsumed = { externalVideoUri = null },
                         )
                     }
                 }
@@ -134,6 +138,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         sharedUrl = extractSharedUrl(intent)
         pendingRoute = intent.getStringExtra(EXTRA_OPEN_ROUTE)
+        externalVideoUri = extractVideoUri(intent)
     }
 
     override fun onPictureInPictureModeChanged(
@@ -152,6 +157,26 @@ class MainActivity : ComponentActivity() {
         if (text.isBlank()) return null
         val match = Regex("https?://\\S+").find(text)?.value ?: return null
         return match.trimEnd('.', ',', ';', ')', ']', '}')
+    }
+
+    /**
+     * Video opened from a file manager or another app via "Buka dengan".
+     *
+     * The read grant is persisted when the sender allows it so playback survives a
+     * configuration change; sources that only grant a temporary read still play
+     * for this session because the activity keeps the intent grant.
+     */
+    private fun extractVideoUri(intent: Intent?): String? {
+        if (intent?.action != Intent.ACTION_VIEW) return null
+        val uri = intent.data ?: return null
+        if (uri.scheme.isNullOrBlank()) return null
+        runCatching {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+        return uri.toString()
     }
 
     private fun requestNotificationPermissionIfNeeded() {

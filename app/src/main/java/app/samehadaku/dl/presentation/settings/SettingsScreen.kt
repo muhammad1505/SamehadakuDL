@@ -3,6 +3,7 @@ package app.samehadaku.dl.presentation.settings
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -38,6 +39,8 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
@@ -130,6 +133,25 @@ fun SettingsScreen(
         backgroundScope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    // Android decides which app is the default video player, so the app can only
+    // send the user to the screen that owns that choice. Default-apps settings is
+    // preferred; app info ("Buka secara default") exists on every OEM.
+    val openDefaultPlayerSettings = {
+        val candidates = listOf(
+            Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:${context.packageName}"),
+            ),
+        )
+        val opened = candidates.any { intent ->
+            runCatching { context.startActivity(intent) }.isSuccess
+        }
+        if (!opened) {
+            showBackgroundMessage("Pengaturan default tidak bisa dibuka di perangkat ini.")
         }
     }
 
@@ -528,6 +550,46 @@ fun SettingsScreen(
                             "berjalan, dijeda, atau menunggu tidak pernah disentuh, dan file " +
                             "di Download/SamehadakuDL tetap utuh. Tombol “Bersihkan” di layar " +
                             "Unduhan tetap bisa dipakai kapan saja.",
+                    )
+                }
+            }
+
+            item {
+                SettingSection(
+                    title = "Pemutar video",
+                    subtitle = "Buka video dari aplikasi lain",
+                    icon = Icons.Rounded.PlayCircle,
+                    tint = BrandMint,
+                    badge = "Buka dengan",
+                ) {
+                    Text(
+                        text = "Jadikan pemutar default",
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = "Episode unduhan dan video dari file manager sekarang bisa " +
+                            "dibuka langsung di pemutar internal. Android yang menentukan " +
+                            "aplikasi default, jadi pilih “Samehadaku DL” lalu “Selalu” pada " +
+                            "dialog Buka dengan.",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    GlassButton(
+                        text = "Buka pengaturan aplikasi default",
+                        onClick = openDefaultPlayerSettings,
+                        icon = Icons.Rounded.OpenInNew,
+                        modifier = Modifier.fillMaxWidth(),
+                        height = 44.dp,
+                        tint = BrandMint,
+                    )
+                    Spacer(Modifier.height(9.dp))
+                    Caption(
+                        "Video yang dibuka dari luar tampil dengan kontrol yang sama: " +
+                            "gesture kecerahan/volume, subtitle, kecepatan, PiP, dan lanjut " +
+                            "dari posisi terakhir. Aplikasi tidak bisa memaksa status default " +
+                            "sendiri; pengaturan sistem di atas adalah satu-satunya jalan.",
                     )
                 }
             }

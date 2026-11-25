@@ -58,9 +58,15 @@ object Routes {
     const val SMART_STORAGE = "smart-storage"
     const val PLAYER = "player"
 
+    /** Player for a video handed over by another app through "Buka dengan". */
+    const val PLAYER_EXTERNAL = "player-external"
+
     /** Player route; both parts are URI-encoded because file names may contain `/`. */
     fun player(folderName: String, fileName: String): String =
         "$PLAYER/${Uri.encode(folderName)}/${Uri.encode(fileName)}"
+
+    /** External video route; the whole URI is encoded so query strings survive. */
+    fun playerExternal(uri: String): String = "$PLAYER_EXTERNAL/${Uri.encode(uri)}"
 }
 
 /** Tabs cross-fade; every other route is a pushed detail page. */
@@ -75,6 +81,8 @@ fun SamehadakuNavHost(
     onSharedUrlConsumed: () -> Unit = {},
     pendingRoute: String? = null,
     onPendingRouteConsumed: () -> Unit = {},
+    externalVideoUri: String? = null,
+    onExternalVideoConsumed: () -> Unit = {},
 ) {
     val navController = rememberNavController()
 
@@ -119,6 +127,15 @@ fun SamehadakuNavHost(
         val route = pendingRoute ?: return@LaunchedEffect
         openRoute(route)
         onPendingRouteConsumed()
+    }
+
+    // A video opened with "Buka dengan" jumps straight into the internal player.
+    LaunchedEffect(externalVideoUri) {
+        val uri = externalVideoUri ?: return@LaunchedEffect
+        runCatching {
+            navController.navigate(Routes.playerExternal(uri)) { launchSingleTop = true }
+        }
+        onExternalVideoConsumed()
     }
 
     AppBackground {
@@ -310,6 +327,15 @@ fun SamehadakuNavHost(
                 arguments = listOf(
                     navArgument("folder") { type = NavType.StringType },
                     navArgument("file") { type = NavType.StringType },
+                ),
+            ) {
+                PlayerScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(
+                route = "${Routes.PLAYER_EXTERNAL}/{uri}",
+                arguments = listOf(
+                    navArgument("uri") { type = NavType.StringType },
                 ),
             ) {
                 PlayerScreen(onBack = { navController.popBackStack() })

@@ -24,6 +24,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Riwayat unduhan bisa dibersihkan otomatis setelah 7/14/30 hari; hanya catatan riwayat
   yang hilang, file episode tetap tersimpan.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
+- Bisa dijadikan pemutar video default: file `video/*` dari file manager atau aplikasi
+  lain dibuka langsung di pemutar internal lengkap dengan resume dan kontrolnya.
 - Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
   setelah 90% video, playlist episode otomatis, kecepatan 0.5x–2x, mode layar
   FIT/ZOOM/FILL, siklus decoder Auto/HW/SW, Picture-in-Picture, pemutar langsung
@@ -550,6 +552,14 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 
 ## Rilis 2.7.14
 
+- Opsi “Jadikan pemutar default”: aplikasi kini menerima intent `ACTION_VIEW` untuk
+  `video/*`, sehingga muncul di dialog “Buka dengan” dan bisa dipilih sebagai
+  pemutar video default. Video dari file manager langsung diputar dengan kontrol
+  internal, termasuk resume posisi terakhir dan tanpa pernah masuk daftar Smart
+  Storage. Pengaturan → “Pemutar video” menyediakan tombol menuju layar default
+  aplikasi Android, karena status default hanya bisa diatur oleh sistem.
+- UX pemutar: mengetuk teks waktu di bar bawah mengganti tampilan dari
+  “posisi / durasi” menjadi “sisa waktu / durasi” (aksen mint) tanpa membuka panel.
 - Unduhan turbo: file episode besar sekarang dipecah menjadi beberapa rentang byte
   dan diunduh lewat 4 koneksi sekaligus, lalu disatukan menjadi satu file utuh.
   Koneksi HP yang biasanya menganggur saat unduhan tunggal jadi terpakai, dan
