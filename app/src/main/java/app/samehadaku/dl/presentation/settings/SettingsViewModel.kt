@@ -31,6 +31,7 @@ data class SettingsUiState(
     val autoCheckIntervalMinutes: Int = 60,
     val failedRetryEnabled: Boolean = true,
     val historyAutoClearDays: Int = 0,
+    val turboDownloads: Boolean = true,
     val lastAutoCheckAt: Long = 0L,
     val lastAutoCheckSuccessAt: Long = 0L,
     val smartStorageEnabled: Boolean = false,
@@ -107,6 +108,11 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settings.historyAutoClearDays.collect { days ->
                 _state.update { it.copy(historyAutoClearDays = days) }
+            }
+        }
+        viewModelScope.launch {
+            settings.turboDownloads.collect { enabled ->
+                _state.update { it.copy(turboDownloads = enabled) }
             }
         }
         viewModelScope.launch {
@@ -243,6 +249,21 @@ class SettingsViewModel @Inject constructor(
                         "Percobaan ulang otomatis diaktifkan."
                     } else {
                         "Percobaan ulang otomatis dimatikan."
+                    },
+                )
+            }
+        }
+    }
+
+    fun setTurboDownloads(enabled: Boolean) {
+        viewModelScope.launch {
+            settings.setTurboDownloads(enabled)
+            _state.update {
+                it.copy(
+                    message = if (enabled) {
+                        "Unduhan turbo aktif: file besar diunduh lewat beberapa koneksi."
+                    } else {
+                        "Unduhan turbo dimatikan: setiap file memakai satu koneksi."
                     },
                 )
             }

@@ -89,6 +89,14 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
+     * Splits one large file across several range connections. Hosts without byte
+     * range support are unaffected because downloads fall back to one connection.
+     */
+    val turboDownloads: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEY_TURBO_DOWNLOADS] ?: true
+    }
+
+    /**
      * How many days finished downloads stay in the history list; 0 keeps every
      * entry. Only the list is trimmed, downloaded files are never deleted here.
      */
@@ -193,6 +201,12 @@ class SettingsRepository @Inject constructor(
 
     suspend fun currentHistoryAutoClearDays(): Int = historyAutoClearDays.first()
 
+    suspend fun setTurboDownloads(enabled: Boolean) {
+        dataStore.edit { it[KEY_TURBO_DOWNLOADS] = enabled }
+    }
+
+    suspend fun currentTurboDownloads(): Boolean = turboDownloads.first()
+
     suspend fun currentAutoCheckEnabled(): Boolean = autoCheckEnabled.first()
 
     suspend fun currentAutoCheckIntervalMinutes(): Int = autoCheckIntervalMinutes.first()
@@ -249,5 +263,6 @@ class SettingsRepository @Inject constructor(
         val KEY_LAST_AUTO_CHECK_SUCCESS_AT = longPreferencesKey("last_auto_check_success_at")
         val KEY_FAILED_RETRY_ENABLED = booleanPreferencesKey("failed_retry_enabled")
         val KEY_HISTORY_AUTO_CLEAR_DAYS = intPreferencesKey("history_auto_clear_days")
+        val KEY_TURBO_DOWNLOADS = booleanPreferencesKey("turbo_downloads")
     }
 }

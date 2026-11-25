@@ -443,6 +443,45 @@ fun SettingsScreen(
                         }
                     }
                     Caption("Nilai 1 paling hemat data. Nilai 3 mengunduh hingga tiga episode sekaligus.")
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Unduhan turbo",
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Text(
+                                text = "File besar diunduh lewat 4 koneksi sekaligus " +
+                                    "bila server mendukung",
+                                color = TextMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Switch(
+                            checked = state.turboDownloads,
+                            onCheckedChange = viewModel::setTurboDownloads,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Ink,
+                                checkedTrackColor = BrandMint,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
+                                uncheckedBorderColor = Color.White.copy(alpha = 0.16f),
+                            ),
+                        )
+                    }
+                    Spacer(Modifier.height(9.dp))
+                    Caption(
+                        "Turbo membagi satu file menjadi beberapa bagian yang diunduh " +
+                            "bersamaan lalu disatukan, sehingga koneksi HP lebih terpakai. " +
+                            "Server yang tidak mendukung unduhan terpisah otomatis kembali " +
+                            "ke satu koneksi, dan file kecil tetap memakai satu koneksi. " +
+                            "Matikan bila operator atau server membatasi koneksi bersamaan.",
+                    )
                 }
             }
 

@@ -63,6 +63,7 @@ class Downloader @Inject constructor(
     private val resolvers: HostResolverRegistry,
     private val storageWriter: StorageWriter,
     private val settings: SettingsRepository,
+    private val turbo: TurboDownloader,
 ) {
 
     suspend fun download(
@@ -184,6 +185,45 @@ class Downloader @Inject constructor(
         downloadDir: File,
     ): SingleOutcome {
         val partFile = File(downloadDir, "$fileName.part")
+
+        // A large episode over one TCP connection leaves most of the link idle.
+        // Turbo pulls it over several byte ranges; anything the host cannot serve
+        // that way falls straight through to the ordinary path below.
+        if (!partFile.exists() && runCatching { settings.currentTurboDownloads() }.getOrDefault(true)) {
+            val totalBytes = turbo.probe(directUrl, headers)
+            if (totalBytes != null && totalBytes >= MIN_TURBO_TOTAL_BYTES) {
+                if (storageWriter.existsWithSize(animeSlug, fileName, totalBytes)) {
+                    partFile.delete()
+                    return SingleOutcome.Success(alreadyExisted = true)
+                }
+                Timber.i(
+                    "Turbo: %s over %d connections (%.1f MB)",
+                    fileName,
+                    TURBO_CONNECTIONS,
+                    totalBytes / 1024.0 / 1024.0,
+                )
+                val completed = turbo.download(
+                    url = directUrl,
+                    headers = headers,
+                    partFile = partFile,
+                    totalBytes = totalBytes,
+                    connections = TURBO_CONNECTIONS,
+                    host = host,
+                    fileName = fileName,
+                    listener = listener,
+                )
+                if (completed) {
+                    val saved = storageWriter.save(partFile, animeSlug, fileName)
+                    if (!saved) {
+                        partFile.delete()
+                        return SingleOutcome.LocalFailure("Gagal menyimpan file ke folder tujuan")
+                    }
+                    partFile.delete()
+                    return SingleOutcome.Success(alreadyExisted = false)
+                }
+            }
+        }
+
         var attempt = 0
 
         while (attempt < MAX_ATTEMPTS) {

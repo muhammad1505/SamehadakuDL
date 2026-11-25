@@ -4,6 +4,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 
 @Singleton
@@ -47,11 +48,15 @@ class HttpClientFactory @Inject constructor(
         .retryOnConnectionFailure(true)
         .build()
 
-    /** Final file downloads: longer read timeout, generic browser UA. */
+    /**
+     * Final file downloads: longer read timeout, generic browser UA and a pool
+     * large enough for the parallel range connections of one episode.
+     */
     val downloadClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
+        .connectionPool(ConnectionPool(12, 5, TimeUnit.MINUTES))
         .addInterceptor(browserUserAgentInterceptor)
         .followRedirects(true)
         .followSslRedirects(true)

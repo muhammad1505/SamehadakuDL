@@ -45,6 +45,9 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   dibuka hanya saat dibutuhkan.
 - Sesi Cloudflare dengan WebView verifikasi, reset sesi, dan verifikasi ulang otomatis.
 - Pengaturan unduhan paralel dan fallback kualitas terdekat.
+- Unduhan turbo: file besar dipecah menjadi beberapa rentang byte dan diunduh lewat
+  4 koneksi sekaligus, dengan fallback otomatis ke satu koneksi pada server yang
+  tidak mendukung `Range`.
 - Splash screen atmosferik, bottom navigation, dan transisi antar layar.
 
 ## Rilis 2.6.0
@@ -547,6 +550,14 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 
 ## Rilis 2.7.14
 
+- Unduhan turbo: file episode besar sekarang dipecah menjadi beberapa rentang byte
+  dan diunduh lewat 4 koneksi sekaligus, lalu disatukan menjadi satu file utuh.
+  Koneksi HP yang biasanya menganggur saat unduhan tunggal jadi terpakai, dan
+  progres serta kecepatan tetap dilaporkan seperti biasa. Server yang tidak
+  mendukung `Range` atau menolak segmen otomatis kembali ke satu koneksi, file
+  kecil di bawah 8 MB juga memakai satu koneksi, dan hasil turbo dicek ukurannya
+  sebelum disimpan. Pool koneksi klien unduhan ikut diperbesar agar beberapa
+  rentang tidak saling menunggu. Bisa dimatikan di Pengaturan → Unduhan.
 - Menambahkan auto clear riwayat unduhan di Pengaturan → “Riwayat unduhan” dengan
   pilihan Nonaktif, 7, 14, atau 30 hari. Entri Selesai, Gagal, dan Dibatalkan yang
   lebih tua dari batas itu dihapus dari daftar setiap aplikasi dibuka, jadi layar
