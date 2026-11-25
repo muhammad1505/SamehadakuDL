@@ -1,5 +1,6 @@
 package app.samehadaku.dl.data.download
 
+import app.samehadaku.dl.core.HistoryRetention
 import app.samehadaku.dl.core.SiteMirrors
 import app.samehadaku.dl.core.UrlUtils
 import app.samehadaku.dl.data.network.NeedsVerificationException
@@ -83,6 +84,57 @@ class DownloadQueue @Inject constructor(
                 concurrency = value
                 schedule()
             }
+        }
+
+        // The queue is restored when the app starts, so this first emission trims
+        // old rows without waiting for Unduhan; later emissions follow the setting.
+        // Only bookkeeping rows leave, files and unfinished tasks stay put.
+        scope.launch {
+            settings.historyAutoClearDays.collect { days ->
+                pruneHistory(days)
+            }
+        }
+    }
+
+    /**
+     * Removes finished history entries older than [retentionDays] from the list.
+     *
+     * Downloaded files are untouched: Smart Storage owns deletion, while this keeps
+     * the Unduhan history readable. Active and paused downloads never match, so a
+     * long-running task cannot disappear mid-transfer.
+     */
+    suspend fun pruneHistory(retentionDays: Int): Int {
+        ready.await()
+        if (HistoryRetention.normalizedDays(retentionDays) <= 0) return 0
+        val now = System.currentTimeMillis()
+        val expired = _tasks.value
+            .filter { task ->
+                task.state.isFinished &&
+                    HistoryRetention.isExpired(
+                        referenceMillis = task.finishedAt ?: task.createdAt,
+                        nowMillis = now,
+                        retentionDays = retentionDays,
+                    )
+            }
+            .map { task -> task.id }
+            .toSet()
+        if (expired.isEmpty()) return 0
+        _tasks.update { tasks -> tasks.filterNot { task -> task.id in expired } }
+        persist()
+        Timber.i(
+            "Riwayat: %d entri lebih lama dari %d hari dibersihkan",
+            expired.size,
+            retentionDays,
+        )
+        return expired.size
+    }
+
+    /** Applies the auto-clear setting at app start, before Unduhan is opened. */
+    fun enforceHistoryRetention() {
+        scope.launch {
+            ready.await()
+            val days = runCatching { settings.currentHistoryAutoClearDays() }.getOrDefault(0)
+            pruneHistory(days)
         }
     }
 

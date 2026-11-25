@@ -21,6 +21,8 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Pemberitahuan saat file episode yang sama sudah ada sehingga tidak diunduh ulang.
 - Aksi terpisah untuk membersihkan riwayat (file tetap ada) dan menghapus file permanen,
   masing-masing dengan konfirmasi.
+- Riwayat unduhan bisa dibersihkan otomatis setelah 7/14/30 hari; hanya catatan riwayat
+  yang hilang, file episode tetap tersimpan.
 - Penyimpanan fleksibel: folder pilihan (SAF), MediaStore, atau penyimpanan aplikasi.
 - Pemutar internal Media3/ExoPlayer dengan resume posisi tonton, tanda tonton otomatis
   setelah 90% video, playlist episode otomatis, kecepatan 0.5x–2x, mode layar
@@ -542,6 +544,18 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   dan rasio PiP ekstrem dijepit ke rentang yang didukung Android.
 - Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
   notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
+
+## Rilis 2.7.14
+
+- Menambahkan auto clear riwayat unduhan di Pengaturan → “Riwayat unduhan” dengan
+  pilihan Nonaktif, 7, 14, atau 30 hari. Entri Selesai, Gagal, dan Dibatalkan yang
+  lebih tua dari batas itu dihapus dari daftar setiap aplikasi dibuka, jadi layar
+  Unduhan tidak lagi menumpuk episode lama.
+- Pembersihan hanya menyentuh catatan riwayat: unduhan yang berjalan, dijeda, atau
+  menunggu tidak pernah dihapus, dan file episode di Download/SamehadakuDL tetap
+  utuh. Tombol “Bersihkan” manual di layar Unduhan masih tersedia kapan saja.
+- Aturan batas waktu dipisah ke unit test sendiri sehingga perilaku tepat di batas
+  hari, jam mundur, dan timestamp kosong tetap terjaga.
 
 ## Rilis 2.7.13
 

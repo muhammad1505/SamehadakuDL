@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Remove
@@ -442,6 +443,53 @@ fun SettingsScreen(
                         }
                     }
                     Caption("Nilai 1 paling hemat data. Nilai 3 mengunduh hingga tiga episode sekaligus.")
+                }
+            }
+
+            item {
+                val historyOptions = listOf(0, 7, 14, 30)
+                val selectedHistory = historyOptions
+                    .indexOf(state.historyAutoClearDays)
+                    .coerceAtLeast(0)
+                SettingSection(
+                    title = "Riwayat unduhan",
+                    subtitle = "Bersihkan daftar lama otomatis",
+                    icon = Icons.Rounded.History,
+                    tint = BrandGold,
+                    badge = if (state.historyAutoClearDays <= 0) {
+                        "Nonaktif"
+                    } else {
+                        "${state.historyAutoClearDays} hari"
+                    },
+                ) {
+                    Text(
+                        text = "Hapus riwayat otomatis",
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        text = "Entri Selesai, Gagal, dan Dibatalkan yang lebih tua dari " +
+                            "batas ini hilang dari daftar tanpa menghapus file unduhan.",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    SegmentedTabs(
+                        tabs = historyOptions.map { days ->
+                            SegmentTab(label = if (days == 0) "Nonaktif" else "$days hari")
+                        },
+                        selectedIndex = selectedHistory,
+                        onSelect = { index ->
+                            viewModel.setHistoryAutoClearDays(historyOptions[index])
+                        },
+                    )
+                    Spacer(Modifier.height(9.dp))
+                    Caption(
+                        "Pembersihan berjalan saat aplikasi dibuka. Unduhan yang sedang " +
+                            "berjalan, dijeda, atau menunggu tidak pernah disentuh, dan file " +
+                            "di Download/SamehadakuDL tetap utuh. Tombol “Bersihkan” di layar " +
+                            "Unduhan tetap bisa dipakai kapan saja.",
+                    )
                 }
             }
 

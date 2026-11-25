@@ -30,6 +30,7 @@ data class SettingsUiState(
     val autoCheckEnabled: Boolean = true,
     val autoCheckIntervalMinutes: Int = 60,
     val failedRetryEnabled: Boolean = true,
+    val historyAutoClearDays: Int = 0,
     val lastAutoCheckAt: Long = 0L,
     val lastAutoCheckSuccessAt: Long = 0L,
     val smartStorageEnabled: Boolean = false,
@@ -101,6 +102,11 @@ class SettingsViewModel @Inject constructor(
                         loading = false,
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            settings.historyAutoClearDays.collect { days ->
+                _state.update { it.copy(historyAutoClearDays = days) }
             }
         }
         viewModelScope.launch {
@@ -237,6 +243,22 @@ class SettingsViewModel @Inject constructor(
                         "Percobaan ulang otomatis diaktifkan."
                     } else {
                         "Percobaan ulang otomatis dimatikan."
+                    },
+                )
+            }
+        }
+    }
+
+    fun setHistoryAutoClearDays(days: Int) {
+        viewModelScope.launch {
+            settings.setHistoryAutoClearDays(days)
+            _state.update {
+                it.copy(
+                    message = if (days <= 0) {
+                        "Auto clear riwayat unduhan dimatikan."
+                    } else {
+                        "Riwayat unduhan lebih lama dari $days hari dibersihkan otomatis " +
+                            "saat aplikasi dibuka. File unduhan tetap tersimpan."
                     },
                 )
             }

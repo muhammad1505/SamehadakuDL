@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import app.samehadaku.dl.core.HistoryRetention
 import app.samehadaku.dl.domain.model.Host
 import app.samehadaku.dl.domain.model.QualityPreference
 import app.samehadaku.dl.domain.model.VideoFormat
@@ -85,6 +86,14 @@ class SettingsRepository @Inject constructor(
     /** Automatic retry of downloads that failed because a host link was dead. */
     val failedRetryEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[KEY_FAILED_RETRY_ENABLED] ?: true
+    }
+
+    /**
+     * How many days finished downloads stay in the history list; 0 keeps every
+     * entry. Only the list is trimmed, downloaded files are never deleted here.
+     */
+    val historyAutoClearDays: Flow<Int> = dataStore.data.map { preferences ->
+        HistoryRetention.normalizedDays(preferences[KEY_HISTORY_AUTO_CLEAR_DAYS] ?: 0)
     }
 
     suspend fun addRecentUrl(url: String) {
@@ -176,6 +185,14 @@ class SettingsRepository @Inject constructor(
 
     suspend fun currentFailedRetryEnabled(): Boolean = failedRetryEnabled.first()
 
+    suspend fun setHistoryAutoClearDays(days: Int) {
+        dataStore.edit {
+            it[KEY_HISTORY_AUTO_CLEAR_DAYS] = HistoryRetention.normalizedDays(days)
+        }
+    }
+
+    suspend fun currentHistoryAutoClearDays(): Int = historyAutoClearDays.first()
+
     suspend fun currentAutoCheckEnabled(): Boolean = autoCheckEnabled.first()
 
     suspend fun currentAutoCheckIntervalMinutes(): Int = autoCheckIntervalMinutes.first()
@@ -231,5 +248,6 @@ class SettingsRepository @Inject constructor(
         val KEY_LAST_AUTO_CHECK_AT = longPreferencesKey("last_auto_check_at")
         val KEY_LAST_AUTO_CHECK_SUCCESS_AT = longPreferencesKey("last_auto_check_success_at")
         val KEY_FAILED_RETRY_ENABLED = booleanPreferencesKey("failed_retry_enabled")
+        val KEY_HISTORY_AUTO_CLEAR_DAYS = intPreferencesKey("history_auto_clear_days")
     }
 }
