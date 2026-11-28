@@ -45,12 +45,16 @@ android {
         applicationId = "app.samehadaku.dl"
         minSdk = 26
         targetSdk = 35
-        versionCode = 58
-        versionName = "2.7.14"
+        versionCode = 59
+        versionName = "2.7.15"
 
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // The app ships its own Indonesian strings. Keeping only these locales
+        // drops the unused translations bundled by AndroidX libraries.
+        resourceConfigurations += listOf("in", "id")
     }
 
     if (releaseKeystoreFile != null && releaseKeystoreFile.exists()) {
@@ -68,7 +72,10 @@ android {
         debug {
         }
         release {
-            isMinifyEnabled = false
+            // R8 removes unused Compose/Media3/OkHttp/Jsoup code and shrinks
+            // resources. Debug builds stay unminified for readable stack traces.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -91,9 +98,22 @@ android {
         buildConfig = true
     }
 
+    dependenciesInfo {
+        // The dependency metadata block is only useful to Play Console and adds
+        // a few kilobytes to every sideloaded APK.
+        includeInApk = false
+        includeInBundle = false
+    }
+
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "DebugProbesKt.bin",
+            )
         }
     }
 

@@ -300,28 +300,17 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Hanya file hasil unduhan aplikasi yang dikelola, dan ukuran file diverifikasi ulang
   sebelum dihapus. Konfirmasi atau penolakan penyimpanan tidak memaksa penghapusan.
 
-## Rilis 2.6.27
+## Rilis 2.6.25-fix
 
-- Tombol “Bersihkan sekarang” kini benar-benar menghapus episode yang ditandai
-  tonton tanpa menunggu masa tenggang, setelah dialog konfirmasi. Masa tenggang
-  1/3/7/14 hari hanya berlaku untuk pembersihan otomatis di latar belakang.
-- Pesan hasil pembersihan sekarang membedakan tidak ada episode tonton, file yang
-  dilewati karena ukuran atau bentuknya berubah, dan file yang menunggu izin
-  penyimpanan.
-- Pembatalan normal saat memuat pengumuman situs, misalnya ketika layar
-  ditinggalkan, tidak lagi dicatat sebagai error di Log aplikasi.
-- Verifikasi ukuran byte dan kepemilikan file hasil unduhan tetap dilakukan
-  sebelum penghapusan, baik untuk aksi manual maupun otomatis.
-
-## Rilis 2.6.26-fix
-
-- Menghapus izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` yang dapat membuat
-  Google Play Protect menandai APK sebagai aplikasi tidak aman saat dipasang
-  dari luar Play Store.
-- Tombol optimasi baterai tetap membuka daftar optimasi sistem; pengguna memilih
-  Samehadaku DL lalu “Jangan optimalkan/Tanpa batasan” secara manual.
-- Status pengecualian baterai, pembatasan latar belakang, hemat data, notifikasi,
-  dan autostart OEM tidak berubah.
+- File unduhan lama atau sebelum pembaruan Smart Storage kini tetap dikenali dari
+  Koleksi, termasuk setelah riwayat unduhan dibersihkan.
+- Pengenalan memakai lokasi unduhan aplikasi, pola nama file downloader, dan ukuran
+  byte yang sama; file yang lolos dicatat ulang agar pengelolaan berikutnya tidak
+  bergantung pada riwayat.
+- Alasan file diterima atau ditolak sekarang ditulis ke Log aplikasi, sehingga file
+  yang tidak bisa ditandai tonton bisa diperiksa langsung dari ponsel.
+- Penghapusan dari folder SAF pilihan kini juga menangani file di dalam subfolder
+  `SamehadakuDL`, bukan hanya folder anime di level teratas.
 
 ## Rilis 2.6.26
 
@@ -337,17 +326,28 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Semua izin bersifat opsional dan hanya dibuka lewat tindakan pengguna; cek
   susulan saat aplikasi dibuka tetap menjadi jaring pengaman.
 
-## Rilis 2.6.25-fix
+## Rilis 2.6.26-fix
 
-- File unduhan lama atau sebelum pembaruan Smart Storage kini tetap dikenali dari
-  Koleksi, termasuk setelah riwayat unduhan dibersihkan.
-- Pengenalan memakai lokasi unduhan aplikasi, pola nama file downloader, dan ukuran
-  byte yang sama; file yang lolos dicatat ulang agar pengelolaan berikutnya tidak
-  bergantung pada riwayat.
-- Alasan file diterima atau ditolak sekarang ditulis ke Log aplikasi, sehingga file
-  yang tidak bisa ditandai tonton bisa diperiksa langsung dari ponsel.
-- Penghapusan dari folder SAF pilihan kini juga menangani file di dalam subfolder
-  `SamehadakuDL`, bukan hanya folder anime di level teratas.
+- Menghapus izin `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` yang dapat membuat
+  Google Play Protect menandai APK sebagai aplikasi tidak aman saat dipasang
+  dari luar Play Store.
+- Tombol optimasi baterai tetap membuka daftar optimasi sistem; pengguna memilih
+  Samehadaku DL lalu “Jangan optimalkan/Tanpa batasan” secara manual.
+- Status pengecualian baterai, pembatasan latar belakang, hemat data, notifikasi,
+  dan autostart OEM tidak berubah.
+
+## Rilis 2.6.27
+
+- Tombol “Bersihkan sekarang” kini benar-benar menghapus episode yang ditandai
+  tonton tanpa menunggu masa tenggang, setelah dialog konfirmasi. Masa tenggang
+  1/3/7/14 hari hanya berlaku untuk pembersihan otomatis di latar belakang.
+- Pesan hasil pembersihan sekarang membedakan tidak ada episode tonton, file yang
+  dilewati karena ukuran atau bentuknya berubah, dan file yang menunggu izin
+  penyimpanan.
+- Pembatalan normal saat memuat pengumuman situs, misalnya ketika layar
+  ditinggalkan, tidak lagi dicatat sebagai error di Log aplikasi.
+- Verifikasi ukuran byte dan kepemilikan file hasil unduhan tetap dilakukan
+  sebelum penghapusan, baik untuk aksi manual maupun otomatis.
 
 ## Rilis 2.7.0
 
@@ -550,80 +550,6 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
 - Layar akhir episode tetap menampilkan bar atas (kembali, playlist, PiP), dan
   notifikasi pemutaran memakai ikon play sendiri, bukan ikon unduhan.
 
-## Rilis 2.7.14
-
-- Opsi “Jadikan pemutar default”: aplikasi kini menerima intent `ACTION_VIEW` untuk
-  `video/*`, sehingga muncul di dialog “Buka dengan” dan bisa dipilih sebagai
-  pemutar video default. Video dari file manager langsung diputar dengan kontrol
-  internal, termasuk resume posisi terakhir dan tanpa pernah masuk daftar Smart
-  Storage. Pengaturan → “Pemutar video” menyediakan tombol menuju layar default
-  aplikasi Android, karena status default hanya bisa diatur oleh sistem.
-- UX pemutar: mengetuk teks waktu di bar bawah mengganti tampilan dari
-  “posisi / durasi” menjadi “sisa waktu / durasi” (aksen mint) tanpa membuka panel.
-- Unduhan turbo: file episode besar sekarang dipecah menjadi beberapa rentang byte
-  dan diunduh lewat 4 koneksi sekaligus, lalu disatukan menjadi satu file utuh.
-  Koneksi HP yang biasanya menganggur saat unduhan tunggal jadi terpakai, dan
-  progres serta kecepatan tetap dilaporkan seperti biasa. Server yang tidak
-  mendukung `Range` atau menolak segmen otomatis kembali ke satu koneksi, file
-  kecil di bawah 8 MB juga memakai satu koneksi, dan hasil turbo dicek ukurannya
-  sebelum disimpan. Pool koneksi klien unduhan ikut diperbesar agar beberapa
-  rentang tidak saling menunggu. Bisa dimatikan di Pengaturan → Unduhan.
-- Menambahkan auto clear riwayat unduhan di Pengaturan → “Riwayat unduhan” dengan
-  pilihan Nonaktif, 7, 14, atau 30 hari. Entri Selesai, Gagal, dan Dibatalkan yang
-  lebih tua dari batas itu dihapus dari daftar setiap aplikasi dibuka, jadi layar
-  Unduhan tidak lagi menumpuk episode lama.
-- Pembersihan hanya menyentuh catatan riwayat: unduhan yang berjalan, dijeda, atau
-  menunggu tidak pernah dihapus, dan file episode di Download/SamehadakuDL tetap
-  utuh. Tombol “Bersihkan” manual di layar Unduhan masih tersedia kapan saja.
-- Aturan batas waktu dipisah ke unit test sendiri sehingga perilaku tepat di batas
-  hari, jam mundur, dan timestamp kosong tetap terjaga.
-
-## Rilis 2.7.13
-
-- Menekan tombol putar di tab Unduhan sekarang membuka pemutar internal seperti
-  Koleksi, bukan lagi menyerahkan file ke aplikasi lain.
-- Daftar unduhan diberi pemisah tanggal bergaris (“Hari ini”, “22 Nov 2026”, …)
-  lengkap dengan jumlah episode per hari, dan setiap kartu menampilkan tanggal
-  unduhan selesai agar riwayat mudah dibaca.
-- Cinema DND kini memakai filter “alarm saja”, sehingga notifikasi WhatsApp,
-  pesan, dan panggilan tidak lagi muncul saat menonton; alarm tetap berbunyi dan
-  audio video tidak terpengaruh.
-- DND bertahan selama pemutaran latar berjalan (sebelumnya dilepas begitu
-  aplikasi ke latar), dan pilihan DND diingat: episode berikutnya mengaktifkannya
-  kembali otomatis tanpa perlu membuka panel. Mematikan manual menghapus memori
-  itu. Ikon DND juga tersedia langsung di bar atas pemutar.
-- Equalizer dan loudness boost lebih andal: efek dipasang ulang saat pemutar siap
-  dan selama pemutaran, sehingga preset tidak lagi diam-diam tidak aktif, dan
-  perangkat tanpa EQ memberi tahu pengguna alih-alih tampak rusak.
-
-## Rilis 2.7.12
-
-- Rotasi pemutar kembali mengikuti arah HP seperti 2.7.7, termasuk pada HP yang
-  auto-rotate-nya dimatikan. Landscape tetap jadi pembuka singkat saat episode
-  diputar, lalu orientasi memakai sensor murni sehingga HP yang diputar tegak
-  langsung portrait dan diputar menyamping kembali landscape. Aturan 2.7.9 yang
-  menyerahkan orientasi ke kunci rotasi sistem membuat pemutar diam di satu
-  orientasi pada HP dengan auto-rotate mati.
-
-## Rilis 2.7.11
-
-- Rotasi pemutar sekarang sepenuhnya mengikuti pengguna. Landscape hanya dipakai
-  sebagai pembuka singkat (±1,5 detik) saat episode diputar, lalu orientasi
-  diserahkan ke sensor dan kunci rotasi sistem: memutar HP ke tegak langsung
-  membuat pemutar portrait, memutar ke samping kembali penuh landscape, berulang
-  sebanyak yang diinginkan tanpa menutup pemutar. Sebelumnya pemutar bertahan
-  landscape selama HP belum pernah diputar ke samping, sehingga HP yang sejak awal
-  dipegang tegak tidak pernah bisa portrait.
-
-## Rilis 2.7.10
-
-- Pemutar sekarang langsung terbuka dalam landscape saat episode diputar, jadi
-  pengguna tidak perlu memutar HP lebih dulu untuk mendapat gambar penuh. Setelah
-  menonton dalam landscape lalu HP diputar tegak, rotasi diserahkan kembali ke
-  sensor dan kunci rotasi sistem, sehingga video portrait serta daftar episode
-  tetap bisa dibaca tegak. Perilaku ini menggantikan aturan 2.7.9 yang menunggu
-  HP diputar lebih dulu sebelum layar berubah orientasi.
-
 ## Rilis 2.7.9
 
 - “Jangan ganggu” sekarang dipulihkan otomatis saat aplikasi dibuka lagi setelah
@@ -671,6 +597,94 @@ bersama di seluruh layar (splash, beranda, dan halaman episode).
   perhitungan jadwal cek otomatis, gerbang cek tunggal, dan penjepitan rasio PiP.
   Changelog di aplikasi berhenti pada judul bagian berikutnya sehingga catatan
   rilis tidak lagi mencampur daftar dari bagian Penyimpanan atau Smart Storage.
+
+## Rilis 2.7.10
+
+- Pemutar sekarang langsung terbuka dalam landscape saat episode diputar, jadi
+  pengguna tidak perlu memutar HP lebih dulu untuk mendapat gambar penuh. Setelah
+  menonton dalam landscape lalu HP diputar tegak, rotasi diserahkan kembali ke
+  sensor dan kunci rotasi sistem, sehingga video portrait serta daftar episode
+  tetap bisa dibaca tegak. Perilaku ini menggantikan aturan 2.7.9 yang menunggu
+  HP diputar lebih dulu sebelum layar berubah orientasi.
+
+## Rilis 2.7.11
+
+- Rotasi pemutar sekarang sepenuhnya mengikuti pengguna. Landscape hanya dipakai
+  sebagai pembuka singkat (±1,5 detik) saat episode diputar, lalu orientasi
+  diserahkan ke sensor dan kunci rotasi sistem: memutar HP ke tegak langsung
+  membuat pemutar portrait, memutar ke samping kembali penuh landscape, berulang
+  sebanyak yang diinginkan tanpa menutup pemutar. Sebelumnya pemutar bertahan
+  landscape selama HP belum pernah diputar ke samping, sehingga HP yang sejak awal
+  dipegang tegak tidak pernah bisa portrait.
+
+## Rilis 2.7.12
+
+- Rotasi pemutar kembali mengikuti arah HP seperti 2.7.7, termasuk pada HP yang
+  auto-rotate-nya dimatikan. Landscape tetap jadi pembuka singkat saat episode
+  diputar, lalu orientasi memakai sensor murni sehingga HP yang diputar tegak
+  langsung portrait dan diputar menyamping kembali landscape. Aturan 2.7.9 yang
+  menyerahkan orientasi ke kunci rotasi sistem membuat pemutar diam di satu
+  orientasi pada HP dengan auto-rotate mati.
+
+## Rilis 2.7.13
+
+- Menekan tombol putar di tab Unduhan sekarang membuka pemutar internal seperti
+  Koleksi, bukan lagi menyerahkan file ke aplikasi lain.
+- Daftar unduhan diberi pemisah tanggal bergaris (“Hari ini”, “22 Nov 2026”, …)
+  lengkap dengan jumlah episode per hari, dan setiap kartu menampilkan tanggal
+  unduhan selesai agar riwayat mudah dibaca.
+- Cinema DND kini memakai filter “alarm saja”, sehingga notifikasi WhatsApp,
+  pesan, dan panggilan tidak lagi muncul saat menonton; alarm tetap berbunyi dan
+  audio video tidak terpengaruh.
+- DND bertahan selama pemutaran latar berjalan (sebelumnya dilepas begitu
+  aplikasi ke latar), dan pilihan DND diingat: episode berikutnya mengaktifkannya
+  kembali otomatis tanpa perlu membuka panel. Mematikan manual menghapus memori
+  itu. Ikon DND juga tersedia langsung di bar atas pemutar.
+- Equalizer dan loudness boost lebih andal: efek dipasang ulang saat pemutar siap
+  dan selama pemutaran, sehingga preset tidak lagi diam-diam tidak aktif, dan
+  perangkat tanpa EQ memberi tahu pengguna alih-alih tampak rusak.
+
+## Rilis 2.7.14
+
+- Opsi “Jadikan pemutar default”: aplikasi kini menerima intent `ACTION_VIEW` untuk
+  `video/*`, sehingga muncul di dialog “Buka dengan” dan bisa dipilih sebagai
+  pemutar video default. Video dari file manager langsung diputar dengan kontrol
+  internal, termasuk resume posisi terakhir dan tanpa pernah masuk daftar Smart
+  Storage. Pengaturan → “Pemutar video” menyediakan tombol menuju layar default
+  aplikasi Android, karena status default hanya bisa diatur oleh sistem.
+- UX pemutar: mengetuk teks waktu di bar bawah mengganti tampilan dari
+  “posisi / durasi” menjadi “sisa waktu / durasi” (aksen mint) tanpa membuka panel.
+- Unduhan turbo: file episode besar sekarang dipecah menjadi beberapa rentang byte
+  dan diunduh lewat 4 koneksi sekaligus, lalu disatukan menjadi satu file utuh.
+  Koneksi HP yang biasanya menganggur saat unduhan tunggal jadi terpakai, dan
+  progres serta kecepatan tetap dilaporkan seperti biasa. Server yang tidak
+  mendukung `Range` atau menolak segmen otomatis kembali ke satu koneksi, file
+  kecil di bawah 8 MB juga memakai satu koneksi, dan hasil turbo dicek ukurannya
+  sebelum disimpan. Pool koneksi klien unduhan ikut diperbesar agar beberapa
+  rentang tidak saling menunggu. Bisa dimatikan di Pengaturan → Unduhan.
+- Menambahkan auto clear riwayat unduhan di Pengaturan → “Riwayat unduhan” dengan
+  pilihan Nonaktif, 7, 14, atau 30 hari. Entri Selesai, Gagal, dan Dibatalkan yang
+  lebih tua dari batas itu dihapus dari daftar setiap aplikasi dibuka, jadi layar
+  Unduhan tidak lagi menumpuk episode lama.
+- Pembersihan hanya menyentuh catatan riwayat: unduhan yang berjalan, dijeda, atau
+  menunggu tidak pernah dihapus, dan file episode di Download/SamehadakuDL tetap
+  utuh. Tombol “Bersihkan” manual di layar Unduhan masih tersedia kapan saja.
+- Aturan batas waktu dipisah ke unit test sendiri sehingga perilaku tepat di batas
+  hari, jam mundur, dan timestamp kosong tetap terjaga.
+
+## Rilis 2.7.15
+
+- APK rilis kini diperkecil dengan R8: kode yang tidak dipakai dibuang, resource
+  yang tidak dirujuk dihapus, dan terjemahan pustaka yang tidak dipakai tidak ikut
+  masuk. Unduhan dan ruang instalasi jadi lebih kecil tanpa mengurangi fitur.
+- Aturan ProGuard yang terlalu luas diganti dengan aturan khusus WorkManager dan
+  nama enum yang disimpan di riwayat, sehingga jadwal cek otomatis serta data
+  unduhan lama tetap terbaca setelah pembaruan.
+- Latar aplikasi tidak lagi menjalankan animasi penuh layar 24 detik yang
+  menggambar ulang gradient, grid, bintang, dan aurora setiap frame. Tampilan
+  tetap sama, tetapi CPU/GPU dan baterai lebih hemat, terutama di HP kelas bawah.
+- Metadata dependensi tidak lagi ditulis ke APK, dan file lisensi pihak ketiga
+  yang tidak diperlukan tidak ikut dipaketkan.
 
 ## Penyimpanan dan izin
 

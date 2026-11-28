@@ -1,11 +1,5 @@
 package app.samehadaku.dl.presentation.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,7 +14,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -143,17 +136,6 @@ fun AppBackground(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
-    val transition = rememberInfiniteTransition(label = "app-background")
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 24_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "aurora-drift",
-    )
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -181,14 +163,17 @@ fun AppBackground(
                     ),
                 ),
         )
+        // Static backdrop. The previous version ran a 24-second infinite
+        // animation that redrew the full-screen gradients, grid, stars and
+        // aurora every frame, which was costly on low-end phones.
         Canvas(Modifier.fillMaxSize()) {
-            drawAmbientBackdrop(drift)
+            drawAmbientBackdrop()
         }
         content()
     }
 }
 
-private fun DrawScope.drawAmbientBackdrop(drift: Float) {
+private fun DrawScope.drawAmbientBackdrop() {
     val width = size.width
     val height = size.height
 
@@ -204,7 +189,7 @@ private fun DrawScope.drawAmbientBackdrop(drift: Float) {
         center = cyanCenter,
     )
 
-    val purpleCenter = Offset(width * (0.98f - drift * 0.04f), height * (0.54f + drift * 0.03f))
+    val purpleCenter = Offset(width * 0.98f, height * 0.54f)
     val purpleRadius = width * 0.8f
     drawCircle(
         brush = Brush.radialGradient(
